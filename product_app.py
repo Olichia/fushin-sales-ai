@@ -37,6 +37,12 @@ strategy_center_page = st.Page(
     icon=":material/assignment:",
 )
 
+management_report_page = st.Page(
+    PAGES_DIR / "16_主管報表中心.py",
+    title="主管報表",
+    icon=":material/picture_as_pdf:",
+)
+
 ai_advisor_page = st.Page(
     PAGES_DIR / "14_AI顧問.py",
     title="AI 策略顧問",
@@ -114,12 +120,13 @@ strategy_generation_page = st.Page(
 
 navigation = st.navigation(
     {
-        "決策分析": [
-            product_home_page,
-            activity_insight_page,
-            strategy_center_page,
-            ai_advisor_page,
-        ],
+       "決策分析": [
+    product_home_page,
+    activity_insight_page,
+    strategy_center_page,
+    management_report_page,
+    ai_advisor_page,
+],
         "資料管理": [
             data_management_page,
             sales_upload_page,
