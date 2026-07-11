@@ -1,0 +1,23 @@
+# Python 虛擬環境
+.venv/
+
+# Python 快取
+__pycache__/
+*.py[cod]
+
+# 環境變數與 API Key
+.env
+.streamlit/secrets.toml
+
+# VS Code 個人設定
+.vscode/
+
+# 作業系統檔案
+.DS_Store
+Thumbs.db
+
+# 暫存檔案
+*.tmp
+~$*.xlsx
+
+data/raw/*.xlsx
