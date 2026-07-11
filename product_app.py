@@ -45,6 +45,12 @@ ai_advisor_page = st.Page(
 # 資料管理
 # =========================================================
 
+data_management_page = st.Page(
+    PAGES_DIR / "15_資料管理中心.py",
+    title="資料管理中心",
+    icon=":material/folder_managed:",
+)
+
 sales_upload_page = st.Page(
     PAGES_DIR / "1_資料上傳.py",
     title="銷量資料上傳",
@@ -112,6 +118,7 @@ navigation = st.navigation(
             ai_advisor_page,
         ],
         "資料管理": [
+            data_management_page,
             sales_upload_page,
             column_mapping_page,
             data_quality_page,
@@ -145,5 +152,8 @@ with st.sidebar:
     )
 
 
-# 執行使用者目前選擇的頁面
+# =========================================================
+# 執行目前選擇的頁面
+# =========================================================
+
 navigation.run()
