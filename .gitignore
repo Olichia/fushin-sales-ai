@@ -24,3 +24,7 @@ data/raw/*.xlsx
 # 企業原始及清理後資料
 data/raw/*.xlsx
 data/processed/*.csv
+
+.env
+.env.*
+!.env.example

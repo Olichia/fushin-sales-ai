@@ -25,6 +25,11 @@ SESSION_DEFAULTS = {
     "strategy_report_text": None,
 
     # -----------------------------
+    # AI 顧問
+    # -----------------------------
+    "ai_chat_messages": [],
+    "ai_last_context": None,
+    # -----------------------------
     # 活動資料
         # -----------------------------
     # 整合分析資料
@@ -198,6 +203,8 @@ def clear_uploaded_data() -> None:
                 "activity_performance_dataframe",
         "strategy_report_dataframe",
         "strategy_report_text",
+                "ai_chat_messages",
+        "ai_last_context",
     ]
 
     for key in sales_keys:
@@ -468,6 +475,8 @@ def clear_activity_data() -> None:
                 "activity_performance_dataframe",
         "strategy_report_dataframe",
         "strategy_report_text",
+                "ai_chat_messages",
+        "ai_last_context",
     ]
 
     for key in activity_keys:
