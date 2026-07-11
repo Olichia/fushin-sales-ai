@@ -21,6 +21,8 @@ SESSION_DEFAULTS = {
     "uploaded_dataframe": None,
     "column_mapping": {},
     "standardized_dataframe": None,
+    "strategy_report_dataframe": None,
+    "strategy_report_text": None,
 
     # -----------------------------
     # 活動資料
@@ -193,6 +195,9 @@ def clear_uploaded_data() -> None:
         "standardized_dataframe",
      "integrated_sales_activity_dataframe",
         "integration_issues_dataframe",
+                "activity_performance_dataframe",
+        "strategy_report_dataframe",
+        "strategy_report_text",
     ]
 
     for key in sales_keys:
@@ -460,6 +465,9 @@ def clear_activity_data() -> None:
         "promotion_benefits_dataframe",
         "integrated_sales_activity_dataframe",
         "integration_issues_dataframe",
+                "activity_performance_dataframe",
+        "strategy_report_dataframe",
+        "strategy_report_text",
     ]
 
     for key in activity_keys:
