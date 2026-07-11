@@ -6,7 +6,10 @@ import plotly.express as px
 import streamlit as st
 
 
-# 確保 pages 內的程式可以讀取專案根目錄的 src
+# =========================================================
+# 專案路徑設定
+# =========================================================
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 if str(PROJECT_ROOT) not in sys.path:
@@ -16,6 +19,10 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.session_helpers import initialize_session_state
 
 
+# =========================================================
+# 頁面初始化
+# =========================================================
+
 initialize_session_state()
 
 st.title("銷售總覽")
@@ -23,6 +30,13 @@ st.title("銷售總覽")
 st.write(
     "本頁根據標準化後的銷量資料，"
     "顯示整體銷量、商品排行及每日銷量趨勢。"
+)
+
+st.warning(
+    "目前分析保留所有原始銷量資料，"
+    "同日同商品多筆紀錄會加總；"
+    "在企業確認重複資料定義前，"
+    "結果應視為初步分析。"
 )
 
 
@@ -64,12 +78,17 @@ missing_columns = required_columns - set(
 if missing_columns:
     st.error(
         "標準化資料缺少必要欄位："
-        + ", ".join(sorted(missing_columns))
+        + ", ".join(
+            sorted(missing_columns)
+        )
     )
     st.stop()
 
 
-# 再次確保欄位型別正確
+# =========================================================
+# 欄位型別清理
+# =========================================================
+
 sales["sale_date"] = pd.to_datetime(
     sales["sale_date"],
     errors="coerce",
@@ -84,16 +103,18 @@ sales["product_id"] = (
     sales["product_id"]
     .astype("string")
     .str.strip()
+    .replace("", pd.NA)
 )
 
 sales["product_name"] = (
     sales["product_name"]
     .astype("string")
     .str.strip()
+    .replace("", pd.NA)
 )
 
 
-# 分析時先排除日期或銷量無法辨識的資料
+# 排除無法分析的日期、商品編號與銷量
 analysis_sales = sales.dropna(
     subset=[
         "sale_date",
@@ -102,6 +123,7 @@ analysis_sales = sales.dropna(
     ]
 ).copy()
 
+
 if analysis_sales.empty:
     st.error(
         "目前沒有可供分析的有效銷量資料。"
@@ -109,11 +131,26 @@ if analysis_sales.empty:
     st.stop()
 
 
+# 商品名稱缺漏時使用替代文字
+analysis_sales["product_name"] = (
+    analysis_sales["product_name"]
+    .fillna("未提供商品名稱")
+    .astype(str)
+)
+
+analysis_sales["product_id"] = (
+    analysis_sales["product_id"]
+    .fillna("未提供商品編號")
+    .astype(str)
+)
+
+
 # =========================================================
 # 側邊欄篩選
 # =========================================================
 
 st.sidebar.header("銷售資料篩選")
+
 
 minimum_date = (
     analysis_sales["sale_date"]
@@ -127,6 +164,7 @@ maximum_date = (
     .date()
 )
 
+
 selected_date_range = st.sidebar.date_input(
     "選擇分析日期範圍",
     value=(
@@ -138,10 +176,13 @@ selected_date_range = st.sidebar.date_input(
 )
 
 
-if isinstance(
-    selected_date_range,
-    (tuple, list),
-) and len(selected_date_range) == 2:
+if (
+    isinstance(
+        selected_date_range,
+        (tuple, list),
+    )
+    and len(selected_date_range) == 2
+):
     selected_start_date = pd.Timestamp(
         selected_date_range[0]
     )
@@ -160,6 +201,13 @@ else:
     )
 
 
+if selected_start_date > selected_end_date:
+    st.sidebar.error(
+        "開始日期不可晚於結束日期。"
+    )
+    st.stop()
+
+
 filtered_sales = analysis_sales[
     analysis_sales["sale_date"].between(
         selected_start_date,
@@ -168,14 +216,30 @@ filtered_sales = analysis_sales[
 ].copy()
 
 
+if filtered_sales.empty:
+    st.warning(
+        "目前日期範圍內沒有銷量資料。"
+    )
+    st.stop()
+
+
+# =========================================================
+# 商品篩選
+# =========================================================
+
 product_options = (
     filtered_sales[
-        ["product_id", "product_name"]
+        [
+            "product_id",
+            "product_name",
+        ]
     ]
     .drop_duplicates(
         subset=["product_id"]
     )
-    .sort_values("product_id")
+    .sort_values(
+        "product_id"
+    )
 )
 
 
@@ -207,7 +271,9 @@ if selected_product_labels:
     filtered_sales = filtered_sales[
         filtered_sales[
             "product_id"
-        ].isin(selected_product_ids)
+        ].isin(
+            selected_product_ids
+        )
     ].copy()
 
 
@@ -224,19 +290,22 @@ if filtered_sales.empty:
 
 
 # =========================================================
-# KPI 指標
+# 核心 KPI
 # =========================================================
 
 total_quantity = (
-    filtered_sales["quantity"].sum()
+    filtered_sales["quantity"]
+    .sum()
 )
 
 product_count = (
-    filtered_sales["product_id"].nunique()
+    filtered_sales["product_id"]
+    .nunique()
 )
 
 active_days = (
-    filtered_sales["sale_date"].nunique()
+    filtered_sales["sale_date"]
+    .nunique()
 )
 
 average_daily_quantity = (
@@ -253,7 +322,9 @@ daily_sales = (
         as_index=False,
     )["quantity"]
     .sum()
-    .sort_values("sale_date")
+    .sort_values(
+        "sale_date"
+    )
 )
 
 
@@ -267,12 +338,16 @@ else:
     ]
 
     highest_sales_date = (
-        highest_daily_row["sale_date"]
+        highest_daily_row[
+            "sale_date"
+        ]
         .strftime("%Y-%m-%d")
     )
 
     highest_daily_quantity = (
-        highest_daily_row["quantity"]
+        highest_daily_row[
+            "quantity"
+        ]
     )
 
 
@@ -318,27 +393,33 @@ st.caption(
 
 st.subheader("每日銷量趨勢")
 
-daily_figure = px.line(
-    daily_sales,
-    x="sale_date",
-    y="quantity",
-    markers=True,
-    labels={
-        "sale_date": "日期",
-        "quantity": "銷量",
-    },
-)
+if daily_sales.empty:
+    st.info(
+        "目前沒有可顯示的每日銷量資料。"
+    )
 
-daily_figure.update_layout(
-    xaxis_title="日期",
-    yaxis_title="銷量",
-    hovermode="x unified",
-)
+else:
+    daily_figure = px.line(
+        daily_sales,
+        x="sale_date",
+        y="quantity",
+        markers=True,
+        labels={
+            "sale_date": "日期",
+            "quantity": "銷量",
+        },
+    )
 
-st.plotly_chart(
-    daily_figure,
-    use_container_width=True,
-)
+    daily_figure.update_layout(
+        xaxis_title="日期",
+        yaxis_title="銷量",
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(
+        daily_figure,
+        use_container_width=True,
+    )
 
 
 # =========================================================
@@ -346,6 +427,7 @@ st.plotly_chart(
 # =========================================================
 
 st.subheader("商品銷量排行")
+
 
 product_sales = (
     filtered_sales
@@ -364,23 +446,37 @@ product_sales = (
 )
 
 
+if product_sales.empty:
+    st.warning(
+        "目前篩選條件下沒有可顯示的商品資料。"
+    )
+    st.stop()
+
+
 top_n_maximum = min(
     20,
     len(product_sales),
 )
 
-top_n = st.slider(
-    "顯示前幾名商品",
-    min_value=1,
-    max_value=max(
-        1,
-        top_n_maximum,
-    ),
-    value=min(
-        10,
-        max(1, top_n_maximum),
-    ),
-)
+
+if top_n_maximum <= 1:
+    top_n = 1
+
+    st.caption(
+        "目前篩選結果只有 1 個商品，"
+        "因此直接顯示該商品。"
+    )
+
+else:
+    top_n = st.slider(
+        "顯示前幾名商品",
+        min_value=1,
+        max_value=top_n_maximum,
+        value=min(
+            10,
+            top_n_maximum,
+        ),
+    )
 
 
 top_product_sales = (
@@ -389,10 +485,15 @@ top_product_sales = (
     .copy()
 )
 
+
 top_product_sales["product_label"] = (
-    top_product_sales["product_id"]
+    top_product_sales[
+        "product_id"
+    ].astype(str)
     + "｜"
-    + top_product_sales["product_name"]
+    + top_product_sales[
+        "product_name"
+    ].astype(str)
 )
 
 
@@ -410,10 +511,12 @@ ranking_figure = px.bar(
     },
 )
 
+
 ranking_figure.update_layout(
     xaxis_title="總銷量",
     yaxis_title="商品",
 )
+
 
 st.plotly_chart(
     ranking_figure,
@@ -427,11 +530,14 @@ st.plotly_chart(
 
 st.subheader("月份銷量比較")
 
+
 monthly_sales = (
     filtered_sales.assign(
         sale_month=filtered_sales[
             "sale_date"
-        ].dt.to_period("M").astype(str)
+        ]
+        .dt.to_period("M")
+        .astype(str)
     )
     .groupby(
         "sale_month",
@@ -441,33 +547,40 @@ monthly_sales = (
 )
 
 
-monthly_figure = px.bar(
-    monthly_sales,
-    x="sale_month",
-    y="quantity",
-    labels={
-        "sale_month": "月份",
-        "quantity": "總銷量",
-    },
-    text_auto=True,
-)
+if monthly_sales.empty:
+    st.info(
+        "目前沒有可顯示的月份資料。"
+    )
 
-monthly_figure.update_layout(
-    xaxis_title="月份",
-    yaxis_title="總銷量",
-)
+else:
+    monthly_figure = px.bar(
+        monthly_sales,
+        x="sale_month",
+        y="quantity",
+        labels={
+            "sale_month": "月份",
+            "quantity": "總銷量",
+        },
+        text_auto=True,
+    )
 
-st.plotly_chart(
-    monthly_figure,
-    use_container_width=True,
-)
+    monthly_figure.update_layout(
+        xaxis_title="月份",
+        yaxis_title="總銷量",
+    )
+
+    st.plotly_chart(
+        monthly_figure,
+        use_container_width=True,
+    )
 
 
 # =========================================================
-# 商品每日趨勢
+# 商品每日銷量趨勢
 # =========================================================
 
 st.subheader("商品每日銷量趨勢")
+
 
 product_daily_sales = (
     filtered_sales
@@ -482,43 +595,55 @@ product_daily_sales = (
     .sum()
 )
 
+
 product_daily_sales["product_label"] = (
-    product_daily_sales["product_id"]
+    product_daily_sales[
+        "product_id"
+    ].astype(str)
     + "｜"
-    + product_daily_sales["product_name"]
+    + product_daily_sales[
+        "product_name"
+    ].astype(str)
 )
 
 
-product_trend_figure = px.line(
-    product_daily_sales,
-    x="sale_date",
-    y="quantity",
-    color="product_label",
-    markers=True,
-    labels={
-        "sale_date": "日期",
-        "quantity": "銷量",
-        "product_label": "商品",
-    },
-)
+if product_daily_sales.empty:
+    st.info(
+        "目前沒有可顯示的商品趨勢資料。"
+    )
 
-product_trend_figure.update_layout(
-    xaxis_title="日期",
-    yaxis_title="銷量",
-    hovermode="x unified",
-)
+else:
+    product_trend_figure = px.line(
+        product_daily_sales,
+        x="sale_date",
+        y="quantity",
+        color="product_label",
+        markers=True,
+        labels={
+            "sale_date": "日期",
+            "quantity": "銷量",
+            "product_label": "商品",
+        },
+    )
 
-st.plotly_chart(
-    product_trend_figure,
-    use_container_width=True,
-)
+    product_trend_figure.update_layout(
+        xaxis_title="日期",
+        yaxis_title="銷量",
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(
+        product_trend_figure,
+        use_container_width=True,
+    )
 
 
 # =========================================================
-# 明細表
+# 商品銷量明細
 # =========================================================
 
 st.subheader("商品銷量明細")
+
 
 display_product_sales = (
     product_sales.rename(
@@ -529,6 +654,7 @@ display_product_sales = (
         }
     )
 )
+
 
 st.dataframe(
     display_product_sales,
@@ -555,7 +681,9 @@ download_csv = download_dataframe.to_csv(
     index=False,
     encoding="utf-8-sig",
     date_format="%Y-%m-%d",
-).encode("utf-8-sig")
+).encode(
+    "utf-8-sig"
+)
 
 
 st.download_button(
@@ -563,13 +691,4 @@ st.download_button(
     data=download_csv,
     file_name="filtered_sales_data.csv",
     mime="text/csv",
-)
-st.write(
-    "本頁根據標準化後的銷量資料，"
-    "顯示整體銷量、商品排行及每日銷量趨勢。"
-)
-st.warning(
-    "目前分析保留所有原始銷量資料，"
-    "同日同商品多筆紀錄會加總；"
-    "在企業確認重複資料定義前，結果應視為初步分析。"
 )
