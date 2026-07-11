@@ -2,6 +2,8 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.ui_style import apply_product_styles
+
 
 # =========================================================
 # 專案路徑
@@ -10,6 +12,7 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent
 PAGES_DIR = PROJECT_ROOT / "pages"
 
+apply_product_styles()
 
 # =========================================================
 # 產品介面
