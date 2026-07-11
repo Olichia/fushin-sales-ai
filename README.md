@@ -36,3 +36,20 @@ python src/inspect_excel.py
 
 ```powershell
 git init
+
+## 第二階段功能
+
+- 統一銷量資料欄位名稱
+- 日期格式標準化
+- 商品編號及商品名稱清理
+- 銷量數值格式檢查
+- 標記完全重複資料
+- 標記同日同商品多筆資料
+- 保留原始 Excel 列號
+- 產生資料品質摘要
+- 輸出清理後資料與問題資料
+
+## 執行銷量清理
+
+```bash
+python src/clean_sales.py
