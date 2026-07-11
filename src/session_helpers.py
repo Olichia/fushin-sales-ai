@@ -24,6 +24,11 @@ SESSION_DEFAULTS = {
 
     # -----------------------------
     # 活動資料
+        # -----------------------------
+    # 整合分析資料
+    # -----------------------------
+    "integrated_sales_activity_dataframe": None,
+    "integration_issues_dataframe": None,
     # -----------------------------
     # 格式：
     # {
@@ -186,6 +191,8 @@ def clear_uploaded_data() -> None:
         "uploaded_dataframe",
         "column_mapping",
         "standardized_dataframe",
+     "integrated_sales_activity_dataframe",
+        "integration_issues_dataframe",
     ]
 
     for key in sales_keys:
@@ -451,6 +458,8 @@ def clear_activity_data() -> None:
         "activity_standardized_dataframe",
         "activity_calendar_dataframe",
         "promotion_benefits_dataframe",
+        "integrated_sales_activity_dataframe",
+        "integration_issues_dataframe",
     ]
 
     for key in activity_keys:
