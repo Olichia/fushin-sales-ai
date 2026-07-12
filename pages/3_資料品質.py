@@ -1,5 +1,26 @@
+from pathlib import Path
+import sys
+
 import pandas as pd
 import streamlit as st
+
+
+# =========================================================
+# 專案路徑
+# =========================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT),
+    )
+
+
+# =========================================================
+# 專案模組
+# =========================================================
 
 from src.session_helpers import (
     get_uploaded_dataframe,
@@ -7,17 +28,30 @@ from src.session_helpers import (
 )
 
 
+# =========================================================
+# 頁面初始化
+# =========================================================
+
 initialize_session_state()
 
-st.title("資料品質與標準化")
+st.title("銷量資料品質")
 
+st.write(
+    "將原始銷量資料轉換為系統標準欄位，"
+    "並檢查缺值、負數、重複資料與同日同商品多筆紀錄。"
+)
+
+
+# =========================================================
+# 取得資料
+# =========================================================
 
 raw_dataframe = get_uploaded_dataframe()
 
 if raw_dataframe is None:
     st.warning(
         "尚未載入工作表，"
-        "請先到「資料上傳」頁完成上傳。"
+        "請先到「銷量資料上傳」頁完成上傳。"
     )
     st.stop()
 
@@ -30,7 +64,7 @@ column_mapping = st.session_state.get(
 if not column_mapping:
     st.warning(
         "尚未儲存欄位對應，"
-        "請先到「欄位對應」頁完成設定。"
+        "請先到「欄位設定」頁完成設定。"
     )
     st.stop()
 
@@ -42,6 +76,10 @@ st.success(
     f"{st.session_state.selected_sheet_name}"
 )
 
+
+# =========================================================
+# 標準化函式
+# =========================================================
 
 def standardize_sales_data(
     dataframe: pd.DataFrame,
@@ -58,10 +96,6 @@ def standardize_sales_data(
         if target != "不使用"
     }
 
-    standardized = dataframe.rename(
-        columns=rename_mapping
-    ).copy()
-
     required_columns = [
         "sale_date",
         "product_id",
@@ -69,10 +103,34 @@ def standardize_sales_data(
         "quantity",
     ]
 
+    selected_targets = set(
+        rename_mapping.values()
+    )
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in selected_targets
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            "缺少必要欄位："
+            + "、".join(
+                missing_columns
+            )
+        )
+
+    standardized = dataframe.rename(
+        columns=rename_mapping
+    ).copy()
+
     standardized = standardized[
         required_columns
     ].copy()
 
+    # Excel 第 1 列通常是欄位名稱，
+    # 因此第一筆資料列從第 2 列開始。
     standardized.insert(
         0,
         "source_row_number",
@@ -82,6 +140,7 @@ def standardize_sales_data(
         ),
     )
 
+    # 保存原始值，方便追查轉換問題。
     standardized["original_sale_date"] = (
         standardized["sale_date"]
     )
@@ -94,11 +153,13 @@ def standardize_sales_data(
         standardized["quantity"]
     )
 
+    # 日期標準化
     standardized["sale_date"] = pd.to_datetime(
         standardized["sale_date"],
         errors="coerce",
     )
 
+    # 商品編號標準化
     standardized["product_id"] = (
         standardized["product_id"]
         .astype("string")
@@ -108,21 +169,30 @@ def standardize_sales_data(
             "",
             regex=True,
         )
-        .replace("", pd.NA)
+        .replace(
+            "",
+            pd.NA,
+        )
     )
 
+    # 商品名稱標準化
     standardized["product_name"] = (
         standardized["product_name"]
         .astype("string")
         .str.strip()
-        .replace("", pd.NA)
+        .replace(
+            "",
+            pd.NA,
+        )
     )
 
+    # 銷量標準化
     standardized["quantity"] = pd.to_numeric(
         standardized["quantity"],
         errors="coerce",
     )
 
+    # 品質檢查
     standardized["missing_sale_date"] = (
         standardized["sale_date"].isna()
     )
@@ -141,12 +211,18 @@ def standardize_sales_data(
 
     standardized["negative_quantity"] = (
         standardized["quantity"].notna()
-        & (standardized["quantity"] < 0)
+        & (
+            standardized["quantity"]
+            < 0
+        )
     )
 
     standardized["zero_quantity"] = (
         standardized["quantity"].notna()
-        & (standardized["quantity"] == 0)
+        & (
+            standardized["quantity"]
+            == 0
+        )
     )
 
     standardized["exact_duplicate"] = (
@@ -171,6 +247,8 @@ def standardize_sales_data(
         keep=False,
     )
 
+    # 零銷量只做提示，
+    # 不列入主要品質錯誤。
     issue_columns = [
         "missing_sale_date",
         "missing_product_id",
@@ -184,11 +262,17 @@ def standardize_sales_data(
     standardized["has_quality_issue"] = (
         standardized[
             issue_columns
-        ].any(axis=1)
+        ].any(
+            axis=1
+        )
     )
 
     return standardized
 
+
+# =========================================================
+# 執行標準化
+# =========================================================
 
 if st.button(
     "執行標準化與品質檢查",
@@ -228,6 +312,10 @@ if standardized_dataframe is None:
     )
     st.stop()
 
+
+# =========================================================
+# 品質摘要
+# =========================================================
 
 summary_dataframe = pd.DataFrame(
     [
@@ -322,13 +410,22 @@ st.dataframe(
 )
 
 
+# =========================================================
+# 標準化資料預覽
+# =========================================================
+
 st.subheader("標準化資料預覽")
 
 st.dataframe(
     standardized_dataframe.head(30),
     use_container_width=True,
+    hide_index=True,
 )
 
+
+# =========================================================
+# 問題資料
+# =========================================================
 
 issues_dataframe = standardized_dataframe[
     standardized_dataframe[
@@ -340,7 +437,9 @@ issues_dataframe = standardized_dataframe[
 st.subheader("問題資料")
 
 if issues_dataframe.empty:
-    st.success("未發現品質問題。")
+    st.success(
+        "未發現品質問題。"
+    )
 
 else:
     st.warning(
@@ -351,21 +450,30 @@ else:
     st.dataframe(
         issues_dataframe,
         use_container_width=True,
+        hide_index=True,
     )
 
+
+# =========================================================
+# 下載資料
+# =========================================================
 
 cleaned_csv = standardized_dataframe.to_csv(
     index=False,
     encoding="utf-8-sig",
     date_format="%Y-%m-%d",
-).encode("utf-8-sig")
+).encode(
+    "utf-8-sig"
+)
 
 
 issues_csv = issues_dataframe.to_csv(
     index=False,
     encoding="utf-8-sig",
     date_format="%Y-%m-%d",
-).encode("utf-8-sig")
+).encode(
+    "utf-8-sig"
+)
 
 
 col1, col2 = st.columns(2)
@@ -376,6 +484,7 @@ with col1:
         data=cleaned_csv,
         file_name="sales_standardized.csv",
         mime="text/csv",
+        use_container_width=True,
     )
 
 with col2:
@@ -384,4 +493,5 @@ with col2:
         data=issues_csv,
         file_name="sales_quality_issues.csv",
         mime="text/csv",
+        use_container_width=True,
     )

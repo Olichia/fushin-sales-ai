@@ -1,30 +1,30 @@
-# Python 虛擬環境
+# Python virtual environment
 .venv/
 
-# Python 快取
+# Python cache
 __pycache__/
 *.py[cod]
 
-# 環境變數與 API Key
-.env
-.streamlit/secrets.toml
-
-# VS Code 個人設定
-.vscode/
-
-# 作業系統檔案
-.DS_Store
-Thumbs.db
-
-# 暫存檔案
-*.tmp
-~$*.xlsx
-
-data/raw/*.xlsx
-# 企業原始及清理後資料
-data/raw/*.xlsx
-data/processed/*.csv
-
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
+.streamlit/secrets.toml
+
+# IDE settings
+.vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+~$*.xlsx
+
+# Enterprise source and generated data
+data/raw/*.xlsx
+data/processed/*.csv
+
+.venv/
+.venv-test/

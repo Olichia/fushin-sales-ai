@@ -4,11 +4,66 @@ import os
 from typing import Any
 
 import pandas as pd
+import streamlit as st
 from dotenv import load_dotenv
 from google import genai
 
 
+# =========================================================
+# 載入本機環境變數
+# =========================================================
+
 load_dotenv()
+
+
+# =========================================================
+# Gemini API 設定
+# =========================================================
+
+def get_gemini_api_key() -> str:
+    """
+    取得 Gemini API Key。
+
+    優先順序：
+    1. Streamlit Cloud Secrets
+    2. 本機 .env 環境變數
+    """
+
+    secret_api_key = ""
+
+    try:
+        secret_api_key = str(
+            st.secrets.get(
+                "GEMINI_API_KEY",
+                "",
+            )
+        ).strip()
+
+    except Exception:
+        # 本機沒有 secrets.toml 時可能會發生例外，
+        # 此時改從 .env 讀取即可。
+        secret_api_key = ""
+
+    environment_api_key = str(
+        os.getenv(
+            "GEMINI_API_KEY",
+            "",
+        )
+    ).strip()
+
+    api_key = (
+        secret_api_key
+        or environment_api_key
+    )
+
+    if not api_key:
+        raise ValueError(
+            "找不到 GEMINI_API_KEY。"
+            "本機請在專案根目錄的 .env 設定；"
+            "Streamlit Cloud 請在 App Secrets 設定。"
+        )
+
+    return api_key
 
 
 def get_gemini_client() -> genai.Client:
@@ -16,18 +71,16 @@ def get_gemini_client() -> genai.Client:
     建立 Gemini API Client。
     """
 
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        raise ValueError(
-            "找不到 GEMINI_API_KEY。"
-            "請確認專案根目錄的 .env 已正確設定。"
-        )
+    api_key = get_gemini_api_key()
 
     return genai.Client(
         api_key=api_key
     )
 
+
+# =========================================================
+# DataFrame 文字化
+# =========================================================
 
 def dataframe_to_compact_text(
     dataframe: pd.DataFrame | None,
@@ -60,6 +113,10 @@ def dataframe_to_compact_text(
         index=False
     )
 
+
+# =========================================================
+# 建立分析背景
+# =========================================================
 
 def build_advisor_context(
     strategy_report_text: str | None,
@@ -135,6 +192,10 @@ def build_advisor_context(
 """.strip()
 
 
+# =========================================================
+# 建立完整 Prompt
+# =========================================================
+
 def build_conversation_prompt(
     user_question: str,
     advisor_context: str,
@@ -205,6 +266,10 @@ def build_conversation_prompt(
 {user_question}
 """.strip()
 
+
+# =========================================================
+# 呼叫 Gemini
+# =========================================================
 
 def ask_gemini_advisor(
     user_question: str,
