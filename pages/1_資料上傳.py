@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.session_helpers import (
+from session_helpers import (
     clear_uploaded_data,
     initialize_session_state,
     load_uploaded_sheet,

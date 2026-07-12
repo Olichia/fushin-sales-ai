@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from src.session_helpers import (
+from session_helpers import (
     get_uploaded_dataframe,
     initialize_session_state,
 )
