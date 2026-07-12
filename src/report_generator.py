@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import io
-import shutil
-import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -675,9 +673,19 @@ def generate_management_pdf(
     產生主管活動分析 PDF。
 
     僅使用既有分析結果，不重新計算活動成效。
+    字型只在真正產生 PDF 時初始化，
+    避免匯入模組時影響整個 Streamlit App。
     """
 
     register_pdf_fonts()
+
+    if (
+        performance_dataframe is None
+        or performance_dataframe.empty
+    ):
+        raise ValueError(
+            "目前沒有活動成效資料可產生 PDF。"
+        )
 
     buffer = io.BytesIO()
 
@@ -781,8 +789,14 @@ def generate_management_pdf(
 
     performance = performance_dataframe.copy()
 
+    if "uplift_rate" not in performance.columns:
+        raise ValueError(
+            "活動成效資料缺少 uplift_rate 欄位，"
+            "請重新執行活動成效分析。"
+        )
+
     performance["uplift_rate"] = pd.to_numeric(
-        performance.get("uplift_rate"),
+        performance["uplift_rate"],
         errors="coerce",
     )
 
