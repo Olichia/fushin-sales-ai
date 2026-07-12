@@ -28,3 +28,5 @@ data/processed/*.csv
 .env
 .env.*
 !.env.example
+.env
+.streamlit/secrets.toml
