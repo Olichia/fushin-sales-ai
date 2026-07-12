@@ -13,8 +13,15 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT),
+    )
 
+
+# =========================================================
+# 專案模組
+# =========================================================
 
 from src.report_generator import (
     generate_management_pdf,
@@ -78,6 +85,10 @@ integration_issues_dataframe = st.session_state.get(
 )
 
 
+# =========================================================
+# 檢查必要資料
+# =========================================================
+
 missing_sources = []
 
 if performance_dataframe is None:
@@ -99,10 +110,13 @@ if strategy_report_text is None:
 if missing_sources:
     st.warning(
         "目前尚缺少："
-        + "、".join(missing_sources)
+        + "、".join(
+            missing_sources
+        )
         + "。請先完成「執行成效分析」"
         "與「產生策略報告」。"
     )
+
     st.stop()
 
 
@@ -110,6 +124,7 @@ if performance_dataframe.empty:
     st.warning(
         "目前沒有活動成效資料可產生報告。"
     )
+
     st.stop()
 
 
@@ -117,14 +132,18 @@ if performance_dataframe.empty:
 # 報表內容預覽
 # =========================================================
 
-performance = performance_dataframe.copy()
+performance = (
+    performance_dataframe.copy()
+)
 
 performance["uplift_rate"] = pd.to_numeric(
     performance["uplift_rate"],
     errors="coerce",
 )
 
-activity_count = len(performance)
+activity_count = len(
+    performance
+)
 
 high_count = int(
     (
@@ -145,7 +164,9 @@ median_uplift = (
 )
 
 
-st.subheader("報表內容預覽")
+st.subheader(
+    "報表內容預覽"
+)
 
 preview_col1, preview_col2, preview_col3, preview_col4 = (
     st.columns(4)
@@ -171,7 +192,9 @@ preview_col4.metric(
     "提升率中位數",
     (
         f"{median_uplift:.1%}"
-        if pd.notna(median_uplift)
+        if pd.notna(
+            median_uplift
+        )
         else "-"
     ),
 )
@@ -187,16 +210,24 @@ st.info(
 # 最佳與最差活動預覽
 # =========================================================
 
-valid_performance = performance.dropna(
-    subset=["uplift_rate"]
-).copy()
+valid_performance = (
+    performance.dropna(
+        subset=[
+            "uplift_rate"
+        ]
+    ).copy()
+)
 
 
-preview_left, preview_right = st.columns(2)
+preview_left, preview_right = (
+    st.columns(2)
+)
 
 
 with preview_left:
-    st.subheader("表現最佳活動")
+    st.subheader(
+        "表現最佳活動"
+    )
 
     if valid_performance.empty:
         st.info(
@@ -205,22 +236,26 @@ with preview_left:
 
     else:
         best_activity = (
-            valid_performance.sort_values(
+            valid_performance
+            .sort_values(
                 "uplift_rate",
                 ascending=False,
             )
             .iloc[0]
         )
 
-        with st.container(border=True):
-            st.markdown(
-                "### "
-                + str(
-                    best_activity.get(
-                        "product_name",
-                        "未提供商品名稱",
-                    )
+        with st.container(
+            border=True
+        ):
+            product_name = (
+                best_activity.get(
+                    "product_name",
+                    "未提供商品名稱",
                 )
+            )
+
+            st.markdown(
+                f"### {product_name}"
             )
 
             metric_col1, metric_col2 = (
@@ -229,13 +264,29 @@ with preview_left:
 
             metric_col1.metric(
                 "活動提升率",
-                f"{best_activity['uplift_rate']:.1%}",
+                (
+                    f"{best_activity['uplift_rate']:.1%}"
+                ),
+            )
+
+            campaign_total_sales = (
+                pd.to_numeric(
+                    best_activity.get(
+                        "campaign_total_sales",
+                        0,
+                    ),
+                    errors="coerce",
+                )
             )
 
             metric_col2.metric(
                 "活動總銷量",
                 (
-                    f"{best_activity.get('campaign_total_sales', 0):,.0f}"
+                    f"{campaign_total_sales:,.0f}"
+                    if pd.notna(
+                        campaign_total_sales
+                    )
+                    else "-"
                 ),
             )
 
@@ -251,7 +302,9 @@ with preview_left:
 
 
 with preview_right:
-    st.subheader("表現較差活動")
+    st.subheader(
+        "表現較差活動"
+    )
 
     if valid_performance.empty:
         st.info(
@@ -260,22 +313,26 @@ with preview_right:
 
     else:
         worst_activity = (
-            valid_performance.sort_values(
+            valid_performance
+            .sort_values(
                 "uplift_rate",
                 ascending=True,
             )
             .iloc[0]
         )
 
-        with st.container(border=True):
-            st.markdown(
-                "### "
-                + str(
-                    worst_activity.get(
-                        "product_name",
-                        "未提供商品名稱",
-                    )
+        with st.container(
+            border=True
+        ):
+            product_name = (
+                worst_activity.get(
+                    "product_name",
+                    "未提供商品名稱",
                 )
+            )
+
+            st.markdown(
+                f"### {product_name}"
             )
 
             metric_col1, metric_col2 = (
@@ -284,13 +341,29 @@ with preview_right:
 
             metric_col1.metric(
                 "活動提升率",
-                f"{worst_activity['uplift_rate']:.1%}",
+                (
+                    f"{worst_activity['uplift_rate']:.1%}"
+                ),
+            )
+
+            campaign_total_sales = (
+                pd.to_numeric(
+                    worst_activity.get(
+                        "campaign_total_sales",
+                        0,
+                    ),
+                    errors="coerce",
+                )
             )
 
             metric_col2.metric(
                 "活動總銷量",
                 (
-                    f"{worst_activity.get('campaign_total_sales', 0):,.0f}"
+                    f"{campaign_total_sales:,.0f}"
+                    if pd.notna(
+                        campaign_total_sales
+                    )
+                    else "-"
                 ),
             )
 
@@ -311,7 +384,9 @@ with preview_right:
 
 st.divider()
 
-st.subheader("產生主管報告")
+st.subheader(
+    "產生主管報告"
+)
 
 st.write(
     "按下按鈕後，系統會依目前 Session State 中的"
@@ -329,7 +404,9 @@ if st.button(
             "正在整理活動成效與策略建議……"
         ):
             pdf_bytes = generate_management_pdf(
-                sales_dataframe=sales_dataframe,
+                sales_dataframe=(
+                    sales_dataframe
+                ),
                 performance_dataframe=(
                     performance_dataframe
                 ),
@@ -356,10 +433,33 @@ if st.button(
         )
 
     except Exception as error:
-        st.error(
-            "PDF 報告產生失敗："
-            f"{error}"
+        error_text = str(
+            error
         )
+
+        if (
+            "字型" in error_text
+            or "font" in error_text.lower()
+            or "ttf" in error_text.lower()
+        ):
+            st.error(
+                "PDF 中文字型載入失敗。"
+                "主管報表頁面仍可使用，"
+                "但目前無法產生 PDF。"
+            )
+
+            with st.expander(
+                "查看技術錯誤"
+            ):
+                st.code(
+                    error_text
+                )
+
+        else:
+            st.error(
+                "PDF 報告產生失敗："
+                f"{error_text}"
+            )
 
 
 # =========================================================
@@ -380,7 +480,7 @@ if pdf_bytes:
         "下載主管 PDF 報告",
         data=pdf_bytes,
         file_name=(
-            f"management_activity_report_"
+            "management_activity_report_"
             f"{report_date}.pdf"
         ),
         mime="application/pdf",
@@ -403,10 +503,10 @@ with st.expander(
 ):
     st.markdown(
         """
-        - 活動期間銷量上升不代表已證明因果。
-        - 推估營收不等於實際營收或獲利。
-        - 報告尚未納入完整成本、毛利、退貨與庫存資料。
-        - 存在重疊活動時，不能將效果完全歸因於單一促銷。
-        - 觀察期間不完整的活動應降低判讀信心。
+- 活動期間銷量上升不代表已證明因果。
+- 推估營收不等於實際營收或獲利。
+- 報告尚未納入完整成本、毛利、退貨與庫存資料。
+- 存在重疊活動時，不能將效果完全歸因於單一促銷。
+- 觀察期間不完整的活動應降低判讀信心。
         """
     )

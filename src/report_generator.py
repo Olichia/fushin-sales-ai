@@ -17,6 +17,7 @@ from reportlab.lib.styles import (
 )
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     BaseDocTemplate,
@@ -37,111 +38,35 @@ from reportlab.platypus import (
 PDF_FONT_NAME = "TraditionalChinese"
 PDF_BOLD_FONT_NAME = "TraditionalChineseBold"
 
+FALLBACK_FONT_NAME = "MSung-Light"
 
-def _run_fc_match(font_family: str) -> Path | None:
-    """
-    在 Linux 環境使用 fontconfig 尋找字型檔。
-    """
-
-    if shutil.which("fc-match") is None:
-        return None
-
-    try:
-        result = subprocess.run(
-            [
-                "fc-match",
-                "-f",
-                "%{file}",
-                font_family,
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10,
-        )
-
-        font_path_text = result.stdout.strip()
-
-        if not font_path_text:
-            return None
-
-        font_path = Path(font_path_text)
-
-        return (
-            font_path
-            if font_path.exists()
-            else None
-        )
-
-    except (
-        OSError,
-        subprocess.SubprocessError,
-    ):
-        return None
-
-
-def _find_first_existing_font(
-    candidates: list[Path],
-) -> Path | None:
-    """
-    從候選路徑中找出第一個存在的字型。
-    """
-
-    return next(
-        (
-            path
-            for path in candidates
-            if path.exists()
-        ),
-        None,
-    )
-
-
-def _register_font(
-    font_name: str,
-    font_path: Path,
-) -> None:
-    """
-    註冊 TTF 或 TTC 字型。
-
-    TTC 字型使用第一個子字型。
-    """
-
-    if (
-        font_name
-        in pdfmetrics.getRegisteredFontNames()
-    ):
-        return
-
-    suffix = font_path.suffix.lower()
-
-    if suffix == ".ttc":
-        pdfmetrics.registerFont(
-            TTFont(
-                font_name,
-                str(font_path),
-                subfontIndex=0,
-            )
-        )
-    else:
-        pdfmetrics.registerFont(
-            TTFont(
-                font_name,
-                str(font_path),
-            )
-        )
+_pdf_fonts_registered = False
 
 
 def register_pdf_fonts() -> None:
     """
-    註冊並嵌入可跨平台使用的繁體中文字型。
+    註冊 PDF 中文字型。
 
-    Windows：
-    優先使用楷體與微軟正黑體。
-
-    Streamlit Community Cloud / Linux：
-    優先使用 Noto Sans CJK TC。
+    優先使用可嵌入的 Windows TrueType 字型。
+    若雲端環境的 Noto CJK 字型無法被 ReportLab 載入，
+    則退回 ReportLab 內建的繁體 CID 字型，
+    避免整個主管報表頁面無法開啟。
     """
+
+    global PDF_FONT_NAME
+    global PDF_BOLD_FONT_NAME
+    global _pdf_fonts_registered
+
+    if _pdf_fonts_registered:
+        return
+
+    registered_fonts = set(
+        pdfmetrics.getRegisteredFontNames()
+    )
+
+    # -----------------------------------------------------
+    # 1. Windows 本機字型
+    # -----------------------------------------------------
 
     windows_regular_candidates = [
         Path(r"C:\Windows\Fonts\kaiu.ttf"),
@@ -156,99 +81,91 @@ def register_pdf_fonts() -> None:
         Path(r"C:\Windows\Fonts\mingliu.ttc"),
     ]
 
-    linux_regular_candidates = [
-        Path(
-            "/usr/share/fonts/opentype/noto/"
-            "NotoSansCJK-Regular.ttc"
+    regular_font_path = next(
+        (
+            path
+            for path in windows_regular_candidates
+            if path.exists()
         ),
-        Path(
-            "/usr/share/fonts/opentype/noto/"
-            "NotoSansCJKtc-Regular.otf"
-        ),
-        Path(
-            "/usr/share/fonts/truetype/noto/"
-            "NotoSansTC-Regular.ttf"
-        ),
-    ]
-
-    linux_bold_candidates = [
-        Path(
-            "/usr/share/fonts/opentype/noto/"
-            "NotoSansCJK-Bold.ttc"
-        ),
-        Path(
-            "/usr/share/fonts/opentype/noto/"
-            "NotoSansCJKtc-Bold.otf"
-        ),
-        Path(
-            "/usr/share/fonts/truetype/noto/"
-            "NotoSansTC-Bold.ttf"
-        ),
-    ]
-
-    regular_font_path = (
-        _find_first_existing_font(
-            windows_regular_candidates
-        )
-        or _find_first_existing_font(
-            linux_regular_candidates
-        )
-        or _run_fc_match(
-            "Noto Sans CJK TC"
-        )
-        or _run_fc_match(
-            "Noto Sans TC"
-        )
+        None,
     )
 
-    bold_font_path = (
-        _find_first_existing_font(
-            windows_bold_candidates
-        )
-        or _find_first_existing_font(
-            linux_bold_candidates
-        )
-        or _run_fc_match(
-            "Noto Sans CJK TC Bold"
-        )
-        or _run_fc_match(
-            "Noto Sans TC Bold"
-        )
-        or regular_font_path
+    bold_font_path = next(
+        (
+            path
+            for path in windows_bold_candidates
+            if path.exists()
+        ),
+        None,
     )
 
-    if regular_font_path is None:
-        raise FileNotFoundError(
-            "找不到可用的繁體中文字型。"
-            "Windows 請確認系統有 kaiu.ttf 或 msjh.ttc；"
-            "Linux / Streamlit Cloud 請安裝 "
-            "fonts-noto-cjk 與 fontconfig。"
-        )
+    if regular_font_path is not None:
+        try:
+            if PDF_FONT_NAME not in registered_fonts:
+                if regular_font_path.suffix.lower() == ".ttc":
+                    pdfmetrics.registerFont(
+                        TTFont(
+                            PDF_FONT_NAME,
+                            str(regular_font_path),
+                            subfontIndex=0,
+                        )
+                    )
+                else:
+                    pdfmetrics.registerFont(
+                        TTFont(
+                            PDF_FONT_NAME,
+                            str(regular_font_path),
+                        )
+                    )
 
-    if bold_font_path is None:
-        bold_font_path = regular_font_path
+            if bold_font_path is None:
+                bold_font_path = regular_font_path
+
+            if PDF_BOLD_FONT_NAME not in registered_fonts:
+                if bold_font_path.suffix.lower() == ".ttc":
+                    pdfmetrics.registerFont(
+                        TTFont(
+                            PDF_BOLD_FONT_NAME,
+                            str(bold_font_path),
+                            subfontIndex=0,
+                        )
+                    )
+                else:
+                    pdfmetrics.registerFont(
+                        TTFont(
+                            PDF_BOLD_FONT_NAME,
+                            str(bold_font_path),
+                        )
+                    )
+
+            _pdf_fonts_registered = True
+            return
+
+        except Exception:
+            # Windows 字型註冊失敗時，繼續使用 CID 備援。
+            pass
+
+    # -----------------------------------------------------
+    # 2. Streamlit Cloud / Linux 備援
+    # -----------------------------------------------------
 
     try:
-        _register_font(
-            PDF_FONT_NAME,
-            regular_font_path,
-        )
+        if FALLBACK_FONT_NAME not in registered_fonts:
+            pdfmetrics.registerFont(
+                UnicodeCIDFont(
+                    FALLBACK_FONT_NAME
+                )
+            )
 
-        _register_font(
-            PDF_BOLD_FONT_NAME,
-            bold_font_path,
-        )
+        PDF_FONT_NAME = FALLBACK_FONT_NAME
+        PDF_BOLD_FONT_NAME = FALLBACK_FONT_NAME
+        _pdf_fonts_registered = True
 
     except Exception as error:
         raise RuntimeError(
-            "PDF 中文字型註冊失敗。"
-            f"一般字型：{regular_font_path}；"
-            f"粗體字型：{bold_font_path}；"
-            f"錯誤：{error}"
+            "PDF 中文字型初始化失敗："
+            f"{error}"
         ) from error
-
-
-register_pdf_fonts()
 
 
 # =========================================================
@@ -759,6 +676,8 @@ def generate_management_pdf(
 
     僅使用既有分析結果，不重新計算活動成效。
     """
+
+    register_pdf_fonts()
 
     buffer = io.BytesIO()
 
