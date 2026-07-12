@@ -1,12 +1,37 @@
+from pathlib import Path
+import sys
+
 import streamlit as st
 
-from session_helpers import (
+
+# =========================================================
+# 專案路徑
+# =========================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT),
+    )
+
+
+# =========================================================
+# 專案模組
+# =========================================================
+
+from src.session_helpers import (
     clear_uploaded_data,
     initialize_session_state,
     load_uploaded_sheet,
     save_uploaded_excel,
 )
 
+
+# =========================================================
+# 頁面初始化
+# =========================================================
 
 initialize_session_state()
 
@@ -17,6 +42,10 @@ st.write(
     "供後續欄位對應及資料品質頁使用。"
 )
 
+
+# =========================================================
+# Excel 上傳
+# =========================================================
 
 uploaded_file = st.file_uploader(
     "上傳 Excel 檔案",
@@ -58,6 +87,10 @@ if uploaded_file is not None:
         )
 
 
+# =========================================================
+# 工作表選擇與載入
+# =========================================================
+
 if st.session_state.uploaded_file_bytes:
     st.success(
         "目前檔案："
@@ -67,6 +100,12 @@ if st.session_state.uploaded_file_bytes:
     sheet_names = (
         st.session_state.excel_sheet_names
     )
+
+    if not sheet_names:
+        st.warning(
+            "目前 Excel 中沒有可使用的工作表。"
+        )
+        st.stop()
 
     default_index = 0
 
@@ -90,7 +129,7 @@ if st.session_state.uploaded_file_bytes:
         type="primary",
     ):
         try:
-            dataframe = load_uploaded_sheet(
+            load_uploaded_sheet(
                 selected_sheet
             )
 
@@ -102,6 +141,11 @@ if st.session_state.uploaded_file_bytes:
             st.error(
                 f"工作表載入失敗：{error}"
             )
+
+
+    # =====================================================
+    # 資料預覽
+    # =====================================================
 
     dataframe = (
         st.session_state.uploaded_dataframe
@@ -123,7 +167,8 @@ if st.session_state.uploaded_file_bytes:
         col3.metric(
             "缺值總數",
             int(
-                dataframe.isna()
+                dataframe
+                .isna()
                 .sum()
                 .sum()
             ),
@@ -140,17 +185,33 @@ if st.session_state.uploaded_file_bytes:
         st.dataframe(
             dataframe.head(20),
             use_container_width=True,
+            hide_index=True,
         )
 
         st.info(
-            "資料已保存。請從左側進入「欄位對應」。"
+            "資料已保存。"
+            "請從左側進入「欄位設定」。"
         )
+
+    else:
+        st.info(
+            "請選擇工作表並按下「載入此工作表」。"
+        )
+
+
+    # =====================================================
+    # 清除資料
+    # =====================================================
 
     st.divider()
 
-    if st.button("清除目前上傳資料"):
+    if st.button(
+        "清除目前上傳資料"
+    ):
         clear_uploaded_data()
         st.rerun()
 
 else:
-    st.info("請先上傳一份 Excel 檔案。")
+    st.info(
+        "請先上傳一份 Excel 檔案。"
+    )
