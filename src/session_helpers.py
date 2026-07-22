@@ -47,8 +47,12 @@ SESSION_DEFAULTS = {
     "selected_activity_sheet_name": None,
     "activity_uploaded_dataframe": None,
 
-    # 活動資料處理結果
+    # 活動資料處理狀態
     "activity_data_confirmed": False,
+    "processed_march_activity_file_name": None,
+    "processed_april_activity_file_name": None,
+
+    # 活動標準化結果
     "activity_standardized_dataframe": None,
     "activity_calendar_dataframe": None,
     "promotion_benefits_dataframe": None,
@@ -182,11 +186,14 @@ def clear_activity_processing_results() -> None:
     清除活動資料處理結果。
 
     保留已上傳的活動 Excel，
-    但清除標準化、摘要、問題資料與確認狀態。
+    但清除月份紀錄、標準化結果、
+    摘要、問題資料與確認狀態。
     """
 
     activity_processing_keys = [
         "activity_data_confirmed",
+        "processed_march_activity_file_name",
+        "processed_april_activity_file_name",
         "activity_standardized_dataframe",
         "activity_calendar_dataframe",
         "promotion_benefits_dataframe",
@@ -644,6 +651,8 @@ def clear_activity_data() -> None:
         "selected_activity_sheet_name",
         "activity_uploaded_dataframe",
         "activity_data_confirmed",
+        "processed_march_activity_file_name",
+        "processed_april_activity_file_name",
         "activity_standardized_dataframe",
         "activity_calendar_dataframe",
         "promotion_benefits_dataframe",

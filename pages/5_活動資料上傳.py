@@ -18,13 +18,20 @@ if str(PROJECT_ROOT) not in sys.path:
     )
 
 
+# =========================================================
+# 專案模組
+# =========================================================
+
+from src.activity_processing import (
+    create_activity_data_summary,
+    process_activity_files,
+)
+
 from src.session_helpers import (
     clear_activity_data,
-    get_activity_dataframe,
     get_activity_file_names,
     get_activity_sheet_names,
     initialize_session_state,
-    load_activity_sheet,
     remove_activity_file,
     save_activity_excel,
 )
@@ -36,34 +43,98 @@ from src.session_helpers import (
 
 initialize_session_state()
 
-st.title("活動資料上傳")
+st.title("活動資料處理")
 
 st.write(
-    "本頁用於上傳品牌活動 Excel。"
-    "可以同時保存多個月份的活動檔案，"
-    "並預覽每一份檔案中的不同工作表。"
+    "一次上傳 3 月與 4 月活動 Excel，"
+    "確認月份對應後，系統會自動產生商品活動價格、"
+    "活動日曆、優惠內容與資料問題。"
 )
 
 st.info(
-    "目前請上傳 3 月與 4 月品牌活動檔案。"
+    "目前系統依照 3 月與 4 月活動表格式進行處理。"
 )
 
 
 # =========================================================
-# 多檔案上傳
+# 小工具函式
 # =========================================================
 
+def find_month_candidate(
+    file_names: list[str],
+    month_number: int,
+    month_text: str,
+) -> str | None:
+    """
+    根據檔名尋找月份候選檔案。
+
+    例如：
+    3月活動.xlsx
+    三月活動.xlsx
+    """
+
+    for file_name in file_names:
+        if (
+            f"{month_number}月" in file_name
+            or month_text in file_name
+        ):
+            return file_name
+
+    return None
+
+
+def get_default_index(
+    options: list[str],
+    selected_value: str | None,
+) -> int:
+    """
+    取得 selectbox 的預設位置。
+    """
+
+    if selected_value in options:
+        return options.index(
+            selected_value
+        )
+
+    return 0
+
+
+def reset_activity_widget_state() -> None:
+    """
+    清除活動頁面上的月份選擇與最終確認元件狀態。
+    """
+
+    widget_keys = [
+        "march_activity_file_select",
+        "april_activity_file_select",
+        "activity_final_confirmation_checkbox",
+    ]
+
+    for key in widget_keys:
+        st.session_state.pop(
+            key,
+            None,
+        )
+
+
+# =========================================================
+# Step 1：上傳活動 Excel
+# =========================================================
+
+st.subheader("1. 上傳活動 Excel")
+
 uploaded_files = st.file_uploader(
-    "上傳活動 Excel，可一次選擇多份",
+    "可一次選擇多份 Excel",
     type=["xlsx"],
     accept_multiple_files=True,
     key="activity_excel_uploader",
+    help="目前請至少上傳 3 月及 4 月活動檔案。",
 )
 
 
 if uploaded_files:
-    successful_files = []
-    failed_files = []
+    successful_files: list[str] = []
+    failed_files: list[dict[str, str]] = []
 
     for uploaded_file in uploaded_files:
         file_bytes = uploaded_file.getvalue()
@@ -73,8 +144,7 @@ if uploaded_files:
         )
 
         is_new_or_changed = (
-            uploaded_file.name
-            not in existing_files
+            uploaded_file.name not in existing_files
             or existing_files[
                 uploaded_file.name
             ] != file_bytes
@@ -84,10 +154,13 @@ if uploaded_files:
             continue
 
         try:
-            save_activity_excel(
-                file_name=uploaded_file.name,
-                file_bytes=file_bytes,
-            )
+            with st.spinner(
+                f"正在讀取：{uploaded_file.name}……"
+            ):
+                save_activity_excel(
+                    file_name=uploaded_file.name,
+                    file_bytes=file_bytes,
+                )
 
             successful_files.append(
                 uploaded_file.name
@@ -102,6 +175,8 @@ if uploaded_files:
             )
 
     if successful_files:
+        reset_activity_widget_state()
+
         st.success(
             "成功保存："
             + "、".join(successful_files)
@@ -115,13 +190,12 @@ if uploaded_files:
 
 
 # =========================================================
-# 已上傳檔案列表
+# 取得已上傳活動檔案
 # =========================================================
 
 activity_file_names = (
     get_activity_file_names()
 )
-
 
 if not activity_file_names:
     st.warning(
@@ -130,8 +204,11 @@ if not activity_file_names:
     st.stop()
 
 
-st.subheader("已上傳的活動檔案")
+# =========================================================
+# 已上傳檔案摘要
+# =========================================================
 
+st.subheader("已上傳的活動檔案")
 
 file_summary_rows = []
 
@@ -140,15 +217,24 @@ for file_name in activity_file_names:
         file_name
     )
 
+    file_bytes = (
+        st.session_state.activity_uploaded_files[
+            file_name
+        ]
+    )
+
+    file_size_mb = (
+        len(file_bytes)
+        / 1024
+        / 1024
+    )
+
     file_summary_rows.append(
         {
             "檔案名稱": file_name,
-            "工作表數量": len(
-                sheet_names
-            ),
-            "工作表": "、".join(
-                sheet_names
-            ),
+            "檔案大小": f"{file_size_mb:.2f} MB",
+            "工作表數量": len(sheet_names),
+            "工作表": "、".join(sheet_names),
         }
     )
 
@@ -156,7 +242,6 @@ for file_name in activity_file_names:
 file_summary_dataframe = pd.DataFrame(
     file_summary_rows
 )
-
 
 st.dataframe(
     file_summary_dataframe,
@@ -166,203 +251,692 @@ st.dataframe(
 
 
 # =========================================================
-# 選擇檔案
+# 移除單一活動檔案
 # =========================================================
 
-current_file_name = (
-    st.session_state.get(
-        "selected_activity_file_name"
-    )
-)
-
-
-default_file_index = 0
-
-if current_file_name in activity_file_names:
-    default_file_index = (
-        activity_file_names.index(
-            current_file_name
-        )
-    )
-
-
-selected_file_name = st.selectbox(
-    "選擇要預覽的活動檔案",
-    options=activity_file_names,
-    index=default_file_index,
-)
-
-
-sheet_names = get_activity_sheet_names(
-    selected_file_name
-)
-
-
-if not sheet_names:
-    st.error(
-        "這份 Excel 沒有可讀取的工作表。"
-    )
-    st.stop()
-
-
-# =========================================================
-# 選擇工作表
-# =========================================================
-
-current_sheet_name = (
-    st.session_state.get(
-        "selected_activity_sheet_name"
-    )
-)
-
-
-default_sheet_index = 0
-
-if (
-    current_file_name == selected_file_name
-    and current_sheet_name in sheet_names
+with st.expander(
+    "管理已上傳檔案",
+    expanded=False,
 ):
-    default_sheet_index = (
-        sheet_names.index(
-            current_sheet_name
-        )
+    file_to_remove = st.selectbox(
+        "選擇要移除的檔案",
+        options=activity_file_names,
+        key="activity_file_remove_select",
     )
 
-
-selected_sheet_name = st.selectbox(
-    "選擇要預覽的工作表",
-    options=sheet_names,
-    index=default_sheet_index,
-)
-
-
-if st.button(
-    "載入活動工作表",
-    type="primary",
-):
-    try:
-        dataframe = load_activity_sheet(
-            file_name=selected_file_name,
-            sheet_name=selected_sheet_name,
-            header=0,
+    if st.button(
+        "移除選取檔案",
+        key="remove_activity_file_button",
+    ):
+        remove_activity_file(
+            file_to_remove
         )
+
+        reset_activity_widget_state()
 
         st.success(
-            f"已載入："
-            f"{selected_file_name}"
-            f"／{selected_sheet_name}"
+            f"已移除：{file_to_remove}"
+        )
+
+        st.rerun()
+
+
+# =========================================================
+# Step 2：確認月份檔案
+# =========================================================
+
+st.divider()
+st.subheader("2. 確認月份檔案")
+
+st.caption(
+    "系統會根據檔名自動判斷月份。"
+    "若判斷不正確，再使用下拉選單修改。"
+)
+
+
+march_candidate = find_month_candidate(
+    file_names=activity_file_names,
+    month_number=3,
+    month_text="三月",
+)
+
+april_candidate = find_month_candidate(
+    file_names=activity_file_names,
+    month_number=4,
+    month_text="四月",
+)
+
+
+march_default_index = get_default_index(
+    activity_file_names,
+    march_candidate,
+)
+
+april_default_index = get_default_index(
+    activity_file_names,
+    april_candidate,
+)
+
+
+month_col1, month_col2 = st.columns(2)
+
+with month_col1:
+    march_file_name = st.selectbox(
+        "3 月活動檔案",
+        options=activity_file_names,
+        index=march_default_index,
+        key="march_activity_file_select",
+    )
+
+with month_col2:
+    april_file_name = st.selectbox(
+        "4 月活動檔案",
+        options=activity_file_names,
+        index=april_default_index,
+        key="april_activity_file_select",
+    )
+
+
+same_file_selected = (
+    march_file_name
+    == april_file_name
+)
+
+if same_file_selected:
+    st.error(
+        "3 月與 4 月不可選擇同一份檔案。"
+    )
+
+
+month_mapping_dataframe = pd.DataFrame(
+    [
+        {
+            "月份": "3 月",
+            "使用檔案": march_file_name,
+            "系統自動辨識": (
+                "是"
+                if march_file_name
+                == march_candidate
+                else "已手動調整"
+            ),
+        },
+        {
+            "月份": "4 月",
+            "使用檔案": april_file_name,
+            "系統自動辨識": (
+                "是"
+                if april_file_name
+                == april_candidate
+                else "已手動調整"
+            ),
+        },
+    ]
+)
+
+st.dataframe(
+    month_mapping_dataframe,
+    use_container_width=True,
+    hide_index=True,
+)
+
+
+# =========================================================
+# 檢查已處理結果是否仍符合目前檔案
+# =========================================================
+
+saved_march_file_name = (
+    st.session_state.get(
+        "processed_march_activity_file_name"
+    )
+)
+
+saved_april_file_name = (
+    st.session_state.get(
+        "processed_april_activity_file_name"
+    )
+)
+
+activity_result_exists = (
+    st.session_state.get(
+        "activity_standardized_dataframe"
+    )
+    is not None
+)
+
+file_selection_has_changed = (
+    activity_result_exists
+    and (
+        saved_march_file_name
+        != march_file_name
+        or saved_april_file_name
+        != april_file_name
+    )
+)
+
+if file_selection_has_changed:
+    st.warning(
+        "目前月份檔案選擇已變更。"
+        "請重新執行活動資料處理，"
+        "才能更新標準化結果。"
+    )
+
+
+# =========================================================
+# Step 3：執行活動資料處理
+# =========================================================
+
+st.divider()
+st.subheader("3. 處理活動資料")
+
+st.write(
+    "按下按鈕後，系統會自動完成："
+)
+
+st.markdown(
+    """
+- 解析商品活動期間與活動價格
+- 展開活動開始及結束日期
+- 整理活動日曆
+- 整理鋪底、折價券、贈品與包套活動
+- 整理品牌日及品牌週
+- 建立資料問題清單
+"""
+)
+
+
+process_button = st.button(
+    "確認檔案並處理活動資料",
+    type="primary",
+    use_container_width=True,
+    disabled=same_file_selected,
+)
+
+
+if process_button:
+    try:
+        activity_files = (
+            st.session_state.activity_uploaded_files
+        )
+
+        march_file_bytes = activity_files.get(
+            march_file_name
+        )
+
+        april_file_bytes = activity_files.get(
+            april_file_name
+        )
+
+        with st.spinner(
+            "正在解析活動日期、價格與優惠內容……"
+        ):
+            processing_results = (
+                process_activity_files(
+                    march_file_bytes=(
+                        march_file_bytes
+                    ),
+                    april_file_bytes=(
+                        april_file_bytes
+                    ),
+                )
+            )
+
+        for key, dataframe in (
+            processing_results.items()
+        ):
+            st.session_state[key] = dataframe
+
+        st.session_state[
+            "processed_march_activity_file_name"
+        ] = march_file_name
+
+        st.session_state[
+            "processed_april_activity_file_name"
+        ] = april_file_name
+
+        st.session_state.activity_data_confirmed = (
+            False
+        )
+
+        st.session_state[
+            "activity_final_confirmation_checkbox"
+        ] = False
+
+        file_selection_has_changed = False
+
+        st.success(
+            "活動資料標準化與品質檢查完成。"
         )
 
     except Exception as error:
         st.error(
-            f"工作表載入失敗：{error}"
+            f"活動資料處理失敗：{error}"
         )
 
 
 # =========================================================
-# 顯示目前載入的工作表
+# 取得活動處理結果
 # =========================================================
 
-activity_dataframe = (
-    get_activity_dataframe()
-)
-
-
-loaded_file_name = (
+main_activity_dataframe = (
     st.session_state.get(
-        "selected_activity_file_name"
+        "activity_standardized_dataframe"
     )
 )
 
-loaded_sheet_name = (
+calendar_dataframe = (
     st.session_state.get(
-        "selected_activity_sheet_name"
+        "activity_calendar_dataframe"
+    )
+)
+
+benefits_dataframe = (
+    st.session_state.get(
+        "promotion_benefits_dataframe"
+    )
+)
+
+activity_issues_dataframe = (
+    st.session_state.get(
+        "activity_issues_dataframe"
     )
 )
 
 
-if (
-    activity_dataframe is not None
-    and loaded_file_name == selected_file_name
-    and loaded_sheet_name == selected_sheet_name
-):
-    st.divider()
-
-    st.subheader("活動資料預覽")
-
-    st.caption(
-        f"目前預覽："
-        f"{loaded_file_name}"
-        f"／{loaded_sheet_name}"
-    )
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "資料列數",
-        len(activity_dataframe),
-    )
-
-    col2.metric(
-        "欄位數",
-        len(activity_dataframe.columns),
-    )
-
-    col3.metric(
-        "缺值總數",
-        int(
-            activity_dataframe
-            .isna()
-            .sum()
-            .sum()
-        ),
-    )
-
-    st.write("欄位名稱：")
-
-    st.write(
-        list(
-            activity_dataframe.columns
-        )
-    )
-
-    st.dataframe(
-        activity_dataframe.head(30),
-        use_container_width=True,
-    )
-
+if main_activity_dataframe is None:
     st.info(
-        "活動檔案已保存。"
-        "下一步會建立活動資料標準化頁面。"
+        "確認月份檔案後，"
+        "按下「確認檔案並處理活動資料」，"
+        "即可產生活動標準化結果。"
+    )
+
+else:
+    result_is_current = (
+        saved_march_file_name
+        == march_file_name
+        and saved_april_file_name
+        == april_file_name
+    )
+
+    if process_button:
+        result_is_current = True
+
+    if not result_is_current:
+        st.warning(
+            "下方結果是先前月份檔案產生的資料。"
+            "請重新執行活動資料處理後再確認。"
+        )
+
+
+    # =====================================================
+    # Step 4：活動資料結果
+    # =====================================================
+
+    st.divider()
+    st.subheader("4. 標準化結果與最終確認")
+
+    try:
+        activity_summary = (
+            create_activity_data_summary(
+                activity_standardized_dataframe=(
+                    main_activity_dataframe
+                ),
+                activity_calendar_dataframe=(
+                    calendar_dataframe
+                ),
+                promotion_benefits_dataframe=(
+                    benefits_dataframe
+                ),
+                activity_issues_dataframe=(
+                    activity_issues_dataframe
+                ),
+            )
+        )
+
+    except Exception as error:
+        st.error(
+            f"無法建立活動資料摘要：{error}"
+        )
+        st.stop()
+
+
+    result_col1, result_col2, result_col3, result_col4 = (
+        st.columns(4)
+    )
+
+    result_col1.metric(
+        "商品活動期間",
+        f"{activity_summary['main_activity_rows']:,}",
+    )
+
+    result_col2.metric(
+        "活動日曆",
+        f"{activity_summary['calendar_rows']:,}",
+    )
+
+    result_col3.metric(
+        "優惠內容",
+        f"{activity_summary['benefit_rows']:,}",
+    )
+
+    result_col4.metric(
+        "待確認問題",
+        f"{activity_summary['issue_rows']:,}",
     )
 
 
+    # =====================================================
+    # 分頁顯示結果
+    # =====================================================
+
+    tab1, tab2, tab3, tab4 = st.tabs(
+        [
+            "商品活動價格",
+            "活動日曆",
+            "優惠內容",
+            "資料問題",
+        ]
+    )
+
+
+    with tab1:
+        st.subheader(
+            "商品活動價格資料"
+        )
+
+        st.caption(
+            "同一商品可能有多個活動期間與活動價格。"
+        )
+
+        st.dataframe(
+            main_activity_dataframe.head(100),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        if len(main_activity_dataframe) > 100:
+            st.caption(
+                "目前僅預覽前 100 筆資料。"
+            )
+
+
+    with tab2:
+        st.subheader(
+            "活動日曆"
+        )
+
+        if (
+            calendar_dataframe is None
+            or calendar_dataframe.empty
+        ):
+            st.info(
+                "沒有活動日曆資料。"
+            )
+
+        else:
+            st.dataframe(
+                calendar_dataframe.head(100),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            if len(calendar_dataframe) > 100:
+                st.caption(
+                    "目前僅預覽前 100 筆資料。"
+                )
+
+
+    with tab3:
+        st.subheader(
+            "優惠內容"
+        )
+
+        if (
+            benefits_dataframe is None
+            or benefits_dataframe.empty
+        ):
+            st.info(
+                "沒有優惠內容資料。"
+            )
+
+        else:
+            st.dataframe(
+                benefits_dataframe.head(100),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            if len(benefits_dataframe) > 100:
+                st.caption(
+                    "目前僅預覽前 100 筆資料。"
+                )
+
+
+    with tab4:
+        st.subheader(
+            "資料問題"
+        )
+
+        if (
+            activity_issues_dataframe is None
+            or activity_issues_dataframe.empty
+        ):
+            st.success(
+                "目前程式未發現需要人工確認的問題。"
+            )
+
+        else:
+            st.warning(
+                "以下資料不會被系統自行修改，"
+                "需由使用者或企業確認。"
+            )
+
+            st.dataframe(
+                activity_issues_dataframe.head(100),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            if len(activity_issues_dataframe) > 100:
+                st.caption(
+                    "目前僅預覽前 100 筆問題資料。"
+                )
+
+
+    # =====================================================
+    # 下載標準化結果
+    # =====================================================
+
+    st.divider()
+    st.subheader("下載標準化資料")
+
+
+    main_activity_csv = (
+        main_activity_dataframe.to_csv(
+            index=False,
+            encoding="utf-8-sig",
+            date_format="%Y-%m-%d",
+        ).encode(
+            "utf-8-sig"
+        )
+    )
+
+
+    if calendar_dataframe is None:
+        calendar_for_download = pd.DataFrame()
+
+    else:
+        calendar_for_download = (
+            calendar_dataframe
+        )
+
+
+    calendar_csv = (
+        calendar_for_download.to_csv(
+            index=False,
+            encoding="utf-8-sig",
+            date_format="%Y-%m-%d",
+        ).encode(
+            "utf-8-sig"
+        )
+    )
+
+
+    if benefits_dataframe is None:
+        benefits_for_download = pd.DataFrame()
+
+    else:
+        benefits_for_download = (
+            benefits_dataframe
+        )
+
+
+    benefits_csv = (
+        benefits_for_download.to_csv(
+            index=False,
+            encoding="utf-8-sig",
+            date_format="%Y-%m-%d",
+        ).encode(
+            "utf-8-sig"
+        )
+    )
+
+
+    if activity_issues_dataframe is None:
+        issues_for_download = pd.DataFrame()
+
+    else:
+        issues_for_download = (
+            activity_issues_dataframe
+        )
+
+
+    issues_csv = (
+        issues_for_download.to_csv(
+            index=False,
+            encoding="utf-8-sig",
+        ).encode(
+            "utf-8-sig"
+        )
+    )
+
+
+    download_col1, download_col2 = (
+        st.columns(2)
+    )
+
+    with download_col1:
+        st.download_button(
+            "下載商品活動價格",
+            data=main_activity_csv,
+            file_name=(
+                "activity_main_standardized.csv"
+            ),
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        st.download_button(
+            "下載優惠內容",
+            data=benefits_csv,
+            file_name=(
+                "promotion_benefits_standardized.csv"
+            ),
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+
+    with download_col2:
+        st.download_button(
+            "下載活動日曆",
+            data=calendar_csv,
+            file_name=(
+                "campaign_calendar_standardized.csv"
+            ),
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        st.download_button(
+            "下載活動資料問題",
+            data=issues_csv,
+            file_name=(
+                "activity_quality_issues.csv"
+            ),
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+
+    # =====================================================
+    # 最終確認
+    # =====================================================
+
+    st.divider()
+    st.subheader("最終確認")
+
+    if result_is_current:
+        confirmed_checkbox = st.checkbox(
+            "我已確認月份檔案、標準化結果與問題資料",
+            value=st.session_state.get(
+                "activity_data_confirmed",
+                False,
+            ),
+            key=(
+                "activity_final_confirmation_checkbox"
+            ),
+        )
+
+        confirm_button = st.button(
+            "確認使用此活動資料",
+            type="primary",
+            use_container_width=True,
+            disabled=not confirmed_checkbox,
+        )
+
+        if confirm_button:
+            st.session_state.activity_data_confirmed = (
+                True
+            )
+
+            st.success(
+                "活動資料已完成最終確認，"
+                "可以進入銷量與活動資料整合。"
+            )
+
+    else:
+        st.info(
+            "請先使用目前月份檔案重新處理資料，"
+            "才能進行最終確認。"
+        )
+
+
+    if st.session_state.get(
+        "activity_data_confirmed",
+        False,
+    ):
+        st.success(
+            "目前活動標準化資料已確認完成。"
+        )
+
+
 # =========================================================
-# 檔案管理
+# 清除活動資料
 # =========================================================
 
 st.divider()
+st.subheader("重新開始")
 
-st.subheader("檔案管理")
+st.caption(
+    "清除後會移除目前活動檔案、標準化結果，"
+    "以及依賴活動資料的整合與分析結果。"
+)
 
+if st.button(
+    "清除所有活動資料"
+):
+    clear_activity_data()
 
-col1, col2 = st.columns(2)
+    reset_activity_widget_state()
 
-
-with col1:
-    if st.button(
-        f"移除目前檔案：{selected_file_name}"
-    ):
-        remove_activity_file(
-            selected_file_name
-        )
-
-        st.rerun()
-
-
-with col2:
-    if st.button(
-        "清除所有活動檔案"
-    ):
-        clear_activity_data()
-        st.rerun()
+    st.rerun()
