@@ -2,7 +2,11 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.floating_chatbot import render_floating_chatbot
+from src.session_helpers import initialize_session_state
 from src.ui_style import apply_product_styles
+
+initialize_session_state()
 
 
 # =========================================================
@@ -160,6 +164,19 @@ with st.sidebar:
     st.caption(
         "產品版 MVP｜UI Redesign"
     )
+
+
+# =========================================================
+# 全站共用：浮動 AI 顧問視窗
+# =========================================================
+#
+# 必須放在 navigation.run() 之前執行。
+# 許多分頁在資料尚未備妥時會呼叫 st.stop()，
+# 這會讓「整個腳本」（不只該分頁）立刻停止，
+# 若浮動視窗寫在 navigation.run() 之後，
+# 遇到這種分頁就完全不會渲染。
+
+render_floating_chatbot()
 
 
 # =========================================================
