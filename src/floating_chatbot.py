@@ -196,6 +196,37 @@ def _inject_floating_chat_styles() -> None:
             height: min(58vh, 560px) !important;
             flex: 1 1 auto !important;
         }
+
+        /* ---------------------------------------------
+           快捷問題按鈕
+        --------------------------------------------- */
+
+        .st-key-floating_chat_shortcuts {
+            margin-bottom: 1.4rem;
+        }
+
+        .st-key-floating_chat_shortcut_buttons {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 0.4rem !important;
+        }
+
+        .st-key-floating_chat_shortcut_buttons [data-testid="stElementContainer"] {
+            width: auto !important;
+        }
+
+        .st-key-floating_chat_shortcut_buttons .stButton {
+            display: inline-block;
+            margin-bottom: 0 !important;
+        }
+
+        .st-key-floating_chat_shortcut_buttons .stButton > button {
+            width: auto !important;
+            font-size: 0.82rem;
+            padding: 0.35rem 0.7rem;
+            min-height: 2rem;
+            white-space: nowrap;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -208,12 +239,48 @@ def _inject_floating_chat_styles() -> None:
 
 FLOATING_CHAT_GREETING = (
     "你好，我是 AI 策略顧問\n\n"
-    "如果活動成效與策略報告已經分析完成，"
     "我可以協助解讀高低成效活動、整理資料限制，"
     "並規劃下一期促銷測試。\n\n"
-    "如果還沒上傳或分析資料，也可以先問我"
-    "系統定位、資料清洗流程或運算邏輯是什麼。"
+    "如果還沒完成上傳資料解析的步驟，"
+    "也可以先問我系統相關定位、資料清洗流程與運算分析邏輯。"
 )
+
+FLOATING_CHAT_DISCLAIMER = (
+    "AI 回答屬於決策輔助。"
+    "實際執行仍應搭配成本、毛利、庫存與商業目標判斷。"
+)
+
+FLOATING_CHAT_SHORTCUT_QUESTIONS = [
+    (
+        "哪些活動最值得延續？",
+        "請根據目前分析，找出最值得延續的活動。"
+        "請說明數據依據、資料限制，"
+        "以及下一步可以如何驗證。",
+    ),
+    (
+        "低成效活動可能有哪些原因？",
+        "請分析目前低成效活動可能的原因。"
+        "請區分資料能確認的觀察、合理推測，"
+        "以及仍需要補充的資料。",
+    ),
+    (
+        "下一期促銷應如何規劃？",
+        "請根據目前結果提出下一期促銷規劃。"
+        "內容請包含優先活動、測試設計、"
+        "追蹤指標與風險控制。",
+    ),
+    (
+        "目前分析有哪些限制？",
+        "請整理目前分析的資料限制、"
+        "不能直接下的結論，以及應補充的資料。",
+    ),
+    (
+        "整理成主管摘要",
+        "請將目前分析整理成主管可快速閱讀的摘要。"
+        "請包含關鍵發現、主要風險、"
+        "建議行動與需要補充的資料。",
+    ),
+]
 
 
 def render_floating_chatbot() -> None:
@@ -260,9 +327,13 @@ def _get_analysis_sources() -> tuple[str | None, pd.DataFrame | None, pd.DataFra
         "activity_performance_dataframe"
     )
 
+    # 只要「執行成效分析」已經產生結果就視為就緒，
+    # 不需要等到後面「產生策略報告」那步也完成——
+    # build_advisor_context 在沒有策略報告文字時
+    # 會自動標示「尚無策略文字報告」，AI 仍可根據
+    # 成效分析資料本身回答決策建議。
     data_ready = (
-        strategy_report_text is not None
-        and performance_dataframe is not None
+        performance_dataframe is not None
         and isinstance(performance_dataframe, pd.DataFrame)
         and not performance_dataframe.empty
     )
@@ -299,17 +370,28 @@ def _render_floating_chat_panel() -> None:
             with st.container(key=bubble_key):
                 st.markdown(f"{avatar} {content}")
 
-    if not data_ready:
-        st.caption(
-            "目前尚未完成活動成效與策略報告分析，"
-            "仍可詢問系統定位、資料清洗流程或分析邏輯，"
-            "完整數據問答請先完成「活動成效分析」與「策略建議報表」。"
-        )
-
     typed_question = st.chat_input(
         "輸入問題……",
         key="floating_chat_input",
     )
+
+    shortcut_question = None
+
+    if data_ready:
+        st.caption(FLOATING_CHAT_DISCLAIMER)
+
+        with st.container(key="floating_chat_shortcuts"):
+            st.caption("快捷問題")
+
+            with st.container(key="floating_chat_shortcut_buttons"):
+                for shortcut_index, (label, prompt) in enumerate(
+                    FLOATING_CHAT_SHORTCUT_QUESTIONS
+                ):
+                    if st.button(
+                        label,
+                        key=f"floating_chat_shortcut_{shortcut_index}",
+                    ):
+                        shortcut_question = prompt
 
     if st.button(
         "清除對話紀錄",
@@ -324,11 +406,13 @@ def _render_floating_chat_panel() -> None:
         ]
         st.rerun()
 
-    if typed_question:
+    user_question = shortcut_question if shortcut_question else typed_question
+
+    if user_question:
         st.session_state["ai_chat_messages"].append(
             {
                 "role": "user",
-                "content": typed_question,
+                "content": user_question,
             }
         )
 
@@ -344,14 +428,14 @@ def _render_floating_chat_panel() -> None:
                     st.session_state["ai_last_context"] = advisor_context
 
                     answer = ask_gemini_advisor(
-                        user_question=typed_question,
+                        user_question=user_question,
                         advisor_context=advisor_context,
                         chat_messages=st.session_state["ai_chat_messages"],
                     )
 
                 else:
                     answer = ask_gemini_system_explainer(
-                        user_question=typed_question,
+                        user_question=user_question,
                         chat_messages=st.session_state["ai_chat_messages"],
                     )
 
