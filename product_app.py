@@ -12,10 +12,16 @@ from src.ui_style import apply_product_styles
 PROJECT_ROOT = Path(__file__).resolve().parent
 PAGES_DIR = PROJECT_ROOT / "pages"
 
-apply_product_styles()
 
 # =========================================================
-# 產品介面
+# 全站樣式
+# =========================================================
+
+apply_product_styles()
+
+
+# =========================================================
+# 決策分析介面
 # =========================================================
 
 product_home_page = st.Page(
@@ -60,34 +66,16 @@ data_management_page = st.Page(
     icon=":material/folder_managed:",
 )
 
-sales_upload_page = st.Page(
+sales_processing_page = st.Page(
     PAGES_DIR / "1_資料上傳.py",
-    title="銷量資料上傳",
+    title="銷量資料處理",
     icon=":material/upload_file:",
 )
 
-column_mapping_page = st.Page(
-    PAGES_DIR / "2_欄位對應.py",
-    title="欄位設定",
-    icon=":material/schema:",
-)
-
-data_quality_page = st.Page(
-    PAGES_DIR / "3_資料品質.py",
-    title="銷量資料品質",
-    icon=":material/fact_check:",
-)
-
-activity_upload_page = st.Page(
+activity_processing_page = st.Page(
     PAGES_DIR / "5_活動資料上傳.py",
-    title="活動資料上傳",
-    icon=":material/upload:",
-)
-
-activity_standardization_page = st.Page(
-    PAGES_DIR / "6_活動資料標準化.py",
-    title="活動資料品質",
-    icon=":material/checklist:",
+    title="活動資料處理",
+    icon=":material/event_note:",
 )
 
 
@@ -120,20 +108,17 @@ strategy_generation_page = st.Page(
 
 navigation = st.navigation(
     {
-       "決策分析": [
-    product_home_page,
-    activity_insight_page,
-    strategy_center_page,
-    management_report_page,
-    ai_advisor_page,
-],
+        "決策分析": [
+            product_home_page,
+            activity_insight_page,
+            strategy_center_page,
+            management_report_page,
+            ai_advisor_page,
+        ],
         "資料管理": [
             data_management_page,
-            sales_upload_page,
-            column_mapping_page,
-            data_quality_page,
-            activity_upload_page,
-            activity_standardization_page,
+            sales_processing_page,
+            activity_processing_page,
         ],
         "系統處理": [
             integration_page,
