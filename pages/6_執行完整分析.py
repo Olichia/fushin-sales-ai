@@ -18,17 +18,6 @@ initialize_session_state()
 
 
 # =========================================================
-# 頁面標題
-# =========================================================
-
-st.title("執行完整分析")
-
-st.caption(
-    "系統會依序完成資料整合、活動成效分析與策略報告產生。"
-)
-
-
-# =========================================================
 # Session State 工具
 # =========================================================
 
@@ -60,6 +49,64 @@ def dataframe_ready(
     )
 
 
+def render_readiness_card(
+    *,
+    icon: str,
+    title: str,
+    ready: bool,
+    ready_text: str,
+    pending_text: str,
+    count_text: str,
+) -> None:
+    """顯示分析前置資料狀態卡。"""
+
+    with st.container(border=True):
+        st.markdown(
+            f"""
+            <div class="status-card-heading">
+                <div class="status-card-icon">{icon}</div>
+                <div>
+                    <div class="status-card-title">{title}</div>
+                    <div class="status-card-subtitle">{count_text}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if ready:
+            st.success(
+                ready_text
+            )
+        else:
+            st.error(
+                pending_text
+            )
+
+
+# =========================================================
+# 頁面標題
+# =========================================================
+
+st.markdown(
+    """
+    <div class="step-label">STEP 03</div>
+
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h1>執行完整分析</h1>
+    </div>
+
+    <p class="product-page-description">
+        一次完成銷量與活動資料整合、活動前中後成效分析，
+        以及策略報告產生。分析完成後，結果會同步提供給
+        分析總覽、活動洞察、策略中心、主管報表與 AI 策略顧問。
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 # =========================================================
 # 讀取前置資料
 # =========================================================
@@ -80,7 +127,6 @@ benefits_dataframe = get_dataframe(
     "promotion_benefits_dataframe"
 )
 
-
 sales_confirmed = bool(
     st.session_state.get(
         "sales_data_confirmed",
@@ -94,7 +140,6 @@ activity_confirmed = bool(
         False,
     )
 )
-
 
 sales_ready = (
     sales_confirmed
@@ -129,47 +174,136 @@ st.subheader("資料準備狀態")
 status_col_1, status_col_2 = st.columns(2)
 
 with status_col_1:
-    if sales_ready:
-        st.success(
-            f"銷量資料已完成，共 {len(sales_dataframe):,} 筆。"
-        )
-    else:
-        st.error(
-            "銷量資料尚未完成，請先前往「銷量資料處理」。"
-        )
+    render_readiness_card(
+        icon="📊",
+        title="銷量資料",
+        ready=sales_ready,
+        ready_text=(
+            f"已完成確認，共 {len(sales_dataframe):,} 筆標準化資料。"
+        ),
+        pending_text=(
+            "尚未完成，請先前往「01 銷量資料處理」。"
+        ),
+        count_text=(
+            f"{len(sales_dataframe):,} 筆標準化資料"
+            if dataframe_ready(sales_dataframe)
+            else "尚無標準化資料"
+        ),
+    )
 
 with status_col_2:
-    if activity_ready:
-        st.success(
-            f"活動資料已完成，共 {len(activity_dataframe):,} 筆。"
-        )
-    else:
-        st.error(
-            "活動資料尚未完成，請先前往「活動資料處理」。"
-        )
+    render_readiness_card(
+        icon="🏷️",
+        title="活動資料",
+        ready=activity_ready,
+        ready_text=(
+            f"已完成確認，共 {len(activity_dataframe):,} 筆商品活動資料。"
+        ),
+        pending_text=(
+            "尚未完成，請先前往「02 活動資料處理」。"
+        ),
+        count_text=(
+            f"{len(activity_dataframe):,} 筆商品活動資料"
+            if dataframe_ready(activity_dataframe)
+            else "尚無標準化資料"
+        ),
+    )
 
 
 with st.expander(
     "查看其他活動資料狀態",
     expanded=False,
 ):
-    if calendar_ready:
-        st.write(
-            f"平台活動日曆：{len(calendar_dataframe):,} 筆"
-        )
-    else:
-        st.write(
-            "平台活動日曆：未提供，系統將以空資料處理。"
+    auxiliary_col1, auxiliary_col2 = st.columns(2)
+
+    with auxiliary_col1:
+        st.metric(
+            "平台活動日曆",
+            f"{len(calendar_dataframe):,} 筆",
         )
 
-    if benefits_ready:
-        st.write(
-            f"優惠資料：{len(benefits_dataframe):,} 筆"
+        if calendar_ready:
+            st.success(
+                "活動日曆已備妥。"
+            )
+        else:
+            st.info(
+                "未提供活動日曆，系統將以空資料處理。"
+            )
+
+    with auxiliary_col2:
+        st.metric(
+            "優惠資料",
+            f"{len(benefits_dataframe):,} 筆",
         )
-    else:
-        st.write(
-            "優惠資料：未提供，系統將以空資料處理。"
-        )
+
+        if benefits_ready:
+            st.success(
+                "優惠資料已備妥。"
+            )
+        else:
+            st.info(
+                "未提供優惠資料，系統將以空資料處理。"
+            )
+
+
+# =========================================================
+# 分析流程說明
+# =========================================================
+
+st.subheader("完整分析流程")
+
+pipeline_columns = st.columns(3)
+
+pipeline_steps = [
+    {
+        "編號": "01",
+        "圖示": "🔗",
+        "名稱": "建立整合資料",
+        "說明": "將銷量、商品活動、平台活動與優惠資料整合。",
+    },
+    {
+        "編號": "02",
+        "圖示": "📈",
+        "名稱": "執行成效分析",
+        "說明": "比較活動前、活動期間與活動後的銷量表現。",
+    },
+    {
+        "編號": "03",
+        "圖示": "📋",
+        "名稱": "產生策略報告",
+        "說明": "整理延續、優化與檢討活動的策略建議。",
+    },
+]
+
+for column, step in zip(
+    pipeline_columns,
+    pipeline_steps,
+):
+    with column:
+        with st.container(border=True):
+            st.markdown(
+                f"""
+                <div class="workflow-step-header">
+                    <div class="workflow-step-icon">
+                        {step['圖示']}
+                    </div>
+                    <div>
+                        <div class="workflow-step-number">
+                            PROCESS {step['編號']}
+                        </div>
+                        <div class="workflow-step-title">
+                            {step['名稱']}
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.write(
+                step["說明"]
+            )
 
 
 # =========================================================
@@ -182,61 +316,65 @@ with st.expander(
     "調整分析參數",
     expanded=False,
 ):
-    baseline_days = st.number_input(
-        "活動前觀察天數",
-        min_value=1,
-        max_value=90,
-        value=7,
-        step=1,
-        help="用於計算活動開始前的平均每日銷量。",
-    )
+    setting_col1, setting_col2 = st.columns(2)
 
-    post_days = st.number_input(
-        "活動後觀察天數",
-        min_value=1,
-        max_value=90,
-        value=7,
-        step=1,
-        help="用於觀察活動結束後的銷量變化。",
-    )
+    with setting_col1:
+        baseline_days = st.number_input(
+            "活動前觀察天數",
+            min_value=1,
+            max_value=90,
+            value=7,
+            step=1,
+            help="用於計算活動開始前的平均每日銷量。",
+        )
 
-    high_uplift_threshold = st.number_input(
-        "高成效提升率門檻",
-        min_value=-1.0,
-        max_value=10.0,
-        value=0.20,
-        step=0.05,
-        format="%.2f",
-        help="0.20 代表活動期間平均每日銷量提升 20%。",
-    )
+        high_uplift_threshold = st.number_input(
+            "高成效提升率門檻",
+            min_value=-1.0,
+            max_value=10.0,
+            value=0.20,
+            step=0.05,
+            format="%.2f",
+            help="0.20 代表活動期間平均每日銷量提升 20%。",
+        )
 
-    low_uplift_threshold = st.number_input(
-        "低成效提升率門檻",
-        min_value=-1.0,
-        max_value=10.0,
-        value=0.0,
-        step=0.05,
-        format="%.2f",
-        help="低於此門檻的活動會被歸類為低成效。",
-    )
+        minimum_campaign_sales = st.number_input(
+            "最低活動總銷量",
+            min_value=0.0,
+            value=1.0,
+            step=1.0,
+            help="活動總銷量低於此數值時，不列入高成效活動。",
+        )
 
-    minimum_campaign_sales = st.number_input(
-        "最低活動總銷量",
-        min_value=0.0,
-        value=1.0,
-        step=1.0,
-        help="活動總銷量低於此數值時，不列入高成效活動。",
-    )
+    with setting_col2:
+        post_days = st.number_input(
+            "活動後觀察天數",
+            min_value=1,
+            max_value=90,
+            value=7,
+            step=1,
+            help="用於觀察活動結束後的銷量變化。",
+        )
 
-    fill_missing_dates_with_zero = st.checkbox(
-        "缺少銷量紀錄的日期視為 0",
-        value=True,
-    )
+        low_uplift_threshold = st.number_input(
+            "低成效提升率門檻",
+            min_value=-1.0,
+            max_value=10.0,
+            value=0.0,
+            step=0.05,
+            format="%.2f",
+            help="低於此門檻的活動會被歸類為低成效。",
+        )
 
-    only_complete_periods = st.checkbox(
-        "策略報告只使用觀察期間完整的活動",
-        value=True,
-    )
+        fill_missing_dates_with_zero = st.checkbox(
+            "缺少銷量紀錄的日期視為 0",
+            value=True,
+        )
+
+        only_complete_periods = st.checkbox(
+            "策略報告只使用觀察期間完整的活動",
+            value=True,
+        )
 
 
 settings = AnalysisSettings(
@@ -264,19 +402,6 @@ settings = AnalysisSettings(
 # 目前分析結果狀態
 # =========================================================
 
-existing_integrated = get_dataframe(
-    "integrated_sales_activity_dataframe"
-)
-
-existing_performance = get_dataframe(
-    "activity_performance_dataframe"
-)
-
-existing_strategy = get_dataframe(
-    "strategy_report_dataframe"
-)
-
-
 analysis_completed = bool(
     st.session_state.get(
         "full_analysis_completed",
@@ -287,7 +412,7 @@ analysis_completed = bool(
 if analysis_completed:
     st.info(
         "目前 Session 中已有完整分析結果。"
-        "重新執行將覆蓋原有結果。"
+        "重新執行會以目前資料與設定覆蓋原有結果。"
     )
 
 
@@ -297,39 +422,47 @@ if analysis_completed:
 
 st.subheader("開始分析")
 
-st.write(
-    "按下按鈕後，系統將依序執行："
-)
+with st.container(border=True):
+    st.markdown(
+        """
+        <div class="analysis-action-heading">
+            <div class="analysis-action-icon">▶️</div>
+            <div>
+                <div class="analysis-action-title">
+                    一鍵執行完整分析
+                </div>
+                <div class="analysis-action-description">
+                    系統會按照既定順序完成三個處理階段，
+                    不需要再逐頁執行整合、成效分析與策略報告。
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-st.write(
-    "1. 建立銷量與活動整合資料"
-)
+    if not can_run_analysis:
+        st.warning(
+            "必須先完成銷量資料與活動資料的最終確認，"
+            "才能執行完整分析。"
+        )
 
-st.write(
-    "2. 執行活動前、中、後成效分析"
-)
-
-st.write(
-    "3. 產生策略資料與文字報告"
-)
-
-
-run_button = st.button(
-    "執行完整分析",
-    type="primary",
-    use_container_width=True,
-    disabled=not can_run_analysis,
-)
+    run_button = st.button(
+        "執行完整分析",
+        type="primary",
+        use_container_width=True,
+        disabled=not can_run_analysis,
+    )
 
 
 if run_button:
-    empty_calendar_dataframe = (
+    calendar_for_analysis = (
         calendar_dataframe
         if calendar_ready
         else pd.DataFrame()
     )
 
-    empty_benefits_dataframe = (
+    benefits_for_analysis = (
         benefits_dataframe
         if benefits_ready
         else pd.DataFrame()
@@ -341,7 +474,7 @@ if run_button:
             expanded=True,
         ) as analysis_status:
             st.write(
-                "正在建立銷量與活動整合資料……"
+                "① 正在建立銷量與活動整合資料……"
             )
 
             result = run_full_analysis(
@@ -350,24 +483,24 @@ if run_button:
                     activity_dataframe
                 ),
                 calendar_dataframe=(
-                    empty_calendar_dataframe
+                    calendar_for_analysis
                 ),
                 benefits_dataframe=(
-                    empty_benefits_dataframe
+                    benefits_for_analysis
                 ),
                 settings=settings,
             )
 
             st.write(
-                "銷量與活動資料整合完成。"
+                "② 銷量與活動資料整合完成。"
             )
 
             st.write(
-                "活動成效分析完成。"
+                "③ 活動成效分析完成。"
             )
 
             st.write(
-                "策略報告產生完成。"
+                "④ 策略報告產生完成。"
             )
 
             analysis_status.update(
@@ -463,6 +596,13 @@ if run_button:
 # 顯示完成後摘要
 # =========================================================
 
+analysis_completed = bool(
+    st.session_state.get(
+        "full_analysis_completed",
+        False,
+    )
+)
+
 if analysis_completed:
     integrated_dataframe = get_dataframe(
         "integrated_sales_activity_dataframe"
@@ -487,9 +627,7 @@ if analysis_completed:
         )
     )
 
-
     st.divider()
-
     st.subheader("分析完成摘要")
 
     metric_col_1, metric_col_2, metric_col_3 = (
@@ -514,7 +652,6 @@ if analysis_completed:
             f"{len(strategy_dataframe):,} 筆",
         )
 
-
     if dataframe_ready(issues_dataframe):
         st.warning(
             f"整合過程發現 {len(issues_dataframe):,} 筆提醒，"
@@ -535,27 +672,31 @@ if analysis_completed:
             "整合過程沒有發現需要另外處理的問題。"
         )
 
+    result_tab1, result_tab2 = st.tabs(
+        [
+            "成效分析預覽",
+            "策略報告預覽",
+        ]
+    )
 
-    with st.expander(
-        "預覽成效分析結果",
-        expanded=False,
-    ):
+    with result_tab1:
         if dataframe_ready(performance_dataframe):
             st.dataframe(
                 performance_dataframe.head(100),
                 use_container_width=True,
                 hide_index=True,
             )
+
+            if len(performance_dataframe) > 100:
+                st.caption(
+                    "目前僅預覽前 100 筆資料。"
+                )
         else:
             st.info(
                 "目前沒有可顯示的成效分析結果。"
             )
 
-
-    with st.expander(
-        "預覽策略報告",
-        expanded=True,
-    ):
+    with result_tab2:
         if strategy_report_text.strip():
             st.markdown(
                 strategy_report_text
@@ -564,7 +705,6 @@ if analysis_completed:
             st.info(
                 "目前沒有策略報告文字。"
             )
-
 
     st.success(
         "下一步可前往「分析總覽」、「活動洞察」、"
