@@ -1082,6 +1082,72 @@ def apply_product_styles() -> None:
             }
         }
 
+
+        /* ==================================================
+           策略中心
+        ================================================== */
+
+        .strategy-summary-card {
+            height: 100%;
+            min-height: 190px;
+            padding: 1.15rem 1.2rem;
+
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+
+            box-shadow: var(--shadow-sm);
+        }
+
+        .strategy-summary-continue {
+            border-top: 4px solid #178553;
+        }
+
+        .strategy-summary-optimize {
+            border-top: 4px solid var(--brand-orange);
+        }
+
+        .strategy-summary-review {
+            border-top: 4px solid #C62828;
+        }
+
+        .strategy-summary-eyebrow {
+            margin-bottom: 0.35rem;
+
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            font-weight: 850;
+            letter-spacing: 0.09em;
+        }
+
+        .strategy-summary-title {
+            color: var(--text-primary);
+            font-size: 1.05rem;
+            font-weight: 850;
+        }
+
+        .strategy-summary-count {
+            margin: 0.45rem 0;
+
+            color: var(--text-primary);
+            font-size: 2rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .strategy-summary-description {
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            font-weight: 500;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 900px) {
+            .strategy-summary-card {
+                min-height: auto;
+            }
+        }
+
         </style>
         """,
         unsafe_allow_html=True,
