@@ -25,22 +25,22 @@ from src.session_helpers import initialize_session_state
 
 initialize_session_state()
 
-st.set_page_config(
-    page_title="活動洞察",
-    page_icon="📈",
-    layout="wide",
-)
+st.markdown(
+    """
+    <div class="step-label">ACTIVITY INSIGHTS</div>
 
-st.title("活動洞察")
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h1>活動洞察</h1>
+    </div>
 
-st.write(
-    "比較不同商品活動的成效，並查看單一活動前、活動期間"
-    "與活動後的每日銷量變化。"
-)
-
-st.caption(
-    "活動提升率僅代表活動期間與銷量變化的關聯，"
-    "不等於已證明活動造成銷量提升。"
+    <p class="product-page-description">
+        比較不同商品活動的成效，並查看單一活動在活動前、
+        活動期間與活動後的每日銷量變化。活動提升率僅代表
+        活動期間與銷量變化的關聯，不等於已證明因果關係。
+    </p>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -60,7 +60,7 @@ integrated_dataframe = st.session_state.get(
 if performance_dataframe is None:
     st.warning(
         "尚未產生活動成效分析結果。"
-        "請先完成「活動成效分析」。"
+        "請先完成「03 執行完整分析」。"
     )
     st.stop()
 
@@ -193,86 +193,101 @@ performance["activity_label"] = (
 
 st.subheader("分析篩選")
 
-filter_col1, filter_col2, filter_col3 = st.columns(
-    [1.3, 1, 1]
-)
+with st.container(border=True):
+    st.markdown(
+        """
+        <div class="analysis-filter-heading">
+            <div class="analysis-filter-icon">🔎</div>
+            <div>
+                <div class="analysis-filter-title">篩選活動資料</div>
+                <div class="analysis-filter-description">
+                    可依商品、成效分類與資料信心縮小分析範圍。
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    filter_col1, filter_col2, filter_col3 = st.columns(
+        [1.3, 1, 1]
+    )
 
 
-product_options = (
-    performance[
-        [
-            "product_id",
-            "product_name",
+    product_options = (
+        performance[
+            [
+                "product_id",
+                "product_name",
+            ]
         ]
-    ]
-    .drop_duplicates()
-    .sort_values(
-        [
-            "product_id",
-            "product_name",
-        ]
-    )
-)
-
-
-product_label_mapping = {
-    f"{row.product_id}｜{row.product_name}": (
-        str(row.product_id)
-    )
-    for row in product_options.itertuples()
-}
-
-
-with filter_col1:
-    selected_product_labels = st.multiselect(
-        "商品",
-        options=list(
-            product_label_mapping.keys()
-        ),
-        default=[],
-        placeholder="未選擇時顯示全部商品",
-    )
-
-
-with filter_col2:
-    selected_performance_categories = (
-        st.multiselect(
-            "成效分類",
-            options=[
-                "高成效",
-                "一般成效",
-                "低成效",
-                "無法判定",
-            ],
-            default=[
-                "高成效",
-                "一般成效",
-                "低成效",
-                "無法判定",
-            ],
+        .drop_duplicates()
+        .sort_values(
+            [
+                "product_id",
+                "product_name",
+            ]
         )
     )
 
 
-confidence_options = []
-
-if "data_confidence" in performance.columns:
-    confidence_options = sorted(
-        performance["data_confidence"]
-        .dropna()
-        .astype(str)
-        .unique()
-        .tolist()
-    )
+    product_label_mapping = {
+        f"{row.product_id}｜{row.product_name}": (
+            str(row.product_id)
+        )
+        for row in product_options.itertuples()
+    }
 
 
-with filter_col3:
-    selected_confidence = st.multiselect(
-        "資料信心",
-        options=confidence_options,
-        default=confidence_options,
-    )
+    with filter_col1:
+        selected_product_labels = st.multiselect(
+            "商品",
+            options=list(
+                product_label_mapping.keys()
+            ),
+            default=[],
+            placeholder="未選擇時顯示全部商品",
+        )
 
+
+    with filter_col2:
+        selected_performance_categories = (
+            st.multiselect(
+                "成效分類",
+                options=[
+                    "高成效",
+                    "一般成效",
+                    "低成效",
+                    "無法判定",
+                ],
+                default=[
+                    "高成效",
+                    "一般成效",
+                    "低成效",
+                    "無法判定",
+                ],
+            )
+        )
+
+
+    confidence_options = []
+
+    if "data_confidence" in performance.columns:
+        confidence_options = sorted(
+            performance["data_confidence"]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+
+    with filter_col3:
+        selected_confidence = st.multiselect(
+            "資料信心",
+            options=confidence_options,
+            default=confidence_options,
+        )
 
 filtered_performance = performance.copy()
 
@@ -580,10 +595,26 @@ activity_selection_options = (
 )
 
 
-selected_activity_label = st.selectbox(
-    "選擇要查看的商品活動",
-    options=activity_selection_options,
-)
+with st.container(border=True):
+    st.markdown(
+        """
+        <div class="analysis-filter-heading">
+            <div class="analysis-filter-icon">🎯</div>
+            <div>
+                <div class="analysis-filter-title">選擇單一活動</div>
+                <div class="analysis-filter-description">
+                    查看指定商品活動的銷量、提升率與資料風險。
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    selected_activity_label = st.selectbox(
+        "選擇要查看的商品活動",
+        options=activity_selection_options,
+    )
 
 
 selected_activity = (

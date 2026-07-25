@@ -972,6 +972,116 @@ def apply_product_styles() -> None:
             }
         }
 
+
+        /* ==================================================
+           分析總覽與活動洞察
+        ================================================== */
+
+        .overview-status-number {
+            margin-bottom: 0.25rem;
+
+            color: var(--brand-orange);
+            font-size: 0.76rem;
+            font-weight: 850;
+            letter-spacing: 0.08em;
+        }
+
+        .overview-status-title {
+            margin-bottom: 0.7rem;
+
+            color: var(--text-primary);
+            font-size: 1.05rem;
+            font-weight: 850;
+        }
+
+        .analysis-filter-heading {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        .analysis-filter-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            width: 44px;
+            height: 44px;
+            flex: 0 0 44px;
+
+            border-radius: 12px;
+            background: var(--brand-orange-soft);
+
+            font-size: 1.25rem;
+        }
+
+        .analysis-filter-title {
+            color: var(--text-primary);
+            font-size: 1.02rem;
+            font-weight: 850;
+        }
+
+        .analysis-filter-description {
+            margin-top: 0.18rem;
+
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            font-weight: 500;
+            line-height: 1.55;
+        }
+
+        /* Plotly 圖表外層增加卡片感 */
+        [data-testid="stPlotlyChart"] {
+            overflow: hidden;
+            padding: 0.35rem;
+
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Plotly 圖表本體維持透明，避免出現灰底 */
+        [data-testid="stPlotlyChart"] > div {
+            border-radius: 12px;
+        }
+
+        /* 分析篩選卡內的輸入元件增加間距 */
+        [data-testid="stVerticalBlockBorderWrapper"]
+        .analysis-filter-heading {
+            margin-top: 0.1rem;
+        }
+
+        /* 分析頁 KPI 與狀態卡內文字維持高對比 */
+        .overview-status-title,
+        .analysis-filter-title,
+        .analysis-filter-description {
+            text-rendering: optimizeLegibility;
+        }
+
+        @media (max-width: 900px) {
+            .analysis-filter-heading {
+                gap: 0.7rem;
+            }
+
+            .analysis-filter-icon {
+                width: 40px;
+                height: 40px;
+                flex-basis: 40px;
+            }
+
+            .overview-status-title,
+            .analysis-filter-title {
+                font-size: 0.98rem;
+            }
+
+            [data-testid="stPlotlyChart"] {
+                padding: 0.15rem;
+            }
+        }
+
         </style>
         """,
         unsafe_allow_html=True,
