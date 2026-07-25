@@ -60,6 +60,10 @@ performance_dataframe = st.session_state.get(
     "activity_performance_dataframe"
 )
 
+standardized_dataframe = st.session_state.get(
+    "standardized_dataframe"
+)
+
 
 if strategy_dataframe is None:
     st.warning(
@@ -294,6 +298,239 @@ kpi_col5.metric(
 
 
 # =========================================================
+# 月度銷量趨勢、MoM 與 YoY
+# =========================================================
+
+st.divider()
+
+st.subheader("月度銷量趨勢")
+
+monthly_sales = pd.DataFrame()
+
+if (
+    standardized_dataframe is not None
+    and not standardized_dataframe.empty
+    and {
+        "sale_date",
+        "quantity",
+    }.issubset(standardized_dataframe.columns)
+):
+    monthly_source = standardized_dataframe[
+        [
+            "sale_date",
+            "quantity",
+        ]
+    ].copy()
+
+    monthly_source["sale_date"] = pd.to_datetime(
+        monthly_source["sale_date"],
+        errors="coerce",
+    )
+
+    monthly_source["quantity"] = pd.to_numeric(
+        monthly_source["quantity"],
+        errors="coerce",
+    )
+
+    monthly_source = monthly_source.dropna(
+        subset=[
+            "sale_date",
+            "quantity",
+        ]
+    )
+
+    if not monthly_source.empty:
+        monthly_source["sale_month"] = (
+            monthly_source["sale_date"]
+            .dt.to_period("M")
+        )
+
+        monthly_sales = (
+            monthly_source.groupby(
+                "sale_month",
+                as_index=False,
+            )["quantity"]
+            .sum()
+            .rename(
+                columns={
+                    "quantity": "monthly_quantity",
+                }
+            )
+            .sort_values("sale_month")
+        )
+
+        monthly_sales["month_label"] = (
+            monthly_sales["sale_month"]
+            .astype(str)
+        )
+
+
+if monthly_sales.empty:
+    st.info(
+        "目前沒有足夠的標準化銷量資料，"
+        "因此無法計算月銷量、MoM 與 YoY。"
+    )
+
+else:
+    latest_period = monthly_sales[
+        "sale_month"
+    ].max()
+
+    previous_period = latest_period - 1
+    previous_year_period = latest_period - 12
+
+    monthly_lookup = monthly_sales.set_index(
+        "sale_month"
+    )["monthly_quantity"]
+
+    latest_quantity = float(
+        monthly_lookup.get(
+            latest_period,
+            0,
+        )
+    )
+
+    previous_quantity = monthly_lookup.get(
+        previous_period
+    )
+
+    previous_year_quantity = monthly_lookup.get(
+        previous_year_period
+    )
+
+    def calculate_growth_rate(
+        current_value: float,
+        comparison_value,
+    ):
+        if (
+            comparison_value is None
+            or pd.isna(comparison_value)
+            or comparison_value == 0
+        ):
+            return None
+
+        return (
+            current_value
+            / float(comparison_value)
+            - 1
+        )
+
+    mom_rate = calculate_growth_rate(
+        latest_quantity,
+        previous_quantity,
+    )
+
+    yoy_rate = calculate_growth_rate(
+        latest_quantity,
+        previous_year_quantity,
+    )
+
+    latest_col, mom_col, yoy_col = st.columns(3)
+
+    with latest_col:
+        st.metric(
+            f"{latest_period} 月銷量",
+            f"{latest_quantity:,.0f}",
+        )
+
+        st.caption(
+            "以資料中最新月份為比較基準。"
+        )
+
+    with mom_col:
+        st.metric(
+            "MoM（月成長率）",
+            (
+                f"{mom_rate:.1%}"
+                if mom_rate is not None
+                else "-"
+            ),
+            delta=(
+                f"{latest_quantity - float(previous_quantity):+,.0f} 銷量"
+                if mom_rate is not None
+                else None
+            ),
+        )
+
+        st.caption(
+            (
+                f"{latest_period}：{latest_quantity:,.0f}；"
+                f"{previous_period}：{float(previous_quantity):,.0f}"
+                if mom_rate is not None
+                else f"缺少 {previous_period} 或其銷量為 0，無法計算。"
+            )
+        )
+
+    with yoy_col:
+        st.metric(
+            "YoY（年成長率）",
+            (
+                f"{yoy_rate:.1%}"
+                if yoy_rate is not None
+                else "-"
+            ),
+            delta=(
+                f"{latest_quantity - float(previous_year_quantity):+,.0f} 銷量"
+                if yoy_rate is not None
+                else None
+            ),
+        )
+
+        st.caption(
+            (
+                f"{latest_period}：{latest_quantity:,.0f}；"
+                f"{previous_year_period}：{float(previous_year_quantity):,.0f}"
+                if yoy_rate is not None
+                else (
+                    f"缺少 {previous_year_period} 或其銷量為 0，"
+                    "無法計算。"
+                )
+            )
+        )
+
+    monthly_figure = px.line(
+        monthly_sales,
+        x="month_label",
+        y="monthly_quantity",
+        markers=True,
+        labels={
+            "month_label": "月份",
+            "monthly_quantity": "總銷量",
+        },
+    )
+
+    monthly_figure.update_traces(
+        line={
+            "width": 3,
+        },
+        marker={
+            "size": 8,
+        },
+        hovertemplate=(
+            "月份：%{x}<br>"
+            "總銷量：%{y:,.0f}"
+            "<extra></extra>"
+        ),
+    )
+
+    monthly_figure.update_layout(
+        xaxis_title="月份",
+        yaxis_title="總銷量",
+        margin={
+            "l": 10,
+            "r": 10,
+            "t": 20,
+            "b": 10,
+        },
+    )
+
+    st.plotly_chart(
+        monthly_figure,
+        use_container_width=True,
+    )
+
+
+# =========================================================
 # 活動提升率與總銷量圖
 # =========================================================
 
@@ -377,165 +614,40 @@ else:
 
 
 # =========================================================
-# 三類策略卡片
+# 活動策略清單
 # =========================================================
 
 st.divider()
 
-st.subheader("策略行動清單")
+st.subheader("活動策略清單")
 
-
-continue_tab, optimize_tab, review_tab = st.tabs(
-    [
-        "建議延續",
-        "建議優化",
-        "建議檢討",
-    ]
+st.dataframe(
+    filtered_strategy,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "活動提升率": (
+            st.column_config.NumberColumn(
+                format="percent"
+            )
+        ),
+        "活動總銷量": (
+            st.column_config.NumberColumn(
+                format="%.0f"
+            )
+        ),
+        "推估營收": (
+            st.column_config.NumberColumn(
+                format="%.0f"
+            )
+        ),
+    },
 )
 
-
-def display_strategy_cards(
-    dataframe: pd.DataFrame,
-    empty_message: str,
-) -> None:
-    """
-    以卡片形式顯示策略資料。
-    """
-
-    if dataframe.empty:
-        st.info(empty_message)
-        return
-
-    sorted_dataframe = dataframe.sort_values(
-        "活動提升率",
-        ascending=False,
-        na_position="last",
-    )
-
-    for _, row in sorted_dataframe.iterrows():
-        with st.container(border=True):
-            st.markdown(
-                f"### {row['商品活動']}"
-            )
-
-            metric_col1, metric_col2, metric_col3 = (
-                st.columns(3)
-            )
-
-            metric_col1.metric(
-                "活動提升率",
-                (
-                    f"{row['活動提升率']:.1%}"
-                    if pd.notna(
-                        row["活動提升率"]
-                    )
-                    else "-"
-                ),
-            )
-
-            metric_col2.metric(
-                "活動總銷量",
-                (
-                    f"{row['活動總銷量']:,.0f}"
-                    if pd.notna(
-                        row["活動總銷量"]
-                    )
-                    else "-"
-                ),
-            )
-
-            metric_col3.metric(
-                "推估營收",
-                (
-                    f"{row['推估營收']:,.0f}"
-                    if pd.notna(
-                        row["推估營收"]
-                    )
-                    else "-"
-                ),
-            )
-
-            st.write(
-                f"**資料信心：** "
-                f"{row['資料信心']}"
-            )
-
-            st.write(
-                f"**建議：** "
-                f"{row['建議']}"
-            )
-
-
-with continue_tab:
-    continue_dataframe = filtered_strategy[
-        filtered_strategy[
-            "策略分類"
-        ] == "建議延續"
-    ].copy()
-
-    display_strategy_cards(
-        continue_dataframe,
-        "目前沒有符合條件的建議延續活動。",
-    )
-
-
-with optimize_tab:
-    optimize_dataframe = filtered_strategy[
-        filtered_strategy[
-            "策略分類"
-        ] == "建議優化"
-    ].copy()
-
-    display_strategy_cards(
-        optimize_dataframe,
-        "目前沒有符合條件的建議優化活動。",
-    )
-
-
-with review_tab:
-    review_dataframe = filtered_strategy[
-        filtered_strategy[
-            "策略分類"
-        ] == "建議檢討"
-    ].copy()
-
-    display_strategy_cards(
-        review_dataframe,
-        "目前沒有符合條件的建議檢討活動。",
-    )
-
-
-# =========================================================
-# 完整策略清單
-# =========================================================
-
-st.divider()
-
-with st.expander(
-    "查看完整策略建議表"
-):
-    st.dataframe(
-        filtered_strategy,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "活動提升率": (
-                st.column_config.NumberColumn(
-                    format="percent"
-                )
-            ),
-            "活動總銷量": (
-                st.column_config.NumberColumn(
-                    format="%.0f"
-                )
-            ),
-            "推估營收": (
-                st.column_config.NumberColumn(
-                    format="%.0f"
-                )
-            ),
-        },
-    )
+st.caption(
+    "清單內容與「產生策略報告」頁面的活動策略清單一致，"
+    "並套用本頁上方的策略分類、資料信心與最低銷量篩選。"
+)
 
 
 # =========================================================
