@@ -46,11 +46,20 @@ from src.session_helpers import (
 
 initialize_session_state()
 
-st.title("銷量資料處理")
-
-st.write(
-    "上傳銷量 Excel 後，系統會自動載入工作表、"
-    "建議必要欄位，並完成資料標準化與品質檢查。"
+st.markdown(
+    """
+    <div class="step-label">STEP 01</div>
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h1>銷量資料處理</h1>
+    </div>
+    <p class="product-page-description">
+        上傳銷量 Excel 後，系統會自動載入工作表、辨識必要欄位，
+        並完成日期、商品編號、商品名稱與銷量的標準化及品質檢查。
+        請依序完成檔案上傳、工作表確認、欄位對應與最終確認。
+    </p>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -104,12 +113,29 @@ def reset_mapping_widget_state() -> None:
 
 st.subheader("1. 上傳銷量 Excel")
 
-uploaded_file = st.file_uploader(
-    "選擇 Excel 檔案",
-    type=["xlsx"],
-    key="main_excel_uploader",
-    help="目前支援 .xlsx 格式。",
-)
+with st.container(border=True):
+    st.markdown(
+        """
+        <div class="upload-card-heading">
+            <div class="upload-card-icon">📊</div>
+            <div>
+                <div class="upload-card-title">銷量資料匯入</div>
+                <div class="upload-card-description">
+                    必要欄位包含訂單日期、商品編號、商品名稱與銷量。
+                    系統會自動讀取 Excel 工作表並建議欄位對應。
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    uploaded_file = st.file_uploader(
+        "選擇 Excel 檔案",
+        type=["xlsx"],
+        key="main_excel_uploader",
+        help="目前支援 .xlsx 格式。",
+    )
 
 
 if uploaded_file is not None:
