@@ -260,12 +260,8 @@ with st.container(border=True):
                     "低成效",
                     "無法判定",
                 ],
-                default=[
-                    "高成效",
-                    "一般成效",
-                    "低成效",
-                    "無法判定",
-                ],
+                default=[],
+                placeholder="未選擇時顯示全部成效分類",
             )
         )
 
@@ -286,7 +282,8 @@ with st.container(border=True):
         selected_confidence = st.multiselect(
             "資料信心",
             options=confidence_options,
-            default=confidence_options,
+            default=[],
+            placeholder="未選擇時顯示全部資料信心",
         )
 
 filtered_performance = performance.copy()

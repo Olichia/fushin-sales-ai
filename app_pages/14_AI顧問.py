@@ -31,22 +31,23 @@ from src.session_helpers import (
 
 initialize_session_state()
 
-st.set_page_config(
-    page_title="AI 行銷策略顧問",
-    page_icon="🤖",
-    layout="wide",
-)
+st.markdown(
+    """
+    <div class="step-label">AI STRATEGY ADVISOR</div>
 
-st.title("AI 行銷策略顧問")
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h1>AI 策略顧問</h1>
+    </div>
 
-st.write(
-    "根據活動成效、策略分類與資料限制，"
-    "協助解讀分析結果並規劃下一期促銷測試。"
-)
-
-st.caption(
-    "AI 回答屬於決策輔助。"
-    "實際執行仍應搭配成本、毛利、庫存與商業目標判斷。"
+    <p class="product-page-description">
+        根據活動成效、策略分類與資料限制，
+        協助解讀分析結果並規劃下一期促銷測試。
+        AI 回答屬於決策輔助，實際執行仍應搭配成本、
+        毛利、庫存與商業目標判斷。
+    </p>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -84,8 +85,7 @@ if missing_sources:
     st.warning(
         "目前尚缺少："
         + "、".join(missing_sources)
-        + "。請先完成「活動成效分析」"
-        "與「策略建議報表」。"
+        + "。請先完成「03 執行完整分析」。"
     )
     st.stop()
 
@@ -172,7 +172,7 @@ if not st.session_state.get(
         {
             "role": "assistant",
             "content": (
-                "你好，我是 AI 行銷策略顧問。\n\n"
+                "你好，我是 AI 策略顧問。\n\n"
                 "我可以根據目前的活動成效與策略報告，"
                 "協助你判讀高低成效活動、整理資料限制，"
                 "以及規劃下一期促銷測試。"
@@ -197,6 +197,21 @@ summary_column, chat_column = st.columns(
 
 with summary_column:
     st.subheader("目前分析背景")
+
+    st.markdown(
+        """
+        <div class="advisor-panel-heading">
+            <div class="advisor-panel-icon">📊</div>
+            <div>
+                <div class="advisor-panel-title">分析摘要</div>
+                <div class="advisor-panel-description">
+                    AI 將依據目前活動成效、策略分類與資料限制回答。
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     activity_count = len(
         performance
@@ -290,6 +305,16 @@ with summary_column:
     st.subheader("快捷問題")
 
     shortcut_question = None
+
+    st.markdown(
+        """
+        <div class="advisor-shortcut-note">
+            點選常見問題，快速取得活動延續、低成效原因、
+            下一期促銷與資料限制的分析。
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
     if st.button(
@@ -405,9 +430,19 @@ with summary_column:
 with chat_column:
     st.subheader("策略顧問對話")
 
-    st.info(
-        "可以直接詢問活動成效、低效原因、"
-        "促銷規劃或資料限制。"
+    st.markdown(
+        """
+        <div class="advisor-chat-heading">
+            <div class="advisor-chat-icon">🤖</div>
+            <div>
+                <div class="advisor-chat-title">與 AI 討論策略</div>
+                <div class="advisor-chat-description">
+                    可直接詢問活動成效、低效原因、促銷規劃或資料限制。
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
 

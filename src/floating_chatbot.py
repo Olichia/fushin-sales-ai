@@ -49,24 +49,81 @@ def _inject_floating_chat_styles() -> None:
         }
 
         .st-key-floating_chatbot_root [data-testid="stPopoverButton"] {
-            border-radius: 50% 50% 4px 50% !important;
-            width: 60px !important;
-            height: 60px !important;
-            padding: 0 !important;
-            font-size: 1.6rem !important;
-            line-height: 1 !important;
-            background: linear-gradient(135deg, #0B57C6, #073F99) !important;
+            width: auto !important;
+            min-width: 148px !important;
+            height: 56px !important;
+            padding: 0 1rem !important;
+
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.5rem !important;
+
+            border-radius: 999px 999px 8px 999px !important;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #0B57C6 0%,
+                    #073F99 100%
+                ) !important;
+
             color: #FFFFFF !important;
-            border: none !important;
-            box-shadow: 0 6px 18px rgba(7, 63, 153, 0.35);
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            border: 1px solid rgba(255, 255, 255, 0.18) !important;
+
+            font-size: 0.95rem !important;
+            font-weight: 800 !important;
+            line-height: 1 !important;
+            white-space: nowrap !important;
+
+            box-shadow:
+                0 8px 22px
+                rgba(7, 63, 153, 0.35);
+
+            transition:
+                transform 0.15s ease,
+                box-shadow 0.15s ease,
+                background 0.15s ease;
+        }
+
+        .st-key-floating_chatbot_root
+        [data-testid="stPopoverButton"] p,
+        .st-key-floating_chatbot_root
+        [data-testid="stPopoverButton"] span,
+        .st-key-floating_chatbot_root
+        [data-testid="stPopoverButton"] div {
+            color: #FFFFFF !important;
+            font-weight: 800 !important;
+        }
+
+        .st-key-floating_chatbot_root
+        [data-testid="stPopoverButton"] svg {
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
+            width: 20px !important;
+            height: 20px !important;
         }
 
         .st-key-floating_chatbot_root [data-testid="stPopoverButton"]:hover {
-            background: linear-gradient(135deg, #1668DE, #0B57C6) !important;
+            background:
+                linear-gradient(
+                    135deg,
+                    #1668DE 0%,
+                    #0B57C6 100%
+                ) !important;
+
             color: #FFFFFF !important;
             transform: translateY(-2px);
-            box-shadow: 0 8px 22px rgba(7, 63, 153, 0.42);
+
+            box-shadow:
+                0 11px 28px
+                rgba(7, 63, 153, 0.44);
+        }
+
+        .st-key-floating_chatbot_root
+        [data-testid="stPopoverButton"]:focus-visible {
+            outline: 3px solid rgba(11, 87, 198, 0.24) !important;
+            outline-offset: 3px !important;
         }
 
         /* ---------------------------------------------
@@ -227,6 +284,27 @@ def _inject_floating_chat_styles() -> None:
             min-height: 2rem;
             white-space: nowrap;
         }
+
+        @media (max-width: 700px) {
+            .st-key-floating_chatbot_root {
+                right: 14px !important;
+                bottom: 14px !important;
+            }
+
+            .st-key-floating_chatbot_root
+            [data-testid="stPopoverButton"] {
+                min-width: 124px !important;
+                height: 50px !important;
+                padding: 0 0.85rem !important;
+                font-size: 0.88rem !important;
+            }
+
+            [data-testid="stPopoverBody"] {
+                width: min(94vw, 420px) !important;
+                min-width: 280px !important;
+                max-height: 78vh !important;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -308,9 +386,9 @@ def render_floating_chatbot() -> None:
 
     with st.container(key="floating_chatbot_root"):
         with st.popover(
-            ":material/chat_bubble:",
+            "🤖 AI 策略顧問",
             width=380,
-            help="開啟 AI 策略顧問",
+            help="開啟 AI 策略顧問對話視窗",
         ):
             with st.container(key="floating_chat_panel"):
                 _render_floating_chat_panel()

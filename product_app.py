@@ -1,4 +1,5 @@
 from pathlib import Path
+import base64
 
 import pandas as pd
 import streamlit as st
@@ -8,6 +9,10 @@ from src.session_helpers import initialize_session_state
 from src.ui_style import apply_product_styles
 
 
+# =========================================================
+# 頁面設定
+# =========================================================
+
 st.set_page_config(
     page_title="富信新零售資料分析系統",
     page_icon="📊",
@@ -15,38 +20,24 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
+# =========================================================
+# 初始化
+# =========================================================
+
 initialize_session_state()
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-PAGES_DIR = PROJECT_ROOT / "pages"
+PAGES_DIR = PROJECT_ROOT / "app_pages"
+ASSETS_DIR = PROJECT_ROOT / "assets"
+BRAND_LOGO_PATH = ASSETS_DIR / "logo-white.png"
 
 apply_product_styles()
 
 
-def dataframe_ready(dataframe: object) -> bool:
-    return isinstance(dataframe, pd.DataFrame) and not dataframe.empty
-
-
-def render_sidebar_status(*, label: str, completed: bool) -> None:
-    status_class = (
-        "sidebar-status-completed"
-        if completed
-        else "sidebar-status-pending"
-    )
-    status_text = "已完成" if completed else "待完成"
-
-    st.markdown(
-        f"""
-        <div class="sidebar-status-row">
-            <div class="sidebar-status-label">{label}</div>
-            <div class="sidebar-status-pill {status_class}">
-                {status_text}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
+# =========================================================
+# 頁面定義
+# =========================================================
 
 data_management_page = st.Page(
     PAGES_DIR / "15_資料管理中心.py",
@@ -104,35 +95,63 @@ ai_advisor_page = st.Page(
 )
 
 
+# =========================================================
+# 品牌區
+#
+# Streamlit 的原生 navigation 會優先渲染在側邊欄。
+# 品牌區仍使用正常 Streamlit 元件，再由 ui_style.py
+# 精確定位到導覽上方。
+# =========================================================
+
 with st.sidebar:
-    st.markdown(
-        """
-        <div class="sidebar-brand">
-            <div class="sidebar-brand-mark">FS</div>
-            <div class="sidebar-brand-content">
-                <div class="sidebar-brand-title">富信新零售</div>
-                <div class="sidebar-brand-subtitle">
-                    SALES INTELLIGENCE
-                </div>
-            </div>
-        </div>
+    with st.container(
+        key="reference_brand_header",
+    ):
+        if BRAND_LOGO_PATH.exists():
+            encoded_logo = base64.b64encode(
+                BRAND_LOGO_PATH.read_bytes()
+            ).decode("utf-8")
 
-        <div class="sidebar-brand-description">
-            銷售與活動成效決策系統
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            brand_html = (
+                '<div class="reference-brand-wrap">'
+                f'<img class="reference-brand-logo" '
+                f'src="data:image/png;base64,{encoded_logo}" '
+                'alt="品牌 Logo">'
+                '<div class="reference-brand-copy">'
+                '<div class="reference-brand-name">'
+                '富信新零售'
+                '<span class="reference-brand-x">×</span>'
+                '台灣大哥大'
+                '</div>'
+                '<div class="reference-brand-sub">'
+                'AI 電商活動策略決策助手'
+                '</div>'
+                '</div>'
+                '</div>'
+            )
 
+            st.markdown(
+                brand_html,
+                unsafe_allow_html=True,
+            )
+
+
+# =========================================================
+# 原生分組導覽
+# =========================================================
 
 navigation = st.navigation(
     {
-        "開始使用": [data_management_page],
+        "開始使用": [
+            data_management_page,
+        ],
         "資料準備": [
             sales_processing_page,
             activity_processing_page,
         ],
-        "分析流程": [full_analysis_page],
+        "分析流程": [
+            full_analysis_page,
+        ],
         "成果與決策": [
             product_home_page,
             activity_insight_page,
@@ -146,83 +165,84 @@ navigation = st.navigation(
 )
 
 
-sales_dataframe = st.session_state.get("standardized_dataframe")
+# =========================================================
+# 側邊欄進度
+# =========================================================
+
+sales_dataframe = st.session_state.get(
+    "standardized_dataframe"
+)
+
 activity_dataframe = st.session_state.get(
     "activity_standardized_dataframe"
 )
+
 performance_dataframe = st.session_state.get(
     "activity_performance_dataframe"
 )
-strategy_dataframe = st.session_state.get(
-    "strategy_report_dataframe"
+
+sales_ready = (
+    isinstance(sales_dataframe, pd.DataFrame)
+    and not sales_dataframe.empty
+    and bool(
+        st.session_state.get(
+            "sales_data_confirmed",
+            False,
+        )
+    )
 )
 
-sales_completed = (
-    dataframe_ready(sales_dataframe)
-    and bool(st.session_state.get("sales_data_confirmed", False))
+activity_ready = (
+    isinstance(activity_dataframe, pd.DataFrame)
+    and not activity_dataframe.empty
+    and bool(
+        st.session_state.get(
+            "activity_data_confirmed",
+            False,
+        )
+    )
 )
 
-activity_completed = (
-    dataframe_ready(activity_dataframe)
-    and bool(st.session_state.get("activity_data_confirmed", False))
+analysis_ready = (
+    isinstance(performance_dataframe, pd.DataFrame)
+    and not performance_dataframe.empty
+    and bool(
+        st.session_state.get(
+            "full_analysis_completed",
+            False,
+        )
+    )
 )
 
-analysis_completed = (
-    dataframe_ready(performance_dataframe)
-    and dataframe_ready(strategy_dataframe)
-    and bool(st.session_state.get("full_analysis_completed", False))
+completed_count = sum(
+    [
+        sales_ready,
+        activity_ready,
+        analysis_ready,
+    ]
 )
-
 
 with st.sidebar:
-    st.markdown(
-        """
-        <div class="sidebar-section-divider"></div>
-        <div class="sidebar-section-title">資料進度</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    render_sidebar_status(
-        label="銷量資料",
-        completed=sales_completed,
-    )
-    render_sidebar_status(
-        label="活動資料",
-        completed=activity_completed,
-    )
-    render_sidebar_status(
-        label="完整分析",
-        completed=analysis_completed,
-    )
-
-    completed_count = sum(
-        [
-            sales_completed,
-            activity_completed,
-            analysis_completed,
-        ]
-    )
-
+    st.divider()
+    st.caption("資料進度")
     st.progress(
         completed_count / 3,
         text=f"已完成 {completed_count}／3",
     )
-
-    st.markdown(
-        """
-        <div class="sidebar-section-divider"></div>
-        <div class="sidebar-footer">
-            <div class="sidebar-footer-name">Fushin Sales AI</div>
-            <div class="sidebar-footer-version">
-                Product MVP · Version 1.0
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.caption(
+        "Fushin Sales AI · Product MVP 1.0"
     )
 
 
+# =========================================================
+# 浮動 AI 顧問
+# =========================================================
+
 render_floating_chatbot()
+
+
+# =========================================================
+# 執行頁面
+# =========================================================
 
 navigation.run()

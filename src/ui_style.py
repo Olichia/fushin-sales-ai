@@ -1338,6 +1338,705 @@ def apply_product_styles() -> None:
             color: #667085 !important;
             opacity: 1 !important;
         }
+
+        /* ==================================================
+           參考網站原始比例覆蓋
+        ================================================== */
+
+        :root {
+            --reference-bg: #F7F8FA;
+            --reference-panel: #FFFFFF;
+            --reference-panel-raised: #F3F4F7;
+            --reference-border: #E3E6EC;
+            --reference-border-soft: #EEF0F4;
+            --reference-text: #0E1015;
+            --reference-text-secondary: #5B6472;
+            --reference-text-faint: #8A93A3;
+            --reference-orange: #F06020;
+            --reference-orange-soft: rgba(240, 96, 32, 0.09);
+            --reference-orange-line: rgba(240, 96, 32, 0.35);
+            --reference-orange-deep: #C24500;
+            --reference-sidebar-bg: #FFF8F3;
+            --reference-sidebar-raised: #FFE9DA;
+            --reference-sidebar-line: #F0DED0;
+            --reference-shadow:
+                0 1px 2px rgba(16, 24, 40, 0.04),
+                0 1px 3px rgba(16, 24, 40, 0.04);
+        }
+
+        html {
+            font-size: 14.5px !important;
+        }
+
+        body,
+        .stApp {
+            background: var(--reference-bg) !important;
+            color: var(--reference-text) !important;
+
+            font-family:
+                "Noto Sans TC",
+                "Segoe UI",
+                "Microsoft JhengHei",
+                sans-serif !important;
+
+            line-height: 1.5 !important;
+        }
+
+
+        /* ==================================================
+           側邊欄：完全採用參考網站原始尺寸
+        ================================================== */
+
+        section[data-testid="stSidebar"],
+        [data-testid="stSidebar"] {
+            width: 252px !important;
+            min-width: 252px !important;
+            max-width: 252px !important;
+            flex: 0 0 252px !important;
+
+            background:
+                linear-gradient(
+                    180deg,
+                    var(--reference-sidebar-bg) 0%,
+                    #FFFFFF 100%
+                ) !important;
+
+            border-right:
+                1px solid
+                var(--reference-border) !important;
+
+            box-shadow:
+                2px 0 16px
+                rgba(16, 24, 40, 0.05) !important;
+        }
+
+        section[data-testid="stSidebar"]::before,
+        [data-testid="stSidebar"]::before {
+            height: 4px !important;
+        }
+
+        section[data-testid="stSidebar"][aria-expanded="false"] {
+            width: 0 !important;
+            min-width: 0 !important;
+            max-width: 0 !important;
+            flex-basis: 0 !important;
+        }
+
+        /*
+        原生 Header 只保留收合按鈕，不佔據品牌空間。
+        */
+
+        [data-testid="stSidebarHeader"] {
+            min-height: 0 !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: 0 !important;
+            background: transparent !important;
+        }
+
+        [data-testid="stSidebarCollapseButton"] {
+            position: absolute !important;
+            top: 8px !important;
+            right: 8px !important;
+            z-index: 100 !important;
+        }
+
+        /*
+        側邊欄內容上方讓出 82px 品牌區。
+        82px = 38px Logo + 上下各 22px padding。
+        */
+
+        [data-testid="stSidebarContent"] {
+            position: relative !important;
+
+            width: 252px !important;
+            min-width: 252px !important;
+            max-width: 252px !important;
+
+            padding:
+                86px
+                10px
+                0 !important;
+        }
+
+        /*
+        品牌區使用真實圖片＋瀏覽器文字，
+        不使用 PNG 文字、SVG 文字或偽元素文字。
+        */
+
+        .st-key-reference_brand_header {
+            position: absolute !important;
+            top: 4px !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 50 !important;
+
+            height: 82px !important;
+            min-height: 82px !important;
+
+            padding:
+                22px
+                18px !important;
+
+            overflow: hidden !important;
+
+            background:
+                var(--reference-orange-soft) !important;
+
+            border-bottom:
+                1px solid
+                var(--reference-sidebar-line) !important;
+        }
+
+        .st-key-reference_brand_header
+        [data-testid="stVerticalBlock"] {
+            gap: 0 !important;
+        }
+
+        .reference-brand-wrap {
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+            width: 100% !important;
+        }
+
+        .reference-brand-logo {
+            display: block !important;
+
+            width: 38px !important;
+            height: 38px !important;
+            min-width: 38px !important;
+            max-width: 38px !important;
+            flex: 0 0 38px !important;
+
+            object-fit: contain !important;
+        }
+
+        .reference-brand-copy {
+            min-width: 0 !important;
+            flex: 1 1 auto !important;
+        }
+
+        .reference-brand-name {
+            color: #241608 !important;
+
+            font-size: 18px !important;
+            font-weight: 800 !important;
+            line-height: 1.3 !important;
+            letter-spacing: 0.01em !important;
+            white-space: normal !important;
+            overflow-wrap: normal !important;
+        }
+
+        .reference-brand-x {
+            margin: 0 3px !important;
+            color: var(--reference-orange) !important;
+            font-weight: 700 !important;
+        }
+
+        .reference-brand-sub {
+            margin-top: 2px !important;
+
+            color: #8A6A4E !important;
+            font-size: 11.5px !important;
+            font-weight: 400 !important;
+            line-height: 1.5 !important;
+            letter-spacing: 0.02em !important;
+            white-space: nowrap !important;
+        }
+
+
+        /* ==================================================
+           原生導覽：完全採用參考網站原始尺寸
+        ================================================== */
+
+        [data-testid="stSidebarNav"] {
+            display: block !important;
+            padding:
+                14px
+                0 !important;
+        }
+
+        [data-testid="stSidebarNav"]
+        [data-testid="stNavSectionHeader"] {
+            margin: 0 !important;
+
+            padding:
+                12px
+                12px
+                4px !important;
+
+            color:
+                var(--reference-text-faint) !important;
+
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            line-height: 1.5 !important;
+            letter-spacing: 0.04em !important;
+        }
+
+        [data-testid="stSidebarNav"]
+        [data-testid="stNavSectionHeader"]
+        svg {
+            display: none !important;
+        }
+
+        [data-testid="stSidebarNav"] a {
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+
+            width: 100% !important;
+            min-height: 40px !important;
+
+            margin: 0 0 4px !important;
+            padding:
+                11px
+                12px !important;
+
+            border: 0 !important;
+            border-radius: 10px !important;
+
+            color:
+                var(--reference-text-secondary) !important;
+
+            background: transparent !important;
+
+            font-size: 13px !important;
+            font-weight: 500 !important;
+            line-height: 1.35 !important;
+
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        [data-testid="stSidebarNav"] a svg {
+            width: 18px !important;
+            height: 18px !important;
+            flex: 0 0 18px !important;
+        }
+
+        [data-testid="stSidebarNav"] a:hover {
+            color:
+                var(--reference-orange-deep) !important;
+
+            background:
+                var(--reference-sidebar-raised) !important;
+
+            transform: none !important;
+        }
+
+        [data-testid="stSidebarNav"]
+        a[aria-current="page"] {
+            color: #FFFFFF !important;
+
+            background:
+                var(--reference-orange) !important;
+
+            font-weight: 700 !important;
+
+            box-shadow:
+                0 3px 10px
+                var(--reference-orange-line) !important;
+        }
+
+        [data-testid="stSidebarNav"]
+        a[aria-current="page"] *,
+        [data-testid="stSidebarNav"]
+        a[aria-current="page"] svg {
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
+        }
+
+
+        /* ==================================================
+           主內容：採用參考網站原始尺寸
+        ================================================== */
+
+        [data-testid="stMain"],
+        .stMain {
+            background:
+                radial-gradient(
+                    circle at 100% 0%,
+                    rgba(240, 96, 32, 0.05),
+                    transparent 32%
+                ),
+                radial-gradient(
+                    circle at 0% 100%,
+                    rgba(80, 80, 160, 0.05),
+                    transparent 38%
+                ),
+                var(--reference-bg) !important;
+        }
+
+        .block-container,
+        [data-testid="stMainBlockContainer"] {
+            width: auto !important;
+            max-width: 100% !important;
+
+            padding:
+                32px
+                36px !important;
+        }
+
+
+        /* ==================================================
+           頁面標題
+        ================================================== */
+
+        .step-label {
+            margin-bottom: 4px !important;
+
+            color:
+                var(--reference-orange) !important;
+
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            line-height: 1.5 !important;
+            letter-spacing: 0.08em !important;
+        }
+
+        .product-page-title {
+            gap: 10px !important;
+            margin: 0 0 6px !important;
+        }
+
+        .product-page-title h1,
+        h1 {
+            margin: 0 0 6px !important;
+
+            color:
+                var(--reference-text) !important;
+
+            font-size: 22px !important;
+            font-weight: 800 !important;
+            line-height: 1.35 !important;
+            letter-spacing: -0.01em !important;
+        }
+
+        .product-page-title-bar {
+            width: 5px !important;
+            height: 20px !important;
+            flex: 0 0 5px !important;
+
+            border-radius: 3px !important;
+        }
+
+        .product-page-description {
+            max-width: none !important;
+
+            margin:
+                6px
+                0
+                16px !important;
+
+            color:
+                var(--reference-text-secondary) !important;
+
+            font-size: 12.3px !important;
+            font-weight: 400 !important;
+            line-height: 1.65 !important;
+        }
+
+        h2 {
+            margin:
+                0
+                0
+                16px !important;
+
+            padding-left: 0 !important;
+
+            color:
+                var(--reference-text) !important;
+
+            font-size: 22px !important;
+            font-weight: 800 !important;
+            line-height: 1.35 !important;
+            letter-spacing: -0.01em !important;
+        }
+
+        h2::before {
+            display: none !important;
+        }
+
+        h3 {
+            color:
+                var(--reference-text) !important;
+
+            font-size: 16px !important;
+            font-weight: 700 !important;
+        }
+
+
+        /* ==================================================
+           一般文字
+        ================================================== */
+
+        p,
+        li,
+        label,
+        [data-testid="stWidgetLabel"],
+        [data-testid="stCaptionContainer"],
+        .stMarkdown p,
+        .stMarkdown li {
+            color:
+                var(--reference-text-secondary) !important;
+
+            font-size: 13px !important;
+            font-weight: 400 !important;
+            line-height: 1.5 !important;
+        }
+
+
+        /* ==================================================
+           卡片與 KPI
+        ================================================== */
+
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            padding: 0 !important;
+
+            background:
+                var(--reference-panel) !important;
+
+            border:
+                1px solid
+                var(--reference-border) !important;
+
+            border-radius: 12px !important;
+
+            box-shadow:
+                var(--reference-shadow) !important;
+        }
+
+        [data-testid="stVerticalBlockBorderWrapper"] > div {
+            border-radius: 12px !important;
+        }
+
+        [data-testid="stMetric"] {
+            min-height: 92px !important;
+            height: 100% !important;
+
+            padding:
+                18px
+                20px !important;
+
+            background:
+                var(--reference-panel) !important;
+
+            border:
+                1px solid
+                var(--reference-border) !important;
+
+            border-radius: 12px !important;
+
+            box-shadow:
+                var(--reference-shadow) !important;
+
+            transform: none !important;
+        }
+
+        [data-testid="stMetric"]:hover {
+            transform: none !important;
+            border-color:
+                var(--reference-border) !important;
+            box-shadow:
+                var(--reference-shadow) !important;
+        }
+
+        [data-testid="stMetricLabel"] {
+            color:
+                var(--reference-text-secondary) !important;
+
+            font-size: 13px !important;
+            font-weight: 500 !important;
+        }
+
+        [data-testid="stMetricValue"] {
+            color:
+                var(--reference-text) !important;
+
+            font-size: 25px !important;
+            font-weight: 600 !important;
+            line-height: 1.2 !important;
+        }
+
+
+        /* ==================================================
+           頁面自訂卡片同步縮放
+        ================================================== */
+
+        .next-step-panel {
+            padding: 16px !important;
+            border-radius: 12px !important;
+        }
+
+        .next-step-eyebrow,
+        .workflow-step-number,
+        .output-card-label {
+            font-size: 11px !important;
+        }
+
+        .next-step-title,
+        .workflow-step-title,
+        .status-card-title,
+        .analysis-action-title,
+        .progress-card-title {
+            font-size: 16px !important;
+            line-height: 1.4 !important;
+        }
+
+        .next-step-description,
+        .next-step-location,
+        .workflow-step-subtitle,
+        .status-card-subtitle,
+        .analysis-action-description {
+            font-size: 12px !important;
+            line-height: 1.6 !important;
+        }
+
+        .workflow-step-icon,
+        .status-card-icon,
+        .analysis-action-icon {
+            width: 36px !important;
+            height: 36px !important;
+            flex: 0 0 36px !important;
+        }
+
+
+        /* ==================================================
+           表單元件
+        ================================================== */
+
+        div[data-baseweb="select"] > div,
+        [data-testid="stNumberInput"] input,
+        [data-testid="stTextInput"] input,
+        [data-testid="stTextArea"] textarea {
+            min-height: 38px !important;
+
+            border-radius: 9px !important;
+
+            background:
+                var(--reference-panel-raised) !important;
+
+            border:
+                1px solid
+                var(--reference-border) !important;
+
+            font-size: 13px !important;
+        }
+
+
+        /* ==================================================
+           手機版
+        ================================================== */
+
+        @media (max-width: 900px) {
+            section[data-testid="stSidebar"],
+            [data-testid="stSidebar"] {
+                width: min(86vw, 252px) !important;
+                min-width: min(86vw, 252px) !important;
+                max-width: min(86vw, 252px) !important;
+            }
+
+            [data-testid="stSidebarContent"] {
+                width: min(86vw, 252px) !important;
+                min-width: min(86vw, 252px) !important;
+                max-width: min(86vw, 252px) !important;
+            }
+
+            .block-container,
+            [data-testid="stMainBlockContainer"] {
+                padding:
+                    20px
+                    18px !important;
+            }
+        }
+
+
+        /* ==================================================
+           品牌區裁切修正
+           只調整左上品牌區，不改主畫面與側邊欄比例
+        ================================================== */
+
+        /*
+        原本品牌容器只有 82px，但品牌名稱會自然換成兩行，
+        再加上副標後高度不足，因此最上方或最下方會被裁切。
+        */
+
+        [data-testid="stSidebarContent"] {
+            padding-top: 122px !important;
+        }
+
+        .st-key-reference_brand_header {
+            top: 4px !important;
+
+            height: 116px !important;
+            min-height: 116px !important;
+
+            padding:
+                18px
+                14px
+                16px !important;
+
+            box-sizing: border-box !important;
+            overflow: visible !important;
+        }
+
+        .reference-brand-wrap {
+            min-height: 80px !important;
+            align-items: center !important;
+            gap: 12px !important;
+        }
+
+        .reference-brand-logo {
+            width: 42px !important;
+            height: 42px !important;
+            min-width: 42px !important;
+            max-width: 42px !important;
+            flex-basis: 42px !important;
+        }
+
+        .reference-brand-copy {
+            min-width: 0 !important;
+            overflow: visible !important;
+        }
+
+        .reference-brand-name {
+            margin: 0 !important;
+
+            font-size: 18px !important;
+            line-height: 1.28 !important;
+
+            white-space: normal !important;
+            overflow: visible !important;
+        }
+
+        .reference-brand-sub {
+            margin-top: 4px !important;
+
+            font-size: 11.5px !important;
+            line-height: 1.35 !important;
+
+            white-space: normal !important;
+            overflow: visible !important;
+        }
+
+        @media (max-width: 900px) {
+            [data-testid="stSidebarContent"] {
+                padding-top: 118px !important;
+            }
+
+            .st-key-reference_brand_header {
+                height: 112px !important;
+                min-height: 112px !important;
+                padding:
+                    17px
+                    13px
+                    15px !important;
+            }
+        }
+
         </style>
         """,
         unsafe_allow_html=True,
