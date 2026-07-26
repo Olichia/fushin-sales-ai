@@ -1084,35 +1084,64 @@ def apply_product_styles() -> None:
 
 
         /* ==================================================
-           策略中心
+           主管報表中心
         ================================================== */
 
-        .strategy-summary-card {
-            height: 100%;
-            min-height: 190px;
-            padding: 1.15rem 1.2rem;
-
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-
-            box-shadow: var(--shadow-sm);
+        .report-content-heading,
+        .report-download-ready {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.85rem;
+            margin-bottom: 1rem;
         }
 
-        .strategy-summary-continue {
+        .report-content-icon,
+        .report-download-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            width: 46px;
+            height: 46px;
+            flex: 0 0 46px;
+
+            border-radius: 13px;
+            background: var(--brand-orange-soft);
+
+            font-size: 1.3rem;
+        }
+
+        .report-content-title,
+        .report-download-title {
+            color: var(--text-primary);
+            font-size: 1.05rem;
+            font-weight: 850;
+        }
+
+        .report-content-description,
+        .report-download-description {
+            margin-top: 0.18rem;
+
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            font-weight: 500;
+            line-height: 1.55;
+        }
+
+        .management-activity-card {
+            padding-top: 0.15rem;
+        }
+
+        .management-activity-best {
             border-top: 4px solid #178553;
         }
 
-        .strategy-summary-optimize {
-            border-top: 4px solid var(--brand-orange);
-        }
-
-        .strategy-summary-review {
+        .management-activity-worst {
             border-top: 4px solid #C62828;
         }
 
-        .strategy-summary-eyebrow {
-            margin-bottom: 0.35rem;
+        .management-activity-eyebrow {
+            margin-bottom: 0.3rem;
 
             color: var(--text-muted);
             font-size: 0.74rem;
@@ -1120,34 +1149,195 @@ def apply_product_styles() -> None:
             letter-spacing: 0.09em;
         }
 
-        .strategy-summary-title {
+        .management-activity-title {
             color: var(--text-primary);
             font-size: 1.05rem;
             font-weight: 850;
         }
 
-        .strategy-summary-count {
-            margin: 0.45rem 0;
+        .management-activity-product {
+            margin-top: 0.45rem;
 
             color: var(--text-primary);
-            font-size: 2rem;
-            font-weight: 900;
-            line-height: 1;
+            font-size: 1.15rem;
+            font-weight: 800;
         }
 
-        .strategy-summary-description {
+        .management-activity-id {
+            margin-top: 0.2rem;
+            margin-bottom: 0.8rem;
+
+            color: var(--text-secondary);
+            font-size: 0.86rem;
+            font-weight: 500;
+        }
+
+
+        /* ==================================================
+           AI 策略顧問
+        ================================================== */
+
+        .advisor-panel-heading,
+        .advisor-chat-heading {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        .advisor-panel-icon,
+        .advisor-chat-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            width: 46px;
+            height: 46px;
+            flex: 0 0 46px;
+
+            border-radius: 13px;
+            background: var(--brand-orange-soft);
+
+            font-size: 1.3rem;
+        }
+
+        .advisor-panel-title,
+        .advisor-chat-title {
+            color: var(--text-primary);
+            font-size: 1.05rem;
+            font-weight: 850;
+        }
+
+        .advisor-panel-description,
+        .advisor-chat-description {
+            margin-top: 0.18rem;
+
             color: var(--text-secondary);
             font-size: 0.88rem;
+            font-weight: 500;
+            line-height: 1.55;
+        }
+
+        .advisor-shortcut-note {
+            margin-bottom: 0.8rem;
+            padding: 0.8rem 0.9rem;
+
+            background: #FFF6EF;
+            border: 1px solid var(--brand-orange-border);
+            border-radius: 10px;
+
+            color: var(--text-secondary);
+            font-size: 0.86rem;
             font-weight: 500;
             line-height: 1.6;
         }
 
+        [data-testid="stChatMessage"] {
+            padding: 0.85rem 1rem;
+        }
+
+        [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p,
+        [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] li {
+            color: #344054 !important;
+        }
+
+        [data-testid="stChatInput"] {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+
         @media (max-width: 900px) {
-            .strategy-summary-card {
-                min-height: auto;
+            .report-content-heading,
+            .report-download-ready,
+            .advisor-panel-heading,
+            .advisor-chat-heading {
+                gap: 0.7rem;
+            }
+
+            .report-content-icon,
+            .report-download-icon,
+            .advisor-panel-icon,
+            .advisor-chat-icon {
+                width: 40px;
+                height: 40px;
+                flex-basis: 40px;
             }
         }
 
+
+        /* ==================================================
+           Multiselect 最終可讀性修正
+        ================================================== */
+
+        /*
+        Streamlit 不同版本可能把 data-baseweb="tag"
+        放在 div、span 或其他元素上，因此不要限定 div。
+        */
+
+        [data-baseweb="tag"] {
+            min-height: 30px !important;
+            margin: 2px 2px !important;
+            padding: 2px 7px !important;
+
+            background: #EAF2FF !important;
+            border: 1px solid #AFC8F5 !important;
+            border-radius: 8px !important;
+
+            box-shadow: none !important;
+        }
+
+        [data-baseweb="tag"],
+        [data-baseweb="tag"] *,
+        [data-baseweb="tag"] span,
+        [data-baseweb="tag"] p,
+        [data-baseweb="tag"] div {
+            color: #123A70 !important;
+            font-weight: 750 !important;
+            line-height: 1.25 !important;
+            opacity: 1 !important;
+        }
+
+        [data-baseweb="tag"] svg,
+        [data-baseweb="tag"] button,
+        [data-baseweb="tag"] button *,
+        [data-baseweb="tag"] [role="button"],
+        [data-baseweb="tag"] [role="button"] * {
+            color: #123A70 !important;
+            fill: #123A70 !important;
+            opacity: 1 !important;
+        }
+
+        [data-baseweb="tag"]:hover {
+            background: #DCEAFF !important;
+            border-color: #7CA6E8 !important;
+        }
+
+        /* 確保多選框內容不會垂直擠在一起 */
+        [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+            min-height: 48px !important;
+            padding-top: 5px !important;
+            padding-bottom: 5px !important;
+        }
+
+        [data-testid="stMultiSelect"] [data-baseweb="select"] > div > div {
+            align-items: center !important;
+            row-gap: 4px !important;
+            column-gap: 4px !important;
+        }
+
+        /* 欄位文字與 placeholder */
+        [data-testid="stMultiSelect"] input,
+        [data-testid="stSelectbox"] input {
+            color: #111827 !important;
+            font-weight: 600 !important;
+        }
+
+        [data-testid="stMultiSelect"] input::placeholder,
+        [data-testid="stSelectbox"] input::placeholder {
+            color: #667085 !important;
+            opacity: 1 !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
