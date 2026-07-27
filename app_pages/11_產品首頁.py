@@ -28,22 +28,25 @@ from src.session_helpers import initialize_session_state
 
 initialize_session_state()
 
-st.set_page_config(
-    page_title="富信新零售分析總覽",
-    page_icon="📊",
-    layout="wide",
-)
-
-
 # =========================================================
 # 頁面標題
 # =========================================================
 
-st.title("富信新零售分析總覽")
+st.markdown(
+    """
+    <div class="step-label">ANALYTICS OVERVIEW</div>
 
-st.write(
-    "整合銷量、品牌活動、活動成效與策略建議，"
-    "協助快速掌握目前資料狀態與重要商業洞察。"
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h1>分析總覽</h1>
+    </div>
+
+    <p class="product-page-description">
+        整合銷量、品牌活動、活動成效與策略建議，
+        協助快速掌握目前資料狀態、重要商業洞察與待確認風險。
+    </p>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -92,53 +95,87 @@ integration_issues_dataframe = st.session_state.get(
 # 資料流程狀態
 # =========================================================
 
-st.subheader("資料處理進度")
+st.subheader("分析資料狀態")
+
+sales_ready = (
+    sales_dataframe is not None
+    and not sales_dataframe.empty
+    and bool(
+        st.session_state.get(
+            "sales_data_confirmed",
+            False,
+        )
+    )
+)
+
+activity_ready = (
+    activity_dataframe is not None
+    and not activity_dataframe.empty
+    and bool(
+        st.session_state.get(
+            "activity_data_confirmed",
+            False,
+        )
+    )
+)
+
+analysis_ready = (
+    integrated_dataframe is not None
+    and performance_dataframe is not None
+    and strategy_dataframe is not None
+    and bool(
+        st.session_state.get(
+            "full_analysis_completed",
+            False,
+        )
+    )
+)
 
 process_status = [
     {
-        "步驟": "銷量資料標準化",
-        "狀態": sales_dataframe is not None,
+        "編號": "01",
+        "名稱": "銷量資料",
+        "狀態": sales_ready,
     },
     {
-        "步驟": "活動資料標準化",
-        "狀態": activity_dataframe is not None,
+        "編號": "02",
+        "名稱": "活動資料",
+        "狀態": activity_ready,
     },
     {
-        "步驟": "銷量活動整合",
-        "狀態": integrated_dataframe is not None,
-    },
-    {
-        "步驟": "活動成效分析",
-        "狀態": performance_dataframe is not None,
-    },
-    {
-        "步驟": "策略建議報表",
-        "狀態": strategy_dataframe is not None,
+        "編號": "03",
+        "名稱": "完整分析",
+        "狀態": analysis_ready,
     },
 ]
 
-
-status_columns = st.columns(
-    len(process_status)
-)
+status_columns = st.columns(3)
 
 for column, item in zip(
     status_columns,
     process_status,
 ):
     with column:
-        if item["狀態"]:
-            st.success(
-                f"✅ {item['步驟']}"
-            )
-        else:
-            st.info(
-                f"○ {item['步驟']}"
+        with st.container(border=True):
+            st.markdown(
+                f"""
+                <div class="overview-status-number">
+                    STEP {item['編號']}
+                </div>
+                <div class="overview-status-title">
+                    {item['名稱']}
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
+            if item["狀態"]:
+                st.success("已完成")
+            else:
+                st.info("尚未完成")
 
 completed_steps = sum(
-    item["狀態"]
+    int(item["狀態"])
     for item in process_status
 )
 
@@ -150,8 +187,7 @@ progress_ratio = (
 st.progress(
     progress_ratio,
     text=(
-        f"目前完成 "
-        f"{completed_steps}／"
+        f"目前完成 {completed_steps}／"
         f"{len(process_status)} 個主要步驟"
     ),
 )
@@ -161,18 +197,22 @@ st.progress(
 # 尚未完成完整流程時的提醒
 # =========================================================
 
-if sales_dataframe is None:
+if not sales_ready:
     st.warning(
-        "目前尚未完成銷量資料標準化。"
-        "請先到「資料上傳」、「欄位對應」"
-        "與「資料品質」完成處理。"
+        "目前尚未完成銷量資料確認，"
+        "請先前往「01 銷量資料處理」。"
     )
 
-if activity_dataframe is None:
+if not activity_ready:
     st.warning(
-        "目前尚未完成活動資料標準化。"
-        "請先到「活動資料上傳」"
-        "與「活動資料標準化」完成處理。"
+        "目前尚未完成活動資料確認，"
+        "請先前往「02 活動資料處理」。"
+    )
+
+if sales_ready and activity_ready and not analysis_ready:
+    st.info(
+        "兩份資料都已確認，請前往「03 執行完整分析」"
+        "產生整合資料、活動成效與策略報告。"
     )
 
 
@@ -783,16 +823,16 @@ navigation_col1, navigation_col2, navigation_col3 = (
 
 with navigation_col1:
     st.info(
-        "📈 **查看活動成效**\n\n"
-        "前往「活動成效分析」，"
+        "📈 **查看活動洞察**\n\n"
+        "前往「活動洞察」，"
         "比較活動前、中、後的銷量變化。"
     )
 
 
 with navigation_col2:
     st.info(
-        "📋 **查看策略建議**\n\n"
-        "前往「策略建議報表」，"
+        "📋 **查看策略中心**\n\n"
+        "前往「策略中心」，"
         "查看建議延續、優化或檢討的活動。"
     )
 
@@ -800,6 +840,6 @@ with navigation_col2:
 with navigation_col3:
     st.info(
         "🤖 **詢問 AI 顧問**\n\n"
-        "前往「AI 行銷策略顧問」，"
-        "詢問下一期促銷與資料限制。"
+        "前往「AI 策略顧問」，"
+        "詢問下一期促銷方向與資料限制。"
     )

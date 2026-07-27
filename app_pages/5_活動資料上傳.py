@@ -43,12 +43,20 @@ from src.session_helpers import (
 
 initialize_session_state()
 
-st.title("活動資料處理")
-
-st.write(
-    "一次上傳 3 月與 4 月活動 Excel，"
-    "確認月份對應後，系統會自動產生商品活動價格、"
-    "活動日曆、優惠內容與資料問題。"
+st.markdown(
+    """
+    <div class="step-label">STEP 02</div>
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h1>活動資料處理</h1>
+    </div>
+    <p class="product-page-description">
+        一次上傳 3 月與 4 月活動 Excel，確認月份對應後，
+        系統會自動解析商品活動期間、活動價格、活動日曆、
+        優惠內容與需要人工確認的資料問題。
+    </p>
+    """,
+    unsafe_allow_html=True,
 )
 
 st.info(
@@ -123,13 +131,30 @@ def reset_activity_widget_state() -> None:
 
 st.subheader("1. 上傳活動 Excel")
 
-uploaded_files = st.file_uploader(
-    "可一次選擇多份 Excel",
-    type=["xlsx"],
-    accept_multiple_files=True,
-    key="activity_excel_uploader",
-    help="目前請至少上傳 3 月及 4 月活動檔案。",
-)
+with st.container(border=True):
+    st.markdown(
+        """
+        <div class="upload-card-heading">
+            <div class="upload-card-icon">🏷️</div>
+            <div>
+                <div class="upload-card-title">活動資料匯入</div>
+                <div class="upload-card-description">
+                    可一次選擇多份 Excel。請至少上傳 3 月與 4 月活動檔案，
+                    系統會根據檔名建議月份，之後仍可手動調整。
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    uploaded_files = st.file_uploader(
+        "可一次選擇多份 Excel",
+        type=["xlsx"],
+        accept_multiple_files=True,
+        key="activity_excel_uploader",
+        help="目前請至少上傳 3 月及 4 月活動檔案。",
+    )
 
 
 if uploaded_files:

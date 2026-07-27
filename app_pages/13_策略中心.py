@@ -25,22 +25,23 @@ from src.session_helpers import initialize_session_state
 
 initialize_session_state()
 
-st.set_page_config(
-    page_title="策略中心",
-    page_icon="📋",
-    layout="wide",
-)
+st.markdown(
+    """
+    <div class="step-label">STRATEGY CENTER</div>
 
-st.title("策略中心")
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h1>策略中心</h1>
+    </div>
 
-st.write(
-    "根據活動成效分析與規則式策略報告，"
-    "整理建議延續、建議優化與建議檢討的活動。"
-)
-
-st.caption(
-    "策略分類屬於決策輔助；"
-    "實際執行仍應搭配成本、毛利、庫存與商業目標判斷。"
+    <p class="product-page-description">
+        根據活動成效分析與規則式策略報告，
+        整理建議延續、建議優化與建議檢討的活動。
+        策略分類屬於決策輔助，實際執行仍應搭配成本、
+        毛利、庫存與商業目標判斷。
+    </p>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -68,7 +69,7 @@ standardized_dataframe = st.session_state.get(
 if strategy_dataframe is None:
     st.warning(
         "尚未產生策略建議資料。"
-        "請先完成「策略建議報表」。"
+        "請先完成「03 執行完整分析」。"
     )
     st.stop()
 
@@ -131,51 +132,66 @@ if missing_columns:
 
 st.subheader("策略篩選")
 
-filter_col1, filter_col2, filter_col3 = st.columns(3)
+with st.container(border=True):
+    st.markdown(
+        """
+        <div class="analysis-filter-heading">
+            <div class="analysis-filter-icon">🧭</div>
+            <div>
+                <div class="analysis-filter-title">篩選策略資料</div>
+                <div class="analysis-filter-description">
+                    可依策略分類、資料信心與最低活動總銷量縮小範圍。
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
 
 
-strategy_category_options = (
-    strategy["策略分類"]
-    .dropna()
-    .astype(str)
-    .unique()
-    .tolist()
-)
-
-
-with filter_col1:
-    selected_categories = st.multiselect(
-        "策略分類",
-        options=strategy_category_options,
-        default=strategy_category_options,
+    strategy_category_options = (
+        strategy["策略分類"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
     )
 
 
-confidence_options = (
-    strategy["資料信心"]
-    .dropna()
-    .astype(str)
-    .unique()
-    .tolist()
-)
+    with filter_col1:
+        selected_categories = st.multiselect(
+            "策略分類",
+            options=strategy_category_options,
+            default=strategy_category_options,
+        )
 
 
-with filter_col2:
-    selected_confidence = st.multiselect(
-        "資料信心",
-        options=confidence_options,
-        default=confidence_options,
+    confidence_options = (
+        strategy["資料信心"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
     )
 
 
-with filter_col3:
-    minimum_sales = st.number_input(
-        "最低活動總銷量",
-        min_value=0.0,
-        value=0.0,
-        step=1.0,
-    )
+    with filter_col2:
+        selected_confidence = st.multiselect(
+            "資料信心",
+            options=confidence_options,
+            default=confidence_options,
+        )
 
+
+    with filter_col3:
+        minimum_sales = st.number_input(
+            "最低活動總銷量",
+            min_value=0.0,
+            value=0.0,
+            step=1.0,
+        )
 
 filtered_strategy = strategy.copy()
 
@@ -256,6 +272,60 @@ total_estimated_revenue = filtered_strategy[
 ].sum(
     min_count=1
 )
+
+
+strategy_card_col1, strategy_card_col2, strategy_card_col3 = (
+    st.columns(3)
+)
+
+strategy_cards = [
+    {
+        "column": strategy_card_col1,
+        "class_name": "strategy-summary-card strategy-summary-continue",
+        "eyebrow": "CONTINUE",
+        "title": "建議延續",
+        "count": continue_count,
+        "description": "優先保留成效較佳、資料可信度較高的活動。",
+    },
+    {
+        "column": strategy_card_col2,
+        "class_name": "strategy-summary-card strategy-summary-optimize",
+        "eyebrow": "OPTIMIZE",
+        "title": "建議優化",
+        "count": optimize_count,
+        "description": "調整優惠、價格、期間或商品組合後再次測試。",
+    },
+    {
+        "column": strategy_card_col3,
+        "class_name": "strategy-summary-card strategy-summary-review",
+        "eyebrow": "REVIEW",
+        "title": "建議檢討",
+        "count": review_count,
+        "description": "檢視活動設計、重疊優惠與資料完整性。",
+    },
+]
+
+for card in strategy_cards:
+    with card["column"]:
+        st.markdown(
+            f"""
+            <div class="{card['class_name']}">
+                <div class="strategy-summary-eyebrow">
+                    {card['eyebrow']}
+                </div>
+                <div class="strategy-summary-title">
+                    {card['title']}
+                </div>
+                <div class="strategy-summary-count">
+                    {card['count']:,}
+                </div>
+                <div class="strategy-summary-description">
+                    {card['description']}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_col5 = (
@@ -645,7 +715,7 @@ st.dataframe(
 )
 
 st.caption(
-    "清單內容與「產生策略報告」頁面的活動策略清單一致，"
+    "清單內容與完整分析產生的活動策略清單一致，"
     "並套用本頁上方的策略分類、資料信心與最低銷量篩選。"
 )
 
@@ -733,5 +803,5 @@ with download_col2:
 
 st.info(
     "需要進一步解讀活動原因或規劃下一期促銷時，"
-    "可前往「AI 行銷策略顧問」進行提問。"
+    "可前往「AI 策略顧問」進行提問。"
 )
