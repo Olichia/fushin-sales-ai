@@ -128,6 +128,13 @@ def standardize_other_activities(
     benefit_records: list[dict] = []
     issue_records: list[dict] = []
 
+    march_sheet_names = set(
+        pd.ExcelFile(march_path).sheet_names
+    )
+    april_sheet_names = set(
+        pd.ExcelFile(april_path).sheet_names
+    )
+
     # -----------------------------------------------------
     # 3 月檔期
     # -----------------------------------------------------
@@ -190,59 +197,68 @@ def standardize_other_activities(
     # 3 月指定商品贈品
     # -----------------------------------------------------
 
-    benefits, issues = (
-        parse_march_product_gifts(
-            march_path
+    if "0308-0312滿額贈即享券" in march_sheet_names:
+        benefits, issues = (
+            parse_march_product_gifts(
+                march_path
+            )
         )
-    )
 
-    benefit_records.extend(benefits)
-    issue_records.extend(issues)
+        benefit_records.extend(benefits)
+        issue_records.extend(issues)
 
     # -----------------------------------------------------
     # 4 月吸塵器折價券
     # -----------------------------------------------------
 
-    benefits, issues = (
-        parse_april_vacuum_coupons(
-            april_path
+    if "超品日吸塵器折價券" in april_sheet_names:
+        benefits, issues = (
+            parse_april_vacuum_coupons(
+                april_path
+            )
         )
-    )
 
-    benefit_records.extend(benefits)
-    issue_records.extend(issues)
+        benefit_records.extend(benefits)
+        issue_records.extend(issues)
 
     # -----------------------------------------------------
     # 品牌日及品牌週
     # -----------------------------------------------------
 
-    (
-        records,
-        benefits,
-        issues,
-    ) = parse_brand_day_summary(
-        april_path
-    )
+    if "品牌日+品牌週" in april_sheet_names:
+        (
+            records,
+            benefits,
+            issues,
+        ) = parse_brand_day_summary(
+            april_path
+        )
 
-    calendar_records.extend(records)
-    benefit_records.extend(benefits)
-    issue_records.extend(issues)
+        calendar_records.extend(records)
+        benefit_records.extend(benefits)
+        issue_records.extend(issues)
 
     # -----------------------------------------------------
     # 包套活動
     # -----------------------------------------------------
 
-    (
-        records,
-        benefits,
-        issues,
-    ) = parse_package_sheet(
-        april_path
-    )
+    package_sheet_names = {
+        "包套活動",
+        "包套",
+    }
 
-    calendar_records.extend(records)
-    benefit_records.extend(benefits)
-    issue_records.extend(issues)
+    if package_sheet_names & april_sheet_names:
+        (
+            records,
+            benefits,
+            issues,
+        ) = parse_package_sheet(
+            april_path
+        )
+
+        calendar_records.extend(records)
+        benefit_records.extend(benefits)
+        issue_records.extend(issues)
 
     # -----------------------------------------------------
     # 建立 DataFrame

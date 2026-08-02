@@ -16,6 +16,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 from src.session_helpers import initialize_session_state
+from src.analysis_pipeline import (
+    AnalysisSettings,
+    generate_strategy_report,
+)
 
 
 # =========================================================
@@ -234,7 +238,7 @@ valid_uplift = analysis_base.dropna(
 ).copy()
 
 
-high_performance = valid_uplift[
+continue_mask = (
     (
         valid_uplift["uplift_rate"]
         >= high_uplift_threshold
@@ -245,24 +249,32 @@ high_performance = valid_uplift[
         ]
         >= minimum_campaign_sales
     )
+)
+
+
+review_mask = (
+    valid_uplift["uplift_rate"]
+    < low_uplift_threshold
+)
+
+
+optimize_mask = ~(
+    continue_mask | review_mask
+)
+
+
+high_performance = valid_uplift[
+    continue_mask
 ].copy()
 
 
 low_performance = valid_uplift[
-    valid_uplift["uplift_rate"]
-    < low_uplift_threshold
+    review_mask
 ].copy()
 
 
 stable_performance = valid_uplift[
-    (
-        valid_uplift["uplift_rate"]
-        >= low_uplift_threshold
-    )
-    & (
-        valid_uplift["uplift_rate"]
-        < high_uplift_threshold
-    )
+    optimize_mask
 ].copy()
 
 
@@ -500,6 +512,28 @@ strategy_report_text = "\n".join(
 )
 
 
+# 舊版頁面沿用中央策略產生器，避免與策略中心出現不同規則。
+strategy_settings = AnalysisSettings(
+    high_uplift_threshold=float(
+        high_uplift_threshold
+    ),
+    low_uplift_threshold=float(
+        low_uplift_threshold
+    ),
+    minimum_campaign_sales=float(
+        minimum_campaign_sales
+    ),
+    only_complete_periods=only_complete_periods,
+)
+
+strategy_dataframe, strategy_report_text = (
+    generate_strategy_report(
+        performance_dataframe=performance,
+        settings=strategy_settings,
+    )
+)
+
+
 st.session_state[
     "strategy_report_dataframe"
 ] = strategy_dataframe
@@ -507,6 +541,23 @@ st.session_state[
 st.session_state[
     "strategy_report_text"
 ] = strategy_report_text
+
+st.session_state["analysis_settings"] = {
+    "baseline_days": strategy_settings.baseline_days,
+    "post_days": strategy_settings.post_days,
+    "high_uplift_threshold": (
+        strategy_settings.high_uplift_threshold
+    ),
+    "low_uplift_threshold": (
+        strategy_settings.low_uplift_threshold
+    ),
+    "minimum_campaign_sales": (
+        strategy_settings.minimum_campaign_sales
+    ),
+    "only_complete_periods": (
+        strategy_settings.only_complete_periods
+    ),
+}
 
 
 # =========================================================

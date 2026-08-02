@@ -569,6 +569,26 @@ if run_button:
         "strategy_report_text"
     ] = result.strategy_report_text
 
+    st.session_state["analysis_settings"] = {
+        "baseline_days": settings.baseline_days,
+        "post_days": settings.post_days,
+        "fill_missing_dates_with_zero": (
+            settings.fill_missing_dates_with_zero
+        ),
+        "high_uplift_threshold": (
+            settings.high_uplift_threshold
+        ),
+        "low_uplift_threshold": (
+            settings.low_uplift_threshold
+        ),
+        "minimum_campaign_sales": (
+            settings.minimum_campaign_sales
+        ),
+        "only_complete_periods": (
+            settings.only_complete_periods
+        ),
+    }
+
     st.session_state[
         "full_analysis_completed"
     ] = True

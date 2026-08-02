@@ -1234,8 +1234,10 @@ def parse_march_product_gifts(
             row.iloc[1]
         )
 
-        activity_price = numeric_value(
-            row.iloc[2]
+        activity_price = (
+            numeric_value(row.iloc[2])
+            if len(row) >= 3
+            else None
         )
 
         source_row_number = (

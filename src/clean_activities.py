@@ -42,18 +42,28 @@ COLUMN_ALIASES = {
     "產品名稱": "product_name",
     "品名": "product_name",
 
-    "加碼贈品": "activity_gift",
     "活動贈品": "activity_gift",
+
+    "活動類型": "activity_type",
+    "類型": "activity_type",
 
     "短促時間": "promotion_period_raw",
     "促銷時間": "promotion_period_raw",
     "活動時間": "promotion_period_raw",
+
+    "起始日期": "activity_start_date_explicit",
+    "開始日期": "activity_start_date_explicit",
+    "活動開始日期": "activity_start_date_explicit",
+
+    "結束日期": "activity_end_date_explicit",
+    "活動結束日期": "activity_end_date_explicit",
 
     "加碼送": "bonus_period_raw",
     "加碼期間": "bonus_period_raw",
 
     "贈品品名": "bonus_gift_name",
     "加碼贈品品名": "bonus_gift_name",
+    "加碼贈品": "bonus_gift_name",
 
     "售價(含稅)": "campaign_price",
     "售價（含稅）": "campaign_price",
@@ -67,8 +77,11 @@ COLUMN_ALIASES = {
 STANDARD_COLUMNS = [
     "product_id",
     "product_name",
+    "activity_type",
     "activity_gift",
     "promotion_period_raw",
+    "activity_start_date_explicit",
+    "activity_end_date_explicit",
     "bonus_period_raw",
     "bonus_gift_name",
     "campaign_price",
@@ -460,6 +473,7 @@ def prepare_activity_dataframe(
 
     text_columns = [
         "product_name",
+        "activity_type",
         "activity_gift",
         "promotion_period_raw",
         "bonus_period_raw",
@@ -470,6 +484,15 @@ def prepare_activity_dataframe(
     for column in text_columns:
         dataframe[column] = clean_text(
             dataframe[column]
+        )
+
+    for column in [
+        "activity_start_date_explicit",
+        "activity_end_date_explicit",
+    ]:
+        dataframe[column] = pd.to_datetime(
+            dataframe[column],
+            errors="coerce",
         )
 
     dataframe["campaign_price"] = (
@@ -505,9 +528,64 @@ def explode_promotion_periods(
     issue_records = []
 
     for _, row in prepared_dataframe.iterrows():
-        parsed_periods = parse_period_text(
-            row["promotion_period_raw"]
+        explicit_start = row.get(
+            "activity_start_date_explicit"
         )
+        explicit_end = row.get(
+            "activity_end_date_explicit"
+        )
+
+        if (
+            pd.notna(explicit_start)
+            and pd.notna(explicit_end)
+        ):
+            activity_type = (
+                str(row.get("activity_type")).strip()
+                if pd.notna(row.get("activity_type"))
+                else "一般活動期間"
+            )
+            remark_tag = (
+                extract_activity_tag(
+                    str(row.get("remark"))
+                )
+                if pd.notna(row.get("remark"))
+                else ""
+            )
+            activity_tag = activity_type
+
+            if (
+                remark_tag
+                and remark_tag != "一般活動期間"
+                and remark_tag not in activity_tag
+            ):
+                activity_tag = (
+                    f"{activity_tag}、{remark_tag}"
+                )
+
+            parsed_periods = [
+                {
+                    "period_line_number": 1,
+                    "period_match_number": 1,
+                    "period_source_line": (
+                        f"{explicit_start:%Y-%m-%d}～"
+                        f"{explicit_end:%Y-%m-%d}"
+                    ),
+                    "matched_date_text": (
+                        f"{explicit_start:%Y-%m-%d}～"
+                        f"{explicit_end:%Y-%m-%d}"
+                    ),
+                    "activity_tag": activity_tag,
+                    "activity_start_date": explicit_start,
+                    "activity_end_date": explicit_end,
+                    "date_valid": (
+                        explicit_end >= explicit_start
+                    ),
+                }
+            ]
+        else:
+            parsed_periods = parse_period_text(
+                row["promotion_period_raw"]
+            )
 
         # 短促時間完全沒有資料
         if not parsed_periods:
@@ -529,10 +607,17 @@ def explode_promotion_periods(
                         row["product_name"]
                     ),
                     "issue_type": (
-                        "短促時間為空或無法解析"
+                        "活動日期為空或無法解析"
                     ),
                     "problem_text": (
                         row["promotion_period_raw"]
+                        if pd.notna(
+                            row["promotion_period_raw"]
+                        )
+                        else (
+                            f"起始日期={explicit_start}；"
+                            f"結束日期={explicit_end}"
+                        )
                     ),
                 }
             )
