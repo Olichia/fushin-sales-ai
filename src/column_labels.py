@@ -70,6 +70,8 @@ COLUMN_LABELS: dict[str, str] = {
     "start_date": "開始日期",
     "end_date": "結束日期",
     "days": "天數",
+    "month": "月份",
+    "discount_rate": "折扣率",
     "note": "備註",
     "is_participating": "本品項是否參與",
     "is_quiet_period": "是否為安靜期",
