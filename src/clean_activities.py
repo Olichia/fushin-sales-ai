@@ -797,10 +797,6 @@ def explode_promotion_periods(
                     "bonus_campaign_text": row.get(
                         "bonus_campaign_text", pd.NA
                     ),
-                    "period_line_number": 1,
-                    "period_match_number": 1,
-                    "period_source_line": "",
-                    "matched_date_text": "",
                     "activity_tag": row["activity_tag"],
                     "activity_start_date": (
                         row["activity_start_date"]
@@ -886,7 +882,16 @@ def explode_promotion_periods(
                 "promotion_period_raw": (
                     row["promotion_period_raw"]
                 ),
-                **parsed,
+                **{
+                    key: value
+                    for key, value in parsed.items()
+                    if key not in {
+                        "period_line_number",
+                        "period_match_number",
+                        "period_source_line",
+                        "matched_date_text",
+                    }
+                },
             }
 
             activity_records.append(

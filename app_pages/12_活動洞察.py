@@ -625,7 +625,15 @@ with kpi_col4:
 # 商品視角 Product View
 # =========================================================
 
-st.markdown("### 📦 商品視角 Product View")
+st.markdown(
+    """
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h3>商品視角 Product View</h3>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 product_view_title_col, product_view_tag_col = st.columns([3, 2])
 
@@ -659,16 +667,25 @@ with product_chart_col1:
         "net_revenue_effect_per_day", ascending=True
     )
 
+    # unit_code（如 M10）是「月份＋活動組合特徵」代碼，同一代碼
+    # 常常同時對應多個活動組合完全相同的商品，只顯示 unit_code
+    # 會讓不同商品的長條疊在同一個標籤下、點擊時也分不出點到
+    # 哪個商品。改用 unit_code（商品名稱）複合標籤，確保每根
+    # 長條、每次點擊都能唯一對應到一組(商品,活動組合)。
+    ranking_data["unit_product_label"] = (
+        ranking_data["unit_code"] + "（" + ranking_data["product_name"] + "）"
+    )
+
     ranking_figure = px.bar(
         ranking_data,
         x="net_revenue_effect_per_day",
-        y="unit_code",
+        y="unit_product_label",
         color="color_category",
         orientation="h",
         color_discrete_map=CATEGORY_COLOR_MAP,
         labels={
             "net_revenue_effect_per_day": "淨營收效應/日",
-            "unit_code": "活動單位",
+            "unit_product_label": "活動單位",
             "color_category": "分類",
         },
         hover_data={
@@ -678,19 +695,30 @@ with product_chart_col1:
         },
     )
 
-    ranking_height, ranking_bar_width = resolve_bar_chart_sizing(
-        len(ranking_data), normal_bar_width=0.5
-    )
+    ranking_row_count = len(ranking_data)
 
-    # resolve_bar_chart_sizing 資料量少時會回傳 None（柱寬交給
-    # Plotly 自動計算，預設會用 bargap=0.2 撐出約0.8的柱寬），
-    # 但這張圖的資料列數通常遠多於「活動類型淨增益彙總」圖，
-    # 兩張圖常常落在不同分支、算出差很多的柱寬，看起來間距
-    # 不一致。這裡固定補回跟「資料量大」分支相同的柱寬
-    # （normal_bar_width 的一半），確保不論資料量多寡，兩張圖
-    # 的柱寬／間距觀感都一致。
-    if ranking_bar_width is None:
-        ranking_bar_width = 0.5 / 2
+    # 這張圖不套用共用的 resolve_bar_chart_sizing()「筆數多寡
+    # 二選一分支」（筆數一多就強制捲動）。使用者希望不論資料
+    # 筆數多寡，都盡量在不捲動縱向捲軸的情況下看到「至少一半
+    # 以上」的資料列，效果比照「活動類型淨增益彙總」——固定
+    # 撐滿 CHART_MAX_HEIGHT，柱寬交給 Plotly 用 bargap 自動
+    # 壓縮（不寫死），資料越多柱子越細但仍等比例撐滿同一個
+    # 高度。只有筆數多到每格會薄於 MINIMUM_ROW_SLOT_PX（幾乎
+    # 看不出長條）時，才退回「自然高度＋外層捲動＋固定半寬」，
+    # 避免資料極端多時整張圖糊成一條色塊。
+    MINIMUM_ROW_SLOT_PX = 3
+
+    if (
+        ranking_row_count > 0
+        and CHART_MAX_HEIGHT / ranking_row_count
+        >= MINIMUM_ROW_SLOT_PX
+    ):
+        ranking_height = CHART_MAX_HEIGHT
+        ranking_bar_width = None
+    else:
+        ranking_height, ranking_bar_width = resolve_bar_chart_sizing(
+            ranking_row_count, normal_bar_width=0.5
+        )
 
     ranking_figure.update_traces(width=ranking_bar_width)
 
@@ -709,12 +737,12 @@ with product_chart_col1:
         )
 
     if bar_event and bar_event.selection.points:
-        clicked_unit_code = bar_event.selection.points[0].get("y")
+        clicked_unit_label = bar_event.selection.points[0].get("y")
 
-        if clicked_unit_code:
+        if clicked_unit_label:
             st.session_state[
                 "campaign_insight_selected_unit"
-            ] = clicked_unit_code
+            ] = clicked_unit_label
 
 with product_chart_col2:
     st.markdown("###### 折扣與增益散佈矩陣")
@@ -822,7 +850,7 @@ if table_event and table_event.selection.rows:
         ]
     )
 
-st.markdown("##### 💡 AI洞察")
+st.markdown("##### 💡 系統洞察")
 
 with st.container(border=True):
     if selected_sku_ids:
@@ -960,7 +988,15 @@ st.divider()
 # 活動視角 Activity View
 # =========================================================
 
-st.markdown("### 🎯 活動視角 Activity View")
+st.markdown(
+    """
+    <div class="product-page-title">
+        <div class="product-page-title-bar"></div>
+        <h3>活動視角 Activity View</h3>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 st.caption(
     "回答：哪些活動類型或搭配對淨營收貢獻最大？"
     "疊加效果能不能拆解成個別活動的貢獻？"
@@ -987,20 +1023,27 @@ with activity_chart_col1:
             ),
         ).sort_values("total_gain")
 
+        # px.bar 的 labels 參數只能改圖例「標題」文字，改不了
+        # 圖例裡布林值本身顯示的文字，所以要先把 True/False
+        # 轉成中文字串欄位，再拿這個字串欄位當 color。
+        summary_by_type["拆分狀態"] = summary_by_type[
+            "has_unsplit"
+        ].map({True: "不可拆分", False: "可拆分"})
+
         summary_figure = px.bar(
             summary_by_type,
             x="total_gain",
             y="activity_type",
             orientation="h",
-            color="has_unsplit",
+            color="拆分狀態",
             color_discrete_map={
-                True: "#F2C744",
-                False: "#4E56A6",
+                "不可拆分": "#F2C744",
+                "可拆分": "#4E56A6",
             },
             labels={
                 "total_gain": "增益合計",
                 "activity_type": "活動類型",
-                "has_unsplit": "含不可拆分區間",
+                "拆分狀態": "拆分狀態",
             },
         )
 
@@ -1031,25 +1074,62 @@ with activity_chart_col2:
     if filtered_pairing.empty:
         st.info("目前篩選條件下沒有配對比對明細資料。")
     else:
-        available_units = (
-            filtered_pairing["target_unit"].drop_duplicates().tolist()
+        # unit_code（如 M10）常常同時對應多個活動組合完全相同的
+        # 商品，只用 target_unit 篩選會把不同商品的配對列混在
+        # 一起，下面的活動類型選單也會出現同名重複選項。改用
+        # unit_code（商品名稱）複合標籤，確保每個選項、每次篩選
+        # 都唯一對應到一組(商品,活動組合)。
+        filtered_pairing["unit_product_label"] = (
+            filtered_pairing["target_unit"]
+            + "（"
+            + filtered_pairing["product_name"]
+            + "）"
         )
 
-        default_unit = st.session_state.get(
+        available_units = (
+            filtered_pairing["unit_product_label"]
+            .drop_duplicates()
+            .tolist()
+        )
+
+        stored_default_unit = st.session_state.get(
             "campaign_insight_selected_unit"
         )
 
-        if default_unit not in available_units:
-            default_unit = available_units[0]
+        if stored_default_unit not in available_units:
+            stored_default_unit = available_units[0]
+
+        # 用下拉選單讓使用者可以直接選要看哪個活動單位，不用
+        # 依賴「點長條」或「點下方表格列」這種容易被忽略的
+        # 互動方式。key 用新的名稱，不直接沿用
+        # campaign_insight_selected_unit 當 widget key，因為
+        # 下方「配對比對-單一活動拆解」表格的點擊事件也會寫入
+        # campaign_insight_selected_unit，兩者共用同一個 key
+        # 會在同一次執行裡違反「widget 實例化後不能再改它的
+        # session_state」規則而丟例外。
+        default_unit = st.selectbox(
+            "選擇要檢視的活動單位",
+            options=available_units,
+            index=available_units.index(stored_default_unit),
+            key="campaign_insight_unit_direct_select",
+        )
+
+        st.session_state["campaign_insight_selected_unit"] = default_unit
 
         st.caption(
             f"目前檢視：{default_unit} "
-            "— 點上方長條或下方表格任一列可切換"
+            "— 可用上方下拉選單、點長條或點下方表格任一列切換"
         )
 
         unit_pairing_rows = filtered_pairing[
-            filtered_pairing["target_unit"] == default_unit
+            filtered_pairing["unit_product_label"] == default_unit
         ].reset_index(drop=True)
+
+        # 上面新增的活動單位下拉選單一定會顯示，一定要扣一次
+        # 高度；如果這個單位還疊加了多個活動、多顯示第二個
+        # selectbox，再扣一次，抵銷多出來的高度，讓標題
+        # （頂部對齊）與圖表（底部）都能跟左欄切齊。
+        extra_widget_count = 1
 
         if len(unit_pairing_rows) > 1:
             activity_type_choice = st.selectbox(
@@ -1061,24 +1141,30 @@ with activity_chart_col2:
                 unit_pairing_rows["activity_type"]
                 == activity_type_choice
             ].iloc[0]
-            # 這個活動單位多顯示了一個 selectbox，比左欄多佔用
-            # 的高度會讓兩欄圖表底部對不齊，縮小圖表容器高度
-            # 抵銷這段差距，讓標題（頂部對齊）與圖表（底部）
-            # 都能跟左欄切齊。
-            waterfall_container_height = (
-                CHART_MAX_HEIGHT - EXTRA_WIDGET_HEIGHT_OFFSET
-            )
+            extra_widget_count += 1
         else:
             waterfall_row = unit_pairing_rows.iloc[0]
-            waterfall_container_height = CHART_MAX_HEIGHT
+
+        waterfall_container_height = (
+            CHART_MAX_HEIGHT
+            - EXTRA_WIDGET_HEIGHT_OFFSET * extra_widget_count
+        )
 
         candidate_value = waterfall_row["candidate_weighted_avg_daily_revenue"]
         actual_value = waterfall_row["actual_daily_revenue"]
         net_value = waterfall_row["net_gain_per_day"]
 
-        waterfall_height, waterfall_bar_width = resolve_bar_chart_sizing(
-            3, normal_bar_width=0.4
-        )
+        # 圖表本身的高度要跟外層 st.container(height=
+        # waterfall_container_height) 完全一致，不能像之前用
+        # resolve_bar_chart_sizing(3, ...) 固定回傳
+        # CHART_MAX_HEIGHT(460)——因為外層容器已經依疊加活動
+        # selectbox 是否顯示，扣掉對應的 EXTRA_WIDGET_HEIGHT_OFFSET
+        # 縮小過，圖表高度若還是撐到完整的460，會比容器高，
+        # 底部（X軸刻度文字）就會被容器裁掉、看不到。柱寬交給
+        # Plotly 自動計算（bargap），效果比照頁面其他圖表「全螢幕
+        # 撐滿、等比例縮放」的作法。
+        waterfall_height = waterfall_container_height
+        waterfall_bar_width = None
 
         waterfall_bar_kwargs = (
             {"width": waterfall_bar_width}
@@ -1183,10 +1269,12 @@ if not filtered_pairing.empty:
             selected_pairing_index = (
                 pairing_table_event.selection.rows[0]
             )
+            selected_pairing_row = pairing_display.iloc[
+                selected_pairing_index
+            ]
             st.session_state["campaign_insight_selected_unit"] = (
-                pairing_display.iloc[selected_pairing_index][
-                    "target_unit"
-                ]
+                f"{selected_pairing_row['target_unit']}"
+                f"（{selected_pairing_row['product_name']}）"
             )
 
     with pairing_tab2:
@@ -1226,7 +1314,7 @@ if not filtered_pairing.empty:
             column_config=summary_view_column_config,
         )
 
-st.markdown("##### 💡 AI洞察")
+st.markdown("##### 💡 系統洞察")
 
 with st.container(border=True):
     st.markdown("**💡 最佳活動搭檔**")

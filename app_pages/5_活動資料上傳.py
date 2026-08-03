@@ -760,8 +760,27 @@ else:
             )
 
         else:
+            # 商品專屬優惠（如指定商品贈品）才會有 product_id／
+            # product_name，全站或品牌活動的優惠這兩欄永遠是空
+            # 值；比照「商品活動價格」表，顯示前動態濾掉這批
+            # 資料完全沒有內容的欄位，兩種情況都能正確適應。
+            # product_name 等文字欄位在無資料時預設是空字串而非
+            # NaN，先轉成字串、去除頭尾空白、把空字串當缺值，
+            # 才能正確判斷「整欄皆空」。
+            non_empty_benefit_columns = [
+                column
+                for column in benefits_dataframe.columns
+                if benefits_dataframe[column]
+                .astype("string")
+                .str.strip()
+                .replace("", pd.NA)
+                .notna()
+                .any()
+            ]
+
             benefits_preview = (
-                benefits_dataframe.head(100)
+                benefits_dataframe[non_empty_benefit_columns]
+                .head(100)
             )
 
             st.dataframe(

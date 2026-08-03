@@ -3,6 +3,7 @@ import sys
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 
@@ -429,75 +430,39 @@ strategy_card_col1, strategy_card_col2, strategy_card_col3 = (
     st.columns(3)
 )
 
-strategy_cards = [
-    {
-        "column": strategy_card_col1,
-        "class_name": "strategy-summary-card strategy-summary-continue",
-        "eyebrow": "CONTINUE",
-        "title": "建議延續",
-        "count": continue_count,
-        "description": "優先保留成效較佳、資料可信度較高的活動。",
-    },
-    {
-        "column": strategy_card_col2,
-        "class_name": "strategy-summary-card strategy-summary-optimize",
-        "eyebrow": middle_eyebrow,
-        "title": middle_title,
-        "count": optimize_count,
-        "description": middle_description,
-    },
-    {
-        "column": strategy_card_col3,
-        "class_name": "strategy-summary-card strategy-summary-review",
-        "eyebrow": "REVIEW",
-        "title": "建議檢討",
-        "count": review_count,
-        "description": "檢視活動設計、重疊優惠與資料完整性。",
-    },
+card_specs = [
+    (
+        strategy_card_col1,
+        "CONTINUE",
+        "建議延續",
+        continue_count,
+        "優先保留成效較佳、資料可信度較高的活動。",
+    ),
+    (
+        strategy_card_col2,
+        middle_eyebrow,
+        middle_title,
+        optimize_count,
+        middle_description,
+    ),
+    (
+        strategy_card_col3,
+        "REVIEW",
+        "建議檢討",
+        review_count,
+        "檢視活動設計、重疊優惠與資料完整性。",
+    ),
 ]
 
-for card in strategy_cards:
-    with card["column"]:
-        st.markdown(
-            f"""
-            <div class="{card['class_name']}">
-                <div class="strategy-summary-eyebrow">
-                    {card['eyebrow']}
-                </div>
-                <div class="strategy-summary-title">
-                    {card['title']}
-                </div>
-                <div class="strategy-summary-count">
-                    {card['count']:,}
-                </div>
-                <div class="strategy-summary-description">
-                    {card['description']}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+for column, eyebrow, title, count, description in card_specs:
+    with column:
+        with st.container(border=True):
+            st.caption(eyebrow)
+            st.metric(title, f"{count:,}")
+            st.caption(description)
 
 
-kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_col5 = (
-    st.columns(5)
-)
-
-
-kpi_col1.metric(
-    "建議延續",
-    f"{continue_count:,}",
-)
-
-kpi_col2.metric(
-    middle_title,
-    f"{optimize_count:,}",
-)
-
-kpi_col3.metric(
-    "建議檢討",
-    f"{review_count:,}",
-)
+kpi_col4, kpi_col5 = st.columns(2)
 
 kpi_col4.metric(
     primary_metric_label,
@@ -713,46 +678,116 @@ else:
             )
         )
 
-    monthly_figure = px.line(
-        monthly_sales,
-        x="month_label",
-        y="monthly_quantity",
-        markers=True,
-        labels={
-            "month_label": "月份",
-            "monthly_quantity": "總銷量",
-        },
+    product_mom_source = standardized_dataframe[
+        ["sale_date", "product_id", "product_name", "quantity"]
+    ].copy()
+
+    product_mom_source["sale_date"] = pd.to_datetime(
+        product_mom_source["sale_date"], errors="coerce"
     )
 
-    monthly_figure.update_traces(
-        line={
-            "width": 3,
-        },
-        marker={
-            "size": 8,
-        },
-        hovertemplate=(
-            "月份：%{x}<br>"
-            "總銷量：%{y:,.0f}"
-            "<extra></extra>"
+    product_mom_source["quantity"] = pd.to_numeric(
+        product_mom_source["quantity"], errors="coerce"
+    )
+
+    product_mom_source = product_mom_source.dropna(
+        subset=["sale_date", "product_id", "quantity"]
+    )
+
+    product_mom_source["sale_month"] = (
+        product_mom_source["sale_date"].dt.to_period("M")
+    )
+
+    monthly_by_product = (
+        product_mom_source.groupby(
+            ["product_id", "product_name", "sale_month"],
+            as_index=False,
+        )["quantity"].sum()
+    )
+
+    latest_by_product = monthly_by_product[
+        monthly_by_product["sale_month"] == latest_period
+    ].set_index("product_id")["quantity"]
+
+    previous_by_product = monthly_by_product[
+        monthly_by_product["sale_month"] == previous_period
+    ].set_index("product_id")["quantity"]
+
+    product_names = (
+        monthly_by_product[["product_id", "product_name"]]
+        .drop_duplicates()
+        .set_index("product_id")["product_name"]
+    )
+
+    product_mom = pd.DataFrame(
+        {"product_name": product_names}
+    ).reset_index()
+
+    product_mom["latest_quantity"] = product_mom[
+        "product_id"
+    ].map(latest_by_product)
+
+    product_mom["previous_quantity"] = product_mom[
+        "product_id"
+    ].map(previous_by_product)
+
+    product_mom["mom_rate"] = product_mom.apply(
+        lambda row: calculate_growth_rate(
+            row["latest_quantity"], row["previous_quantity"]
         ),
+        axis=1,
     )
 
-    monthly_figure.update_layout(
-        xaxis_title="月份",
-        yaxis_title="總銷量",
-        margin={
-            "l": 10,
-            "r": 10,
-            "t": 20,
-            "b": 10,
-        },
-    )
+    product_mom_chart_data = product_mom.dropna(
+        subset=["latest_quantity", "mom_rate"]
+    ).sort_values("mom_rate")
 
-    st.plotly_chart(
-        monthly_figure,
-        use_container_width=True,
-    )
+    if product_mom_chart_data.empty:
+        st.info(
+            "目前沒有足夠的品項月銷量資料可比較 MoM。"
+        )
+    else:
+        mom_bar_figure = go.Figure(
+            go.Bar(
+                x=product_mom_chart_data["mom_rate"] * 100,
+                y=product_mom_chart_data["product_name"],
+                orientation="h",
+                marker_color=[
+                    "#3BA776" if rate >= 0 else "#D64550"
+                    for rate in product_mom_chart_data["mom_rate"]
+                ],
+                text=[
+                    f"銷量 {quantity:,.0f}（{rate:+.1%}）"
+                    for quantity, rate in zip(
+                        product_mom_chart_data["latest_quantity"],
+                        product_mom_chart_data["mom_rate"],
+                    )
+                ],
+                textposition="outside",
+            )
+        )
+
+        mom_bar_figure.update_layout(
+            xaxis_title="MoM 月增率（%）",
+            yaxis_title="品項",
+            margin={
+                "l": 10,
+                "r": 10,
+                "t": 20,
+                "b": 10,
+            },
+            height=max(280, 60 * len(product_mom_chart_data)),
+        )
+
+        st.plotly_chart(
+            mom_bar_figure,
+            use_container_width=True,
+        )
+
+        st.caption(
+            f"比較 {previous_period} 與 {latest_period} "
+            "各品項銷量計算 MoM。"
+        )
 
 
 # =========================================================
@@ -868,12 +903,6 @@ else:
             primary_metric_column: primary_metric_column,
             "策略分類": "策略分類",
         },
-    )
-
-    strategy_scatter_figure.add_hline(
-        y=0,
-        line_dash="dash",
-        annotation_text="無淨增益",
     )
 
     if pd.notna(median_metric_value):

@@ -284,6 +284,11 @@ def apply_product_styles() -> None:
             color: var(--text-primary);
         }
 
+        .product-page-title h3 {
+            margin: 0;
+            color: var(--text-primary);
+        }
+
         .product-page-title-bar {
             width: 7px;
             height: 36px;
@@ -1746,6 +1751,10 @@ def apply_product_styles() -> None:
             font-weight: 800 !important;
             line-height: 1.35 !important;
             letter-spacing: -0.01em !important;
+        }
+
+        .product-page-title h3 {
+            margin: 0 !important;
         }
 
         .product-page-title-bar {

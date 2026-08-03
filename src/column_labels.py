@@ -111,15 +111,16 @@ COLUMN_LABELS: dict[str, str] = {
     # -----------------------------
     # 平台檔期
     # -----------------------------
-    "campaign_name": "檔期名稱",
-    "campaign_level": "檔期等級",
-    "campaign_start_date": "檔期起始日",
-    "campaign_end_date": "檔期結束日",
-    "calendar_activity_count": "檔期重疊筆數",
+    "campaign_name": "活動名稱",
+    "campaign_level": "活動等級",
+    "campaign_start_date": "活動起始日",
+    "campaign_end_date": "活動結束日",
+    "calendar_activity_count": "活動重疊筆數",
 
     # -----------------------------
     # 優惠內容
     # -----------------------------
+    "scope": "優惠範圍",
     "benefit_type": "優惠類型",
     "benefit_content": "優惠內容",
     "benefit_start_date": "優惠起始日",
@@ -127,13 +128,17 @@ COLUMN_LABELS: dict[str, str] = {
     "threshold_amount": "門檻金額",
     "reward_percentage": "回饋比例",
     "reward_amount": "回饋金額",
+    "reward_limit_amount": "回饋上限金額",
+    "quota": "名額上限",
+    "activity_price": "折價前活動價",
+    "discounted_price": "折價後價格",
     "product_benefit_type": "商品優惠類型",
     "product_benefit_content": "商品優惠內容",
-    "product_benefit_campaign": "商品優惠檔期",
+    "product_benefit_campaign": "商品優惠活動",
     "product_benefit_count": "商品優惠筆數",
     "global_benefit_type": "全站優惠類型",
     "global_benefit_content": "全站優惠內容",
-    "global_benefit_campaign": "全站優惠檔期",
+    "global_benefit_campaign": "全站優惠活動",
     "global_benefit_count": "全站優惠筆數",
 
     # -----------------------------

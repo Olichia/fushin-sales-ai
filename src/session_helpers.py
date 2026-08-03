@@ -185,30 +185,18 @@ def clear_sales_processing_results() -> None:
     保留已上傳的 Excel 檔案，
     但清除欄位對應、標準化資料與確認狀態。
 
-    銷量資料一旦改變，先前對「活動資料」的最終確認
-    也一併失效：否則系統會直接用舊的、已確認的活動資料
-    搭配新銷量資料執行分析，造成新舊資料悄悄搭配、
-    分析結果混入不該出現的商品。
+    只重置銷量資料自己的確認狀態；活動資料本身沒有改變，
+    不需要連帶要求使用者回頭重新確認活動資料。
     """
 
     sales_processing_keys = [
         "column_mapping",
         "sales_data_confirmed",
         "standardized_dataframe",
-        "activity_data_confirmed",
     ]
 
     reset_session_keys(
         sales_processing_keys
-    )
-
-    # 同步清掉活動確認 checkbox 的 widget 狀態，
-    # 否則畫面上的勾選框不會跟著變回未勾選
-    # （帶 key 的 widget 重新渲染時只認 session_state[key]，
-    # 不會再看 value= 參數）。
-    st.session_state.pop(
-        "activity_final_confirmation_checkbox",
-        None,
     )
 
     clear_downstream_analysis()
@@ -222,9 +210,8 @@ def clear_activity_processing_results() -> None:
     但清除月份紀錄、標準化結果、
     摘要、問題資料與確認狀態。
 
-    活動資料一旦改變，先前對「銷量資料」的最終確認
-    也一併失效，理由與 clear_sales_processing_results()
-    對稱：避免新舊資料悄悄搭配。
+    只重置活動資料自己的確認狀態；銷量資料本身沒有改變，
+    不需要連帶要求使用者回頭重新確認銷量資料。
     """
 
     activity_processing_keys = [
@@ -237,17 +224,10 @@ def clear_activity_processing_results() -> None:
         "activity_issues_dataframe",
         "main_activity_summary_dataframe",
         "other_activity_summary_dataframe",
-        "sales_data_confirmed",
     ]
 
     reset_session_keys(
         activity_processing_keys
-    )
-
-    # 同步清掉銷量確認 checkbox 的 widget 狀態，理由同上。
-    st.session_state.pop(
-        "sales_final_confirmation_checkbox",
-        None,
     )
 
     clear_downstream_analysis()
