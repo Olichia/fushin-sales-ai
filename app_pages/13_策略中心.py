@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from src.executive_summary import build_activity_unit_strategy_text
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
     compute_confidence_label,
@@ -153,6 +154,10 @@ if missing_columns:
 
 unit_overview_raw = st.session_state.get(
     "activity_unit_overview_dataframe"
+)
+
+waterfall_summary_raw = st.session_state.get(
+    "activity_waterfall_summary_dataframe"
 )
 
 unit_analysis_completed = bool(
@@ -948,19 +953,26 @@ st.divider()
 
 st.subheader("主管策略摘要")
 
-st.caption(
-    "本段文字報告採用原始活動前後比較方法論產生，"
-    "與上方採用新版活動單位分析的策略清單可能存在方法論差異，"
-    "僅供敘事參考。"
-)
+if new_engine_ready and dataframe_ready(waterfall_summary_raw):
+    management_strategy_text = build_activity_unit_strategy_text(
+        unit_overview_raw, waterfall_summary_raw
+    )
 
-if strategy_report_text:
+else:
+    management_strategy_text = strategy_report_text
+
+    st.caption(
+        "新版活動單位分析資料尚未就緒，暫時顯示舊版"
+        "活動前後比較方法論產生的文字報告。"
+    )
+
+if management_strategy_text:
     with st.expander(
         "展開完整文字報告",
         expanded=False,
     ):
         st.markdown(
-            strategy_report_text
+            management_strategy_text
         )
 
 else:
@@ -1003,10 +1015,10 @@ with download_col1:
 
 
 with download_col2:
-    if strategy_report_text:
+    if management_strategy_text:
         st.download_button(
             "下載策略文字報告",
-            data=strategy_report_text.encode(
+            data=management_strategy_text.encode(
                 "utf-8"
             ),
             file_name="strategy_report.md",
