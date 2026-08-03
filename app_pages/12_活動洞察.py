@@ -18,6 +18,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.column_labels import default_column_config
 from src.session_helpers import initialize_session_state
+from src.unit_overview_helpers import (
+    CATEGORY_COLOR_MAP,
+    compute_risk_mask,
+    prepare_unit_overview_for_display,
+)
 
 
 # =========================================================
@@ -27,12 +32,6 @@ from src.session_helpers import initialize_session_state
 initialize_session_state()
 
 MINIMUM_DAYS_FOR_CONFIDENCE = 2
-
-CATEGORY_COLOR_MAP = {
-    "可分離正向": "#009B73",
-    "不可分離": "#F45B1B",
-    "負增益": "#C62828",
-}
 
 CHART_MAX_HEIGHT = 460
 CHART_ROW_HEIGHT = 22
@@ -293,61 +292,7 @@ def render_discount_rate_insight(
 # 欄位型別整理與衍生欄位
 # =========================================================
 
-numeric_columns = [
-    "unit_avg_sales",
-    "baseline_avg_sales",
-    "baseline_price",
-    "unit_avg_price",
-    "sales_increment",
-    "volume_effect_per_day",
-    "price_effect_per_day",
-    "net_revenue_effect_per_day",
-    "net_revenue_effect_total",
-    "days",
-    "month",
-]
-
-for column in numeric_columns:
-    if column in unit_overview.columns:
-        unit_overview[column] = pd.to_numeric(
-            unit_overview[column], errors="coerce"
-        )
-
-unit_overview["product_id"] = (
-    unit_overview["product_id"].astype(str).str.strip()
-)
-
-unit_overview["corresponding_activities_label"] = (
-    unit_overview["corresponding_activities_label"]
-    .fillna("")
-    .astype(str)
-)
-
-
-def classify_color_category(row: pd.Series) -> str:
-    if row.get("classification") == "多活動合併,不可分離":
-        return "不可分離"
-
-    net_effect = row.get("net_revenue_effect_per_day")
-
-    if pd.notna(net_effect) and net_effect < 0:
-        return "負增益"
-
-    return "可分離正向"
-
-
-unit_overview["color_category"] = unit_overview.apply(
-    classify_color_category, axis=1
-)
-
-unit_overview["discount_rate"] = (
-    1 - unit_overview["unit_avg_price"] / unit_overview["baseline_price"]
-)
-unit_overview.loc[
-    unit_overview["baseline_price"].isna()
-    | (unit_overview["baseline_price"] == 0),
-    "discount_rate",
-] = pd.NA
+unit_overview = prepare_unit_overview_for_display(unit_overview)
 
 unit_overview["hint"] = unit_overview.apply(
     lambda row: "、".join(
@@ -640,12 +585,7 @@ if not filtered_summary.empty:
             "avg_gain", ascending=False
         ).iloc[0]["activity_type"]
 
-risk_mask = (
-    filtered_unit_overview["price_effect_per_day"] < 0
-) & (
-    filtered_unit_overview["price_effect_per_day"].abs()
-    > filtered_unit_overview["volume_effect_per_day"].abs()
-)
+risk_mask = compute_risk_mask(filtered_unit_overview)
 risk_rate_count = int(risk_mask.sum())
 
 with kpi_col1:

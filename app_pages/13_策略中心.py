@@ -17,6 +17,21 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 from src.session_helpers import initialize_session_state
+from src.unit_overview_helpers import (
+    compute_confidence_label,
+    compute_risk_mask,
+    compute_strategy_category,
+    prepare_unit_overview_for_display,
+)
+
+
+def dataframe_ready(dataframe) -> bool:
+    """判斷 DataFrame 是否存在且有資料。"""
+
+    return (
+        isinstance(dataframe, pd.DataFrame)
+        and not dataframe.empty
+    )
 
 
 # =========================================================
@@ -36,7 +51,7 @@ st.markdown(
 
     <p class="product-page-description">
         根據活動成效分析與規則式策略報告，
-        整理建議延續、建議優化與建議檢討的活動。
+        整理建議延續、持續觀察／優化與建議檢討的活動。
         策略分類屬於決策輔助，實際執行仍應搭配成本、
         毛利、庫存與商業目標判斷。
     </p>
@@ -127,6 +142,123 @@ if missing_columns:
 
 
 # =========================================================
+# 新引擎策略清單（活動單位分析）
+#
+# 有新引擎資料時，策略清單改用活動單位分析的結果重新組出，
+# 取代上面舊版 uplift_rate 門檻分類。策略分類規則：淨增益
+# 為負一律是建議檢討；非負值時，達全體活動單位中位數以上
+# 為建議延續，未達中位數為持續觀察
+# （compute_strategy_category()）。
+# =========================================================
+
+unit_overview_raw = st.session_state.get(
+    "activity_unit_overview_dataframe"
+)
+
+unit_analysis_completed = bool(
+    st.session_state.get("unit_analysis_completed", False)
+)
+
+new_engine_ready = (
+    unit_analysis_completed
+    and dataframe_ready(unit_overview_raw)
+)
+
+if new_engine_ready:
+    unit_overview = prepare_unit_overview_for_display(
+        unit_overview_raw
+    )
+    unit_risk_mask = compute_risk_mask(unit_overview)
+    unit_confidence_label = compute_confidence_label(
+        unit_overview
+    )
+
+    strategy = unit_overview.copy()
+
+    strategy["策略分類"] = compute_strategy_category(strategy)
+
+    strategy["商品活動"] = (
+        strategy["product_name"].astype(str)
+        + "｜"
+        + strategy["unit_code"].astype(str)
+        + "（"
+        + strategy["corresponding_activities_label"]
+        + "）"
+    )
+
+    strategy["活動總銷量(估)"] = (
+        strategy["unit_avg_sales"] * strategy["days"]
+    )
+
+    strategy["淨增益/日"] = strategy["net_revenue_effect_per_day"]
+    strategy["淨增益合計"] = strategy["net_revenue_effect_total"]
+    strategy["資料信心"] = unit_confidence_label
+
+    def build_unit_suggestion(color_category: str, is_risky: bool) -> str:
+        if color_category == "可分離正向":
+            return (
+                "此活動單位淨增益為正且效果可獨立歸因，"
+                "可考慮延續此折扣／贈品組合，"
+                "並測試擴大曝光或延伸至相似商品。"
+            )
+
+        if color_category == "不可分離":
+            return (
+                "此活動單位疊加了多個活動，"
+                "效果無法拆分歸因到單一活動，"
+                "建議下次測試時錯開檔期，"
+                "才能確認真正有效的組合。"
+            )
+
+        if is_risky:
+            return (
+                "此活動單位淨增益為負，"
+                "且降價效應大於量增效應，屬於毛利侵蝕風險，"
+                "建議下檔縮減折扣或改以贈品吸引轉換。"
+            )
+
+        return (
+            "此活動單位淨增益為負，"
+            "建議檢視商品吸引力、曝光位置或活動設計，"
+            "不建議直接延續原方案。"
+        )
+
+    strategy["建議"] = [
+        build_unit_suggestion(color_category, is_risky)
+        for color_category, is_risky in zip(
+            strategy["color_category"], unit_risk_mask
+        )
+    ]
+
+    strategy = strategy[
+        [
+            "策略分類",
+            "商品活動",
+            "淨增益/日",
+            "活動總銷量(估)",
+            "淨增益合計",
+            "資料信心",
+            "建議",
+        ]
+    ]
+
+    primary_metric_column = "淨增益/日"
+    primary_metric_label = "淨增益/日 中位數"
+    primary_metric_is_percent = False
+    volume_column = "活動總銷量(估)"
+    revenue_column = "淨增益合計"
+    revenue_label = "淨增益合計"
+
+else:
+    primary_metric_column = "活動提升率"
+    primary_metric_label = "提升率中位數"
+    primary_metric_is_percent = True
+    volume_column = "活動總銷量"
+    revenue_column = "推估營收"
+    revenue_label = "推估營收合計"
+
+
+# =========================================================
 # 篩選器
 # =========================================================
 
@@ -187,7 +319,7 @@ with st.container(border=True):
 
     with filter_col3:
         minimum_sales = st.number_input(
-            "最低活動總銷量",
+            f"最低{volume_column}",
             min_value=0.0,
             value=0.0,
             step=1.0,
@@ -218,7 +350,7 @@ if selected_confidence:
 
 filtered_strategy = filtered_strategy[
     filtered_strategy[
-        "活動總銷量"
+        volume_column
     ].fillna(0) >= minimum_sales
 ].copy()
 
@@ -239,6 +371,20 @@ st.divider()
 st.subheader("策略摘要")
 
 
+if new_engine_ready:
+    middle_eyebrow = "OBSERVE"
+    middle_title = "持續觀察"
+    middle_description = (
+        "淨增益為正但未達整體中位數，建議持續觀察後續表現。"
+    )
+else:
+    middle_eyebrow = "OPTIMIZE"
+    middle_title = "建議優化"
+    middle_description = (
+        "調整優惠、價格、期間或商品組合後再次測試。"
+    )
+
+
 continue_count = int(
     (
         filtered_strategy[
@@ -251,7 +397,7 @@ optimize_count = int(
     (
         filtered_strategy[
             "策略分類"
-        ] == "建議優化"
+        ] == middle_title
     ).sum()
 )
 
@@ -264,11 +410,11 @@ review_count = int(
 )
 
 median_uplift = filtered_strategy[
-    "活動提升率"
+    primary_metric_column
 ].median()
 
 total_estimated_revenue = filtered_strategy[
-    "推估營收"
+    revenue_column
 ].sum(
     min_count=1
 )
@@ -290,10 +436,10 @@ strategy_cards = [
     {
         "column": strategy_card_col2,
         "class_name": "strategy-summary-card strategy-summary-optimize",
-        "eyebrow": "OPTIMIZE",
-        "title": "建議優化",
+        "eyebrow": middle_eyebrow,
+        "title": middle_title,
         "count": optimize_count,
-        "description": "調整優惠、價格、期間或商品組合後再次測試。",
+        "description": middle_description,
     },
     {
         "column": strategy_card_col3,
@@ -339,7 +485,7 @@ kpi_col1.metric(
 )
 
 kpi_col2.metric(
-    "建議優化",
+    middle_title,
     f"{optimize_count:,}",
 )
 
@@ -349,16 +495,20 @@ kpi_col3.metric(
 )
 
 kpi_col4.metric(
-    "提升率中位數",
+    primary_metric_label,
     (
-        f"{median_uplift:.1%}"
+        (
+            f"{median_uplift:.1%}"
+            if primary_metric_is_percent
+            else f"{median_uplift:,.0f}"
+        )
         if pd.notna(median_uplift)
         else "-"
     ),
 )
 
 kpi_col5.metric(
-    "推估營收合計",
+    revenue_label,
     (
         f"{total_estimated_revenue:,.0f}"
         if pd.notna(total_estimated_revenue)
@@ -611,8 +761,8 @@ st.subheader("活動成效與銷量對照")
 
 chart_dataframe = filtered_strategy.dropna(
     subset=[
-        "活動提升率",
-        "活動總銷量",
+        primary_metric_column,
+        volume_column,
     ]
 ).copy()
 
@@ -622,28 +772,28 @@ if chart_dataframe.empty:
         "目前沒有足夠資料繪製活動成效圖。"
     )
 
-else:
+elif primary_metric_is_percent:
     chart_dataframe[
         "活動提升率百分比"
     ] = (
         chart_dataframe[
-            "活動提升率"
+            primary_metric_column
         ] * 100
     )
 
     strategy_scatter_figure = px.scatter(
         chart_dataframe,
-        x="活動總銷量",
+        x=volume_column,
         y="活動提升率百分比",
         color="策略分類",
         hover_name="商品活動",
         hover_data={
-            "推估營收": ":,.0f",
+            revenue_column: ":,.0f",
             "資料信心": True,
             "活動提升率百分比": ":.1f",
         },
         labels={
-            "活動總銷量": "活動總銷量",
+            volume_column: volume_column,
             "活動提升率百分比": "活動提升率（%）",
             "策略分類": "策略分類",
         },
@@ -661,8 +811,18 @@ else:
         annotation_text="高成效門檻 20%",
     )
 
+    # 許多活動單位座標完全重疊（例如活動總銷量估計值都是0），
+    # 預設不透明的點會互相遮蔽，改成半透明＋外框線，重疊處
+    # 會自然顯示成顏色較深/較密的區塊，不更動任何資料本身。
+    strategy_scatter_figure.update_traces(
+        marker={
+            "opacity": 0.65,
+            "line": {"width": 1, "color": "rgba(0,0,0,0.35)"},
+        }
+    )
+
     strategy_scatter_figure.update_layout(
-        xaxis_title="活動總銷量",
+        xaxis_title=volume_column,
         yaxis_title="活動提升率（%）",
         margin={
             "l": 10,
@@ -682,6 +842,74 @@ else:
         "但沒有毛利與成本資料時，不能直接解讀為高獲利。"
     )
 
+else:
+    median_metric_value = chart_dataframe[
+        primary_metric_column
+    ].median()
+
+    strategy_scatter_figure = px.scatter(
+        chart_dataframe,
+        x=volume_column,
+        y=primary_metric_column,
+        color="策略分類",
+        hover_name="商品活動",
+        hover_data={
+            revenue_column: ":,.0f",
+            "資料信心": True,
+            primary_metric_column: ":,.0f",
+        },
+        labels={
+            volume_column: volume_column,
+            primary_metric_column: primary_metric_column,
+            "策略分類": "策略分類",
+        },
+    )
+
+    strategy_scatter_figure.add_hline(
+        y=0,
+        line_dash="dash",
+        annotation_text="無淨增益",
+    )
+
+    if pd.notna(median_metric_value):
+        strategy_scatter_figure.add_hline(
+            y=median_metric_value,
+            line_dash="dot",
+            annotation_text=f"{primary_metric_column} 中位數",
+        )
+
+    # 許多活動單位座標完全重疊（例如活動總銷量估計值都是0），
+    # 預設不透明的點會互相遮蔽，改成半透明＋外框線，重疊處
+    # 會自然顯示成顏色較深/較密的區塊，不更動任何資料本身。
+    strategy_scatter_figure.update_traces(
+        marker={
+            "opacity": 0.65,
+            "line": {"width": 1, "color": "rgba(0,0,0,0.35)"},
+        }
+    )
+
+    strategy_scatter_figure.update_layout(
+        xaxis_title=volume_column,
+        yaxis_title=primary_metric_column,
+        margin={
+            "l": 10,
+            "r": 10,
+            "t": 20,
+            "b": 10,
+        },
+    )
+
+    st.plotly_chart(
+        strategy_scatter_figure,
+        use_container_width=True,
+    )
+
+    st.caption(
+        "右上方通常代表估算銷量較高且淨增益較高；"
+        "淨增益已扣除同月安靜期基準，"
+        "但沒有毛利與成本資料時，不能直接解讀為實際獲利。"
+    )
+
 
 # =========================================================
 # 活動策略清單
@@ -691,27 +919,19 @@ st.divider()
 
 st.subheader("活動策略清單")
 
+strategy_table_column_config = {
+    primary_metric_column: st.column_config.NumberColumn(
+        format="percent" if primary_metric_is_percent else "%.0f"
+    ),
+    volume_column: st.column_config.NumberColumn(format="%.0f"),
+    revenue_column: st.column_config.NumberColumn(format="%.0f"),
+}
+
 st.dataframe(
     filtered_strategy,
     use_container_width=True,
     hide_index=True,
-    column_config={
-        "活動提升率": (
-            st.column_config.NumberColumn(
-                format="percent"
-            )
-        ),
-        "活動總銷量": (
-            st.column_config.NumberColumn(
-                format="%.0f"
-            )
-        ),
-        "推估營收": (
-            st.column_config.NumberColumn(
-                format="%.0f"
-            )
-        ),
-    },
+    column_config=strategy_table_column_config,
 )
 
 st.caption(
@@ -728,6 +948,11 @@ st.divider()
 
 st.subheader("主管策略摘要")
 
+st.caption(
+    "本段文字報告採用原始活動前後比較方法論產生，"
+    "與上方採用新版活動單位分析的策略清單可能存在方法論差異，"
+    "僅供敘事參考。"
+)
 
 if strategy_report_text:
     with st.expander(

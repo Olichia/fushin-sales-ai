@@ -20,6 +20,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 from src.session_helpers import initialize_session_state
+from src.unit_overview_helpers import (
+    CATEGORY_COLOR_MAP,
+    compute_actual_revenue_total,
+    compute_risk_mask,
+    prepare_unit_overview_for_display,
+)
 
 
 # =========================================================
@@ -27,6 +33,15 @@ from src.session_helpers import initialize_session_state
 # =========================================================
 
 initialize_session_state()
+
+
+def dataframe_ready(dataframe) -> bool:
+    """判斷 DataFrame 是否存在且有資料。"""
+
+    return (
+        isinstance(dataframe, pd.DataFrame)
+        and not dataframe.empty
+    )
 
 # =========================================================
 # 頁面標題
@@ -89,6 +104,31 @@ activity_issues_dataframe = st.session_state.get(
 integration_issues_dataframe = st.session_state.get(
     "integration_issues_dataframe"
 )
+
+unit_overview_raw = st.session_state.get(
+    "activity_unit_overview_dataframe"
+)
+
+unit_analysis_completed = bool(
+    st.session_state.get(
+        "unit_analysis_completed",
+        False,
+    )
+)
+
+new_engine_ready = (
+    unit_analysis_completed
+    and dataframe_ready(unit_overview_raw)
+)
+
+if new_engine_ready:
+    unit_overview = prepare_unit_overview_for_display(
+        unit_overview_raw
+    )
+    unit_risk_mask = compute_risk_mask(unit_overview)
+else:
+    unit_overview = None
+    unit_risk_mask = None
 
 
 # =========================================================
@@ -259,8 +299,6 @@ if sales_dataframe is not None:
 
 
 activity_analysis_count = 0
-high_performance_count = 0
-median_uplift = pd.NA
 complete_period_rate = pd.NA
 
 if performance_dataframe is not None:
@@ -271,25 +309,6 @@ if performance_dataframe is not None:
     activity_analysis_count = len(
         performance
     )
-
-    if "uplift_rate" in performance.columns:
-        performance["uplift_rate"] = (
-            pd.to_numeric(
-                performance["uplift_rate"],
-                errors="coerce",
-            )
-        )
-
-        high_performance_count = int(
-            (
-                performance["uplift_rate"]
-                >= 0.20
-            ).sum()
-        )
-
-        median_uplift = performance[
-            "uplift_rate"
-        ].median()
 
     if (
         "all_periods_complete"
@@ -306,6 +325,22 @@ if performance_dataframe is not None:
         )
 
 
+if new_engine_ready:
+    total_gmv = compute_actual_revenue_total(
+        unit_overview
+    ).sum()
+elif (
+    performance_dataframe is not None
+    and "estimated_revenue" in performance_dataframe.columns
+):
+    total_gmv = pd.to_numeric(
+        performance_dataframe["estimated_revenue"],
+        errors="coerce",
+    ).sum()
+else:
+    total_gmv = 0
+
+
 # =========================================================
 # KPI 顯示
 # =========================================================
@@ -314,8 +349,14 @@ st.divider()
 
 st.subheader("整體概況")
 
-kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_col5 = (
-    st.columns(5)
+kpi_col0, kpi_col1, kpi_col2, kpi_col3 = (
+    st.columns(4)
+)
+
+
+kpi_col0.metric(
+    "總GMV合計",
+    f"{total_gmv:,.0f}",
 )
 
 
@@ -337,23 +378,6 @@ kpi_col3.metric(
 )
 
 
-kpi_col4.metric(
-    "高成效活動",
-    f"{high_performance_count:,}",
-    help="目前以活動提升率至少 20% 判定。",
-)
-
-
-kpi_col5.metric(
-    "提升率中位數",
-    (
-        f"{median_uplift:.1%}"
-        if pd.notna(median_uplift)
-        else "-"
-    ),
-)
-
-
 if (
     sales_date_start is not None
     and sales_date_end is not None
@@ -365,6 +389,26 @@ if (
         f"{sales_date_start:%Y-%m-%d}"
         " 至 "
         f"{sales_date_end:%Y-%m-%d}"
+    )
+
+
+# =========================================================
+# 新引擎補充KPI（活動單位分析）
+# =========================================================
+
+if new_engine_ready:
+    engine_kpi_col1, engine_kpi_col2 = st.columns(2)
+
+    engine_kpi_col1.metric(
+        "淨增益GMV合計",
+        f"{unit_overview['net_revenue_effect_total'].sum():,.0f}",
+        help="所有活動單位相對於同月安靜期基準的淨營收效應加總。",
+    )
+
+    engine_kpi_col2.metric(
+        "風險檔數",
+        f"{int(unit_risk_mask.sum()):,}",
+        help="降價效應大於量增效應，屬於毛利侵蝕風險的活動單位數。",
     )
 
 
@@ -473,7 +517,50 @@ with chart_col1:
 with chart_col2:
     st.subheader("活動成效分布")
 
-    if (
+    if new_engine_ready:
+        distribution_count = (
+            unit_overview["color_category"]
+            .value_counts()
+            .rename_axis("成效分類")
+            .reset_index(name="活動單位數")
+        )
+
+        distribution_figure = px.bar(
+            distribution_count,
+            x="成效分類",
+            y="活動單位數",
+            color="成效分類",
+            color_discrete_map=CATEGORY_COLOR_MAP,
+            text_auto=True,
+            labels={
+                "成效分類": "活動成效分類",
+                "活動單位數": "活動單位數",
+            },
+        )
+
+        distribution_figure.update_layout(
+            xaxis_title="活動成效分類",
+            yaxis_title="活動單位數",
+            showlegend=False,
+            margin={
+                "l": 10,
+                "r": 10,
+                "t": 20,
+                "b": 10,
+            },
+        )
+
+        st.plotly_chart(
+            distribution_figure,
+            use_container_width=True,
+        )
+
+        st.caption(
+            "分類依據與「活動洞察」「策略中心」一致："
+            "可分離正向／不可分離／負增益。"
+        )
+
+    elif (
         performance_dataframe is None
         or performance_dataframe.empty
         or "uplift_rate"
@@ -586,7 +673,70 @@ insight_col1, insight_col2 = st.columns(
 with insight_col1:
     st.subheader("目前最佳活動")
 
-    if (
+    if new_engine_ready:
+        best_unit_candidates = unit_overview.dropna(
+            subset=["net_revenue_effect_per_day"]
+        )
+
+        if best_unit_candidates.empty:
+            st.info("目前沒有可計算淨增益的活動單位。")
+
+        else:
+            best_unit = best_unit_candidates.sort_values(
+                "net_revenue_effect_per_day",
+                ascending=False,
+            ).iloc[0]
+
+            unit_product_id = best_unit.get(
+                "product_id", "未提供編號"
+            )
+
+            unit_product_name = best_unit.get(
+                "product_name", "未提供名稱"
+            )
+
+            if pd.isna(unit_product_name):
+                unit_product_name = "未提供名稱"
+
+            unit_start = pd.to_datetime(
+                best_unit.get("start_date"), errors="coerce"
+            )
+
+            unit_end = pd.to_datetime(
+                best_unit.get("end_date"), errors="coerce"
+            )
+
+            st.success(
+                f"**{unit_product_id}｜{unit_product_name}**"
+                f"（{best_unit.get('corresponding_activities_label', '')}）"
+            )
+
+            unit_metric_col1, unit_metric_col2 = st.columns(2)
+
+            unit_metric_col1.metric(
+                "淨增益/日",
+                f"{best_unit['net_revenue_effect_per_day']:,.0f}",
+            )
+
+            unit_metric_col2.metric(
+                "涵蓋天數",
+                f"{best_unit.get('days', 0):,.0f}",
+            )
+
+            if pd.notna(unit_start) and pd.notna(unit_end):
+                st.caption(
+                    f"活動單位期間："
+                    f"{unit_start:%Y-%m-%d}"
+                    " 至 "
+                    f"{unit_end:%Y-%m-%d}"
+                )
+
+            st.write(
+                "建議進一步查看此活動單位是否可拆分歸因，"
+                "再決定是否擴大執行或延伸至相似商品。"
+            )
+
+    elif (
         performance_dataframe is None
         or performance_dataframe.empty
         or "uplift_rate"
@@ -792,6 +942,15 @@ with insight_col2:
                     f"共有 {overlap_count} 筆活動"
                     "與其他活動或優惠重疊。"
                 )
+
+    if new_engine_ready:
+        unit_risk_count = int(unit_risk_mask.sum())
+
+        if unit_risk_count > 0:
+            risk_messages.append(
+                f"有 {unit_risk_count} 檔活動單位存在"
+                "毛利侵蝕風險（降價效應大於量增效應）。"
+            )
 
     if not risk_messages:
         st.success(

@@ -10,6 +10,7 @@ from src.analysis_pipeline import (
 from src.activity_unit_analysis import run_activity_unit_analysis
 from src.column_labels import default_column_config
 from src.session_helpers import initialize_session_state
+from src.unit_overview_helpers import compute_actual_revenue_total
 
 
 # =========================================================
@@ -309,94 +310,19 @@ for column, step in zip(
 
 
 # =========================================================
-# 分析設定
+# 分析設定（舊版方法論不再是主要依據，固定使用預設參數；
+# 舊版流程仍會在背後執行，供「分析完成摘要」KPI 與頁11/13
+# 新引擎失敗時的備援路徑使用）
 # =========================================================
 
-st.subheader("分析設定")
-
-with st.expander(
-    "調整分析參數",
-    expanded=False,
-):
-    setting_col1, setting_col2 = st.columns(2)
-
-    with setting_col1:
-        baseline_days = st.number_input(
-            "活動前觀察天數",
-            min_value=1,
-            max_value=90,
-            value=7,
-            step=1,
-            help="用於計算活動開始前的平均每日銷量。",
-        )
-
-        high_uplift_threshold = st.number_input(
-            "高成效提升率門檻",
-            min_value=-1.0,
-            max_value=10.0,
-            value=0.20,
-            step=0.05,
-            format="%.2f",
-            help="0.20 代表活動期間平均每日銷量提升 20%。",
-        )
-
-        minimum_campaign_sales = st.number_input(
-            "最低活動總銷量",
-            min_value=0.0,
-            value=1.0,
-            step=1.0,
-            help="活動總銷量低於此數值時，不列入高成效活動。",
-        )
-
-    with setting_col2:
-        post_days = st.number_input(
-            "活動後觀察天數",
-            min_value=1,
-            max_value=90,
-            value=7,
-            step=1,
-            help="用於觀察活動結束後的銷量變化。",
-        )
-
-        low_uplift_threshold = st.number_input(
-            "低成效提升率門檻",
-            min_value=-1.0,
-            max_value=10.0,
-            value=0.0,
-            step=0.05,
-            format="%.2f",
-            help="低於此門檻的活動會被歸類為低成效。",
-        )
-
-        fill_missing_dates_with_zero = st.checkbox(
-            "缺少銷量紀錄的日期視為 0",
-            value=True,
-        )
-
-        only_complete_periods = st.checkbox(
-            "策略報告只使用觀察期間完整的活動",
-            value=True,
-        )
-
-
 settings = AnalysisSettings(
-    baseline_days=int(baseline_days),
-    post_days=int(post_days),
-    fill_missing_dates_with_zero=(
-        fill_missing_dates_with_zero
-    ),
-    high_uplift_threshold=float(
-        high_uplift_threshold
-    ),
-    low_uplift_threshold=float(
-        low_uplift_threshold
-    ),
-    minimum_campaign_sales=float(
-        minimum_campaign_sales
-    ),
-    only_complete_periods=(
-        only_complete_periods
-    ),
+    baseline_days=7,
+    post_days=7,
+    fill_missing_dates_with_zero=True,
+    high_uplift_threshold=0.20,
+    low_uplift_threshold=0.0,
+    minimum_campaign_sales=1.0,
+    only_complete_periods=True,
 )
 
 
@@ -677,13 +603,6 @@ if analysis_completed:
         "strategy_report_dataframe"
     )
 
-    strategy_report_text = str(
-        st.session_state.get(
-            "strategy_report_text",
-            "",
-        )
-    )
-
     st.divider()
     st.subheader("分析完成摘要")
 
@@ -751,21 +670,14 @@ if analysis_completed:
         )
     )
 
-    st.markdown("##### 成效分析與策略報告（舊版）")
-
-    result_tab1, result_tab2 = st.tabs(
-        [
-            "成效分析預覽（舊版）",
-            "策略報告預覽",
-        ]
-    )
-
     st.divider()
 
     st.markdown("##### 活動單位分析（新方法論）")
     st.caption(
-        "對應參考報表工作表3-5，"
-        "以「活動單位」為顆粒度重新拆解成效。"
+        "以「活動單位」為顆粒度，比較每個活動單位相對於"
+        "同月安靜期基準的淨營收效應，並拆解量增與降價兩種效應"
+        "（對應參考報表工作表3-5）。取代舊版單純的活動前後"
+        "平均值比較。"
     )
 
     result_tab3, result_tab4, result_tab5 = st.tabs(
@@ -775,74 +687,6 @@ if analysis_completed:
             "整合資料總覽",
         ]
     )
-
-    with result_tab1:
-        if dataframe_ready(performance_dataframe):
-            # 舊版32欄一次攤平容易資訊過載，預設只顯示
-            # 重點欄位，完整欄位收進下方 expander。
-            summary_columns = [
-                column
-                for column in [
-                    "product_id",
-                    "product_name",
-                    "activity_start_date",
-                    "activity_end_date",
-                    "uplift_rate",
-                    "campaign_total_sales",
-                    "estimated_revenue",
-                    "data_confidence",
-                ]
-                if column in performance_dataframe.columns
-            ]
-
-            performance_preview = performance_dataframe[
-                summary_columns
-            ].head(100)
-
-            st.dataframe(
-                performance_preview,
-                use_container_width=True,
-                hide_index=True,
-                column_config=default_column_config(
-                    performance_preview
-                ),
-            )
-
-            if len(performance_dataframe) > 100:
-                st.caption(
-                    "目前僅預覽前 100 筆資料。"
-                )
-
-            with st.expander(
-                "查看完整舊版欄位（32欄）",
-                expanded=False,
-            ):
-                full_preview = (
-                    performance_dataframe.head(100)
-                )
-
-                st.dataframe(
-                    full_preview,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config=default_column_config(
-                        full_preview
-                    ),
-                )
-        else:
-            st.info(
-                "目前沒有可顯示的成效分析結果。"
-            )
-
-    with result_tab2:
-        if strategy_report_text.strip():
-            st.markdown(
-                strategy_report_text
-            )
-        else:
-            st.info(
-                "目前沒有策略報告文字。"
-            )
 
     with result_tab3:
         st.caption(
@@ -925,7 +769,17 @@ if analysis_completed:
                 "已略去「分類／樣本量提示／代理牌價提示」3個欄位。"
             )
 
-            unit_overview_display = unit_overview_dataframe.drop(
+            unit_overview_with_revenue = (
+                unit_overview_dataframe.copy()
+            )
+
+            unit_overview_with_revenue["total_actual_revenue"] = (
+                compute_actual_revenue_total(
+                    unit_overview_with_revenue
+                )
+            )
+
+            unit_overview_display = unit_overview_with_revenue.drop(
                 columns=[
                     column
                     for column in [
@@ -933,7 +787,7 @@ if analysis_completed:
                         "sample_size_note",
                         "proxy_price_note",
                     ]
-                    if column in unit_overview_dataframe.columns
+                    if column in unit_overview_with_revenue.columns
                 ]
             )
 

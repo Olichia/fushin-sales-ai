@@ -104,6 +104,7 @@ NEW_TEMPLATE_COLUMN_ALIASES = {
     "贈品": "activity_gift",
     "加碼送": "bonus_gift_text",
     "加碼活動": "bonus_campaign_text",
+    "活動類型": "activity_tag_raw",
 }
 
 
@@ -558,6 +559,7 @@ def _prepare_new_template_activity_dataframe(
         *NEW_TEMPLATE_STANDARD_COLUMNS,
         "activity_start_date_raw",
         "activity_end_date_raw",
+        "activity_tag_raw",
     ]:
         if column not in dataframe.columns:
             dataframe[column] = pd.NA
@@ -580,6 +582,7 @@ def _prepare_new_template_activity_dataframe(
         "activity_gift",
         "bonus_gift_text",
         "bonus_campaign_text",
+        "activity_tag_raw",
     ]
 
     for column in text_columns:
@@ -623,10 +626,15 @@ def _prepare_new_template_activity_dataframe(
         + dataframe["bonus_campaign_text"].fillna("")
     )
 
-    dataframe["activity_tag"] = (
-        combined_gift_text.apply(
-            extract_activity_tag
-        )
+    # 新模板本身有真實的「活動類型」欄位（受控詞彙，如
+    # 「短促」「限搶包套」），優先直接使用；只有該值缺漏時
+    # 才退回用贈品/加碼送文字關鍵字猜測（extract_activity_tag）
+    # 當保險。
+    dataframe["activity_tag"] = dataframe[
+        "activity_tag_raw"
+    ].where(
+        dataframe["activity_tag_raw"].notna(),
+        combined_gift_text.apply(extract_activity_tag),
     )
 
     dataframe["is_pre_split"] = True

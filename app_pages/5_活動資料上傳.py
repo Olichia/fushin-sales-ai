@@ -673,8 +673,29 @@ else:
             "同一商品可能有多個活動期間與活動價格。"
         )
 
+        # 新模板／舊格式各自專屬的欄位，另一種格式一律補
+        # 空值，顯示前動態濾掉「這批資料」完全沒有內容的
+        # 欄位，兩種格式都能正確適應（不寫死欄位名稱清單）。
+        non_empty_columns = [
+            column
+            for column in main_activity_dataframe.columns
+            if main_activity_dataframe[column].notna().any()
+        ]
+
+        # 品類欄位習慣上緊接在商品編號、商品名稱之後。
+        ordered_columns = list(non_empty_columns)
+
+        if {
+            "product_id",
+            "product_name",
+            "product_category",
+        }.issubset(ordered_columns):
+            ordered_columns.remove("product_category")
+            insert_at = ordered_columns.index("product_name")
+            ordered_columns.insert(insert_at, "product_category")
+
         main_activity_preview = (
-            main_activity_dataframe.head(100)
+            main_activity_dataframe[ordered_columns].head(100)
         )
 
         st.dataframe(
