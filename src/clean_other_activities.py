@@ -6,6 +6,8 @@ from typing import Any
 
 import pandas as pd
 
+from src.activity_date_utils import parse_flexible_date
+
 
 # =========================================================
 # 專案路徑
@@ -754,6 +756,10 @@ def parse_schedule_sheet(
 ) -> tuple[list[dict], list[dict]]:
     """
     解析「檔期」工作表。
+
+    自動判斷是舊格式（單一日期範圍文字欄）
+    或新模板格式（開始日期／結束日期分兩欄），
+    並分派到對應的解析函式。
     """
 
     dataframe = load_sheet(
@@ -761,6 +767,152 @@ def parse_schedule_sheet(
         "檔期",
         header=None,
     )
+
+    is_new_template = (
+        len(dataframe.columns) >= 3
+        and "結束" in normalize_text(
+            dataframe.iloc[0].iloc[2]
+            if len(dataframe) > 0
+            else ""
+        )
+    )
+
+    if is_new_template:
+        return _parse_schedule_sheet_new_template(
+            dataframe,
+            file_path,
+            source_month,
+        )
+
+    return _parse_schedule_sheet_legacy(
+        dataframe,
+        file_path,
+        source_month,
+    )
+
+
+def _parse_schedule_sheet_new_template(
+    dataframe: pd.DataFrame,
+    file_path: Path,
+    source_month: int,
+) -> tuple[list[dict], list[dict]]:
+    """
+    解析新模板「檔期」工作表：
+    活動名稱／開始日期／結束日期為三個獨立欄位。
+    """
+
+    calendar_records = []
+    issue_records = []
+
+    for dataframe_index in range(
+        1,
+        len(dataframe),
+    ):
+        row = dataframe.iloc[
+            dataframe_index
+        ]
+
+        campaign_name = normalize_text(
+            row.iloc[0]
+        )
+
+        source_row_number = (
+            dataframe_index + 1
+        )
+
+        if not campaign_name:
+            continue
+
+        start_date = parse_flexible_date(
+            row.iloc[1]
+            if len(row) > 1
+            else None
+        )
+
+        end_date = parse_flexible_date(
+            row.iloc[2]
+            if len(row) > 2
+            else None
+        )
+
+        if pd.isna(start_date) or pd.isna(end_date):
+            issue_records.append(
+                build_issue_record(
+                    source_file=file_path.name,
+                    source_sheet="檔期",
+                    source_row_number=(
+                        source_row_number
+                    ),
+                    issue_type=(
+                        "檔期日期無法解析"
+                    ),
+                    problem_text=(
+                        f"{row.iloc[1]}~{row.iloc[2]}"
+                        if len(row) > 2
+                        else str(row.iloc[1])
+                    ),
+                )
+            )
+
+            continue
+
+        if end_date < start_date:
+            issue_records.append(
+                build_issue_record(
+                    source_file=file_path.name,
+                    source_sheet="檔期",
+                    source_row_number=(
+                        source_row_number
+                    ),
+                    issue_type=(
+                        "檔期日期不合法"
+                    ),
+                    problem_text=(
+                        f"{start_date.date()}~{end_date.date()}"
+                    ),
+                )
+            )
+
+            continue
+
+        calendar_records.append(
+            build_calendar_record(
+                source_file=file_path.name,
+                source_sheet="檔期",
+                source_row_number=(
+                    source_row_number
+                ),
+                campaign_name=campaign_name,
+                period_text=(
+                    f"{start_date.date()}~{end_date.date()}"
+                ),
+                start_date=start_date,
+                end_date=end_date,
+                matched_text=(
+                    f"{start_date.date()}~{end_date.date()}"
+                ),
+                campaign_level="平台檔期",
+                note=(
+                    f"來源月份：{source_month}月"
+                ),
+            )
+        )
+
+    return (
+        calendar_records,
+        issue_records,
+    )
+
+
+def _parse_schedule_sheet_legacy(
+    dataframe: pd.DataFrame,
+    file_path: Path,
+    source_month: int,
+) -> tuple[list[dict], list[dict]]:
+    """
+    解析舊格式「檔期」工作表：
+    活動名稱＋單一日期範圍文字欄。
+    """
 
     calendar_records = []
     issue_records = []
@@ -872,6 +1024,27 @@ SECTION_TITLES = {
 }
 
 
+NEW_TEMPLATE_BASE_PROMOTION_MARKERS = {
+    "開始日期",
+    "結束日期",
+    "鋪底機制類型",
+}
+
+
+NEW_TEMPLATE_BASE_PROMOTION_ALIASES = {
+    "平台/通路": "channel",
+    "檔期名稱": "campaign_name",
+    "鋪底名稱": "campaign_name",
+    "開始日期": "start_raw",
+    "結束日期": "end_raw",
+    "鋪底機制類型": "mechanism_type",
+    "門檻金額(元)": "threshold_amount",
+    "回饋/折扣內容": "benefit_content",
+    "回饋上限(元)": "reward_limit_amount",
+    "門檻贈品品名": "gift_name",
+}
+
+
 def parse_base_promotion_sheet(
     file_path: Path,
     sheet_name: str,
@@ -882,6 +1055,217 @@ def parse_base_promotion_sheet(
 ]:
     """
     解析三月鋪底或四月鋪底。
+
+    自動判斷是舊格式（「走期」關鍵字列＋優惠內容區塊）
+    或新模板格式（一列一筆、有明確表頭的標準表格），
+    並分派到對應的解析函式。
+    """
+
+    peek_dataframe = load_sheet(
+        file_path,
+        sheet_name,
+        header=None,
+    )
+
+    header_texts = {
+        normalize_text(value)
+        for value in (
+            peek_dataframe.iloc[0]
+            if len(peek_dataframe) > 0
+            else []
+        )
+    }
+
+    if NEW_TEMPLATE_BASE_PROMOTION_MARKERS.issubset(
+        header_texts
+    ):
+        return _parse_base_promotion_sheet_new_template(
+            file_path,
+            sheet_name,
+        )
+
+    return _parse_base_promotion_sheet_legacy(
+        file_path,
+        sheet_name,
+    )
+
+
+def _parse_base_promotion_sheet_new_template(
+    file_path: Path,
+    sheet_name: str,
+) -> tuple[
+    list[dict],
+    list[dict],
+    list[dict],
+]:
+    """
+    解析新模板鋪底工作表：
+    平台/通路、[檔期名稱|鋪底名稱]、開始日期、結束日期、
+    鋪底機制類型、門檻金額(元)、回饋/折扣內容、
+    回饋上限(元)、門檻贈品品名。
+
+    三月版欄名是「檔期名稱」、四月版是「鋪底名稱」，
+    NEW_TEMPLATE_BASE_PROMOTION_ALIASES 已統一對應成
+    同一個內部欄位 campaign_name。
+    """
+
+    dataframe = load_sheet(
+        file_path,
+        sheet_name,
+        header=0,
+    )
+
+    rename_map = {
+        column: NEW_TEMPLATE_BASE_PROMOTION_ALIASES[
+            normalize_text(column)
+        ]
+        for column in dataframe.columns
+        if normalize_text(column)
+        in NEW_TEMPLATE_BASE_PROMOTION_ALIASES
+    }
+
+    dataframe = dataframe.rename(
+        columns=rename_map
+    )
+
+    calendar_records = []
+    benefit_records = []
+    issue_records = []
+
+    for dataframe_index, row in dataframe.iterrows():
+        source_row_number = dataframe_index + 2
+
+        campaign_name = normalize_text(
+            row.get("campaign_name")
+        )
+
+        if not campaign_name:
+            continue
+
+        start_date = parse_flexible_date(
+            row.get("start_raw")
+        )
+
+        end_date = parse_flexible_date(
+            row.get("end_raw")
+        )
+
+        if (
+            pd.isna(start_date)
+            or pd.isna(end_date)
+            or end_date < start_date
+        ):
+            issue_records.append(
+                build_issue_record(
+                    source_file=file_path.name,
+                    source_sheet=sheet_name,
+                    source_row_number=(
+                        source_row_number
+                    ),
+                    issue_type=(
+                        "鋪底活動日期無法解析"
+                    ),
+                    problem_text=(
+                        f"{row.get('start_raw')}~{row.get('end_raw')}"
+                    ),
+                )
+            )
+
+            continue
+
+        calendar_records.append(
+            build_calendar_record(
+                source_file=file_path.name,
+                source_sheet=sheet_name,
+                source_row_number=(
+                    source_row_number
+                ),
+                campaign_name=campaign_name,
+                period_text=(
+                    f"{start_date.date()}~{end_date.date()}"
+                ),
+                start_date=start_date,
+                end_date=end_date,
+                matched_text=(
+                    f"{start_date.date()}~{end_date.date()}"
+                ),
+                campaign_level="品牌鋪底活動",
+                note=(
+                    f"機制:{normalize_text(row.get('mechanism_type'))}"
+                ),
+            )
+        )
+
+        benefit_content = normalize_text(
+            row.get("benefit_content")
+        )
+
+        gift_name = normalize_text(
+            row.get("gift_name")
+        )
+
+        mechanism_type = normalize_text(
+            row.get("mechanism_type")
+        )
+
+        benefit_records.append(
+            build_benefit_record(
+                source_file=file_path.name,
+                source_sheet=sheet_name,
+                source_row_number=(
+                    source_row_number
+                ),
+                campaign_name=campaign_name,
+                benefit_type=mechanism_type,
+                benefit_content=benefit_content,
+                start_date=start_date,
+                end_date=end_date,
+                threshold_amount=numeric_value(
+                    row.get("threshold_amount")
+                ),
+                reward_percentage=(
+                    extract_percentage(
+                        benefit_content
+                    )
+                ),
+                reward_amount=(
+                    extract_fixed_reward(
+                        benefit_content
+                    )
+                ),
+                reward_limit_amount=numeric_value(
+                    row.get("reward_limit_amount")
+                ),
+                quota=extract_quota(
+                    benefit_content
+                ),
+                note=(
+                    f"門檻贈品：{gift_name}"
+                    if gift_name and gift_name != "無"
+                    else ""
+                ),
+            )
+        )
+
+    return (
+        calendar_records,
+        benefit_records,
+        issue_records,
+    )
+
+
+def _parse_base_promotion_sheet_legacy(
+    file_path: Path,
+    sheet_name: str,
+) -> tuple[
+    list[dict],
+    list[dict],
+    list[dict],
+]:
+    """
+    解析舊格式鋪底工作表：
+    「走期」關鍵字列標示日期，接著用關鍵字
+    section 標題，底下逐行優惠內容。
     """
 
     dataframe = load_sheet(

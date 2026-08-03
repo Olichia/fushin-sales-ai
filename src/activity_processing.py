@@ -24,6 +24,31 @@ from src.clean_other_activities import (
 )
 
 
+def list_sheet_names(file_path: Path) -> list[str]:
+    """
+    讀取 Excel 檔案內全部工作表名稱。
+
+    用於判斷「舊版專屬分頁」（品牌日+品牌週、包套等）
+    是否存在，新模板檔案沒有這些分頁時可以安全略過，
+    不讓整個處理流程因為找不到工作表而失敗。
+    """
+
+    excel_file = pd.ExcelFile(
+        file_path,
+        engine="openpyxl",
+    )
+
+    try:
+        return list(excel_file.sheet_names)
+
+    finally:
+        # 明確關閉檔案控制代碼：pd.ExcelFile 不會在使用完後
+        # 自動關閉底層檔案，若不手動 close()，Windows 上
+        # 後續其他函式（load_sheet 等）讀取同一份暫存檔時
+        # 會因為檔案仍被鎖住而拋出 WinError 32。
+        excel_file.close()
+
+
 # =========================================================
 # 主商品活動標準化
 # =========================================================
@@ -128,6 +153,14 @@ def standardize_other_activities(
     benefit_records: list[dict] = []
     issue_records: list[dict] = []
 
+    # 新模板檔案沒有下面幾個舊版專屬分頁
+    # （0308-0312滿額贈即享券／超品日吸塵器折價券／
+    # 品牌日+品牌週／包套），先讀取分頁清單，
+    # 分頁不存在就略過，避免整個流程因為
+    # 「找不到工作表」而失敗。
+    march_sheet_names = list_sheet_names(march_path)
+    april_sheet_names = list_sheet_names(april_path)
+
     # -----------------------------------------------------
     # 3 月檔期
     # -----------------------------------------------------
@@ -187,62 +220,66 @@ def standardize_other_activities(
     issue_records.extend(issues)
 
     # -----------------------------------------------------
-    # 3 月指定商品贈品
+    # 3 月指定商品贈品（舊版專屬分頁，新模板沒有此分頁）
     # -----------------------------------------------------
 
-    benefits, issues = (
-        parse_march_product_gifts(
-            march_path
+    if "0308-0312滿額贈即享券" in march_sheet_names:
+        benefits, issues = (
+            parse_march_product_gifts(
+                march_path
+            )
         )
-    )
 
-    benefit_records.extend(benefits)
-    issue_records.extend(issues)
+        benefit_records.extend(benefits)
+        issue_records.extend(issues)
 
     # -----------------------------------------------------
-    # 4 月吸塵器折價券
+    # 4 月吸塵器折價券（舊版專屬分頁，新模板沒有此分頁）
     # -----------------------------------------------------
 
-    benefits, issues = (
-        parse_april_vacuum_coupons(
+    if "超品日吸塵器折價券" in april_sheet_names:
+        benefits, issues = (
+            parse_april_vacuum_coupons(
+                april_path
+            )
+        )
+
+        benefit_records.extend(benefits)
+        issue_records.extend(issues)
+
+    # -----------------------------------------------------
+    # 品牌日及品牌週（舊版專屬分頁，新模板沒有此分頁）
+    # -----------------------------------------------------
+
+    if "品牌日+品牌週" in april_sheet_names:
+        (
+            records,
+            benefits,
+            issues,
+        ) = parse_brand_day_summary(
             april_path
         )
-    )
 
-    benefit_records.extend(benefits)
-    issue_records.extend(issues)
-
-    # -----------------------------------------------------
-    # 品牌日及品牌週
-    # -----------------------------------------------------
-
-    (
-        records,
-        benefits,
-        issues,
-    ) = parse_brand_day_summary(
-        april_path
-    )
-
-    calendar_records.extend(records)
-    benefit_records.extend(benefits)
-    issue_records.extend(issues)
+        calendar_records.extend(records)
+        benefit_records.extend(benefits)
+        issue_records.extend(issues)
 
     # -----------------------------------------------------
-    # 包套活動
+    # 包套活動（舊版專屬分頁，新模板沒有此分頁）
     # -----------------------------------------------------
 
-    (
-        records,
-        benefits,
-        issues,
-    ) = parse_package_sheet(
-        april_path
-    )
+    if "包套" in april_sheet_names:
+        (
+            records,
+            benefits,
+            issues,
+        ) = parse_package_sheet(
+            april_path
+        )
 
-    calendar_records.extend(records)
-    benefit_records.extend(benefits)
-    issue_records.extend(issues)
+        calendar_records.extend(records)
+        benefit_records.extend(benefits)
+        issue_records.extend(issues)
 
     # -----------------------------------------------------
     # 建立 DataFrame

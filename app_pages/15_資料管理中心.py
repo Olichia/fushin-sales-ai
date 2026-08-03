@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from src.column_labels import default_column_config
 from src.session_helpers import initialize_session_state
 
 
@@ -727,6 +728,9 @@ else:
                 activity_issues_dataframe,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    activity_issues_dataframe
+                ),
             )
 
     if integration_issue_count > 0:
@@ -738,6 +742,9 @@ else:
                 integration_issues_dataframe,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    integration_issues_dataframe
+                ),
             )
 
 

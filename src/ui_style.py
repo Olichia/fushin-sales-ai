@@ -605,7 +605,8 @@ def apply_product_styles() -> None:
         ================================================== */
 
         [data-testid="stDataFrame"] {
-            overflow: hidden;
+            overflow-x: auto;
+            overflow-y: hidden;
 
             background: var(--surface);
             border: 1px solid var(--border);
@@ -1678,6 +1679,38 @@ def apply_product_styles() -> None:
             padding:
                 32px
                 36px !important;
+        }
+
+
+        /* ==================================================
+           取消整頁橫向滑動
+           寬表格屬於 Flexbox 版面下的子元素，
+           預設 min-width: auto 會讓外層容器
+           被撐寬到內容的最小寬度，導致整個頁面
+           出現橫向捲軸。這裡讓各層容器都能正常
+           縮小到可視寬度，改由表格自己內部捲動。
+        ================================================== */
+
+        html,
+        body,
+        [data-testid="stAppViewContainer"],
+        .stApp {
+            overflow-x: hidden !important;
+        }
+
+        [data-testid="stMain"],
+        .stMain,
+        .block-container,
+        [data-testid="stMainBlockContainer"],
+        [data-testid="stVerticalBlock"],
+        [data-testid="stHorizontalBlock"],
+        [data-testid="stColumn"],
+        [data-testid="stElementContainer"] {
+            min-width: 0 !important;
+        }
+
+        [data-testid="stDataFrame"] {
+            max-width: 100% !important;
         }
 
 

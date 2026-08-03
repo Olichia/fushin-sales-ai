@@ -26,6 +26,7 @@ from src.activity_processing import (
     create_activity_data_summary,
     process_activity_files,
 )
+from src.column_labels import default_column_config
 
 from src.session_helpers import (
     clear_activity_data,
@@ -672,10 +673,17 @@ else:
             "同一商品可能有多個活動期間與活動價格。"
         )
 
+        main_activity_preview = (
+            main_activity_dataframe.head(100)
+        )
+
         st.dataframe(
-            main_activity_dataframe.head(100),
+            main_activity_preview,
             use_container_width=True,
             hide_index=True,
+            column_config=default_column_config(
+                main_activity_preview
+            ),
         )
 
         if len(main_activity_dataframe) > 100:
@@ -698,10 +706,17 @@ else:
             )
 
         else:
+            calendar_preview = (
+                calendar_dataframe.head(100)
+            )
+
             st.dataframe(
-                calendar_dataframe.head(100),
+                calendar_preview,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    calendar_preview
+                ),
             )
 
             if len(calendar_dataframe) > 100:
@@ -724,10 +739,17 @@ else:
             )
 
         else:
+            benefits_preview = (
+                benefits_dataframe.head(100)
+            )
+
             st.dataframe(
-                benefits_dataframe.head(100),
+                benefits_preview,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    benefits_preview
+                ),
             )
 
             if len(benefits_dataframe) > 100:
@@ -755,10 +777,17 @@ else:
                 "需由使用者或企業確認。"
             )
 
+            activity_issues_preview = (
+                activity_issues_dataframe.head(100)
+            )
+
             st.dataframe(
-                activity_issues_dataframe.head(100),
+                activity_issues_preview,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    activity_issues_preview
+                ),
             )
 
             if len(activity_issues_dataframe) > 100:
