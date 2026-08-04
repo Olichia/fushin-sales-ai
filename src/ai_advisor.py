@@ -8,6 +8,14 @@ import streamlit as st
 from dotenv import load_dotenv
 from google import genai
 
+from src.column_labels import label_for
+from src.executive_summary import build_activity_unit_strategy_text
+from src.unit_overview_helpers import (
+    compute_confidence_label,
+    compute_strategy_category,
+    prepare_unit_overview_for_display,
+)
+
 
 # =========================================================
 # 載入本機環境變數
@@ -114,81 +122,125 @@ def dataframe_to_compact_text(
     )
 
 
+def _rename_to_chinese_labels(
+    dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """把欄名轉成中文標籤，讓 LLM 直接看懂欄位意義。"""
+
+    renamed = dataframe.copy()
+
+    renamed.columns = [
+        label_for(column) for column in renamed.columns
+    ]
+
+    return renamed
+
+
 # =========================================================
-# 建立分析背景
+# 建立分析背景（活動單位分析方法論）
 # =========================================================
 
 def build_advisor_context(
-    strategy_report_text: str | None,
-    strategy_dataframe: pd.DataFrame | None,
-    performance_dataframe: pd.DataFrame | None,
+    unit_overview_dataframe: pd.DataFrame,
+    waterfall_summary_dataframe: pd.DataFrame,
+    unit_price_dataframe: pd.DataFrame | None = None,
 ) -> str:
     """
     建立 AI 顧問可以使用的分析背景。
+
+    這是目前系統唯一使用的分析背景來源（活動單位分析方法論：
+    同月安靜期基準、量增/降價效應拆解、瀑布法配對），
+    不混用舊版活動前後比較數字。
     """
 
-    report_text = (
-        strategy_report_text
-        if strategy_report_text
-        else "尚無策略文字報告"
+    strategy_text = build_activity_unit_strategy_text(
+        unit_overview_dataframe, waterfall_summary_dataframe
     )
 
-    strategy_text = dataframe_to_compact_text(
-        strategy_dataframe,
-        max_rows=30,
+    unit_overview = prepare_unit_overview_for_display(
+        unit_overview_dataframe
+    )
+    unit_overview["策略分類"] = compute_strategy_category(
+        unit_overview
+    )
+    unit_overview["資料信心"] = compute_confidence_label(
+        unit_overview
     )
 
-    performance_columns = [
-        "product_id",
-        "product_name",
-        "activity_start_date",
-        "activity_end_date",
-        "baseline_average_daily_sales",
-        "campaign_average_daily_sales",
-        "post_average_daily_sales",
-        "campaign_total_sales",
-        "uplift_rate",
-        "post_change_rate",
-        "estimated_revenue",
-        "overlapping_campaigns",
-        "overlapping_benefits",
-        "data_confidence",
-        "all_periods_complete",
+    overview_columns = [
+        column
+        for column in [
+            "product_id",
+            "product_name",
+            "unit_code",
+            "month",
+            "days",
+            "corresponding_activities_label",
+            "unit_avg_price",
+            "baseline_price",
+            "discount_rate",
+            "volume_effect_per_day",
+            "price_effect_per_day",
+            "net_revenue_effect_per_day",
+            "net_revenue_effect_total",
+            "策略分類",
+            "資料信心",
+        ]
+        if column in unit_overview.columns
     ]
 
+    overview_text = dataframe_to_compact_text(
+        _rename_to_chinese_labels(
+            unit_overview[overview_columns]
+        ),
+        max_rows=80,
+    )
+
+    combo_text = dataframe_to_compact_text(
+        _rename_to_chinese_labels(waterfall_summary_dataframe),
+        max_rows=40,
+    )
+
     if (
-        performance_dataframe is not None
-        and not performance_dataframe.empty
+        unit_price_dataframe is not None
+        and not unit_price_dataframe.empty
     ):
-        available_columns = [
+        price_columns = [
             column
-            for column in performance_columns
-            if column in performance_dataframe.columns
+            for column in [
+                "product_id",
+                "product_name",
+                "unit_code",
+                "price",
+                "gift",
+                "bonus_gift_text",
+                "bonus_campaign_text",
+            ]
+            if column in unit_price_dataframe.columns
         ]
 
-        compact_performance = (
-            performance_dataframe[
-                available_columns
-            ].copy()
+        price_text = dataframe_to_compact_text(
+            _rename_to_chinese_labels(
+                unit_price_dataframe[price_columns]
+            ),
+            max_rows=80,
         )
 
     else:
-        compact_performance = None
-
-    performance_text = dataframe_to_compact_text(
-        compact_performance,
-        max_rows=50,
-    )
+        price_text = "無資料"
 
     return f"""
-【規則式策略報告】
-{report_text}
-
-【策略建議清單】
+【活動單位分析摘要】
 {strategy_text}
 
-【活動成效分析資料】
-{performance_text}
+【活動單位總覽明細】
+{overview_text}
+
+【商品售價與贈品明細】
+{price_text}
+
+【疊加活動組合彙總】
+{combo_text}
 """.strip()
 
 
@@ -234,24 +286,51 @@ def build_conversation_prompt(
     )
 
     return f"""
-你是零售促銷與品牌行銷策略顧問。
+你是零售促銷與品牌行銷策略顧問，熟悉「活動單位分析」方法論。
 
 請只根據提供的分析資料回答，不可捏造不存在的商品、
 活動、數值、成本、毛利或因果關係。
+
+【活動單位分析方法論】
+- 活動單位：依對應活動組合切出的連續期間，是這套方法論的分析顆粒度。
+- 同月安靜期基準：同商品同月沒有參與任何活動的期間，作為比較基準。
+- 淨營收效應 = 量增效應 + 降價效應：拆解「賣更多」與「賣更便宜」對營收的
+  個別貢獻。
+- 折扣率：以基準售價（含代理牌價估算）相對活動售價計算。
+- 瀑布法配對（可拆分／不可拆分）：可否把疊加的多個活動效果拆開歸因給單一
+  活動；不可拆分代表無法判斷組合裡哪個活動機制真正有效，這是這套方法論
+  處理「活動疊加」問題的方式。
+- 策略分類：淨增益為負一律是「建議檢討」；非負值時達全體活動單位淨增益
+  中位數以上為「建議延續」，未達中位數為「持續觀察」。
+- 毛利侵蝕風險：降價效應絕對值大於量增效應時判定，代表銷量沒有跟上降價
+  幅度。
+- 資料信心：依樣本天數、瀑布法配對樣本量與是否用了代理牌價估算判斷。
 
 回答時必須遵守以下規則：
 
 1. 明確區分「資料觀察」、「推測」與「建議」。
 2. 不可將活動期間銷量上升直接說成活動造成。
-3. 若觀察期間不完整、基準為零或存在重疊活動，
-   必須主動提醒。
-4. 推估營收不等於實際營收。
+3. 若活動單位資料信心較低（樣本天數少、瀑布法對照組樣本量小，或使用了
+   代理牌價估算），或活動組合為「不可拆分」，必須主動提醒。
+4. 淨增益已扣除同月安靜期基準，但不等於實際毛利或淨利潤（未納入成本、
+   退貨、平台抽成）。
 5. 沒有成本或毛利資料時，不可宣稱活動有獲利。
 6. 優先提供具體、可執行、可驗證的下一步。
 7. 使用繁體中文。
 8. 回答以清楚的小標題與簡短段落呈現。
 9. 不需要重複所有原始資料，只整理最重要的依據。
 10. 若資料不足，直接說明還需要哪些資料。
+11. 使用者問到以下類型問題時，優先從背景資料對應段落找依據回答，並在
+    找不到足夠依據時明確說明：
+    - 折扣策略／折扣率該打多少 → 引用「活動單位分析摘要」裡的折扣深度
+      洞察
+    - 贈品或加碼送組合設計 → 引用「商品售價與贈品明細」，並參考策略分類
+      為「建議延續」的相似案例搭配了哪些贈品
+    - 活動方向／要不要疊加多個活動 → 引用「疊加活動組合彙總」的可拆分／
+      不可拆分狀態與策略分類
+    - 風險提醒 → 引用資料信心較低或有毛利侵蝕風險的活動單位
+    - 類似成功案例 → 從「活動單位總覽明細」找商品、折扣率或活動組合
+      相近、且策略分類為「建議延續」的過往案例
 
 以下是目前系統分析背景：
 
@@ -317,7 +396,7 @@ SYSTEM_PROFILE_TEXT = """
 
 【系統定位】
 以 Streamlit 建立的零售活動分析 MVP，整合銷量資料與促銷活動資料，
-完成欄位對應、資料品質檢查、活動前中後比較、策略分類、
+完成欄位對應、資料品質檢查、活動單位分析、策略分類、
 AI 顧問解讀與主管 PDF 報表匯出。
 提供的是觀察性分析與決策輔助，不直接證明活動造成銷量變化，
 也不在缺少成本與毛利資料時判定活動是否獲利。
@@ -326,7 +405,7 @@ AI 顧問解讀與主管 PDF 報表匯出。
 銷量資料上傳 → 欄位設定（對應至標準欄位）→ 銷量資料品質檢查
 → 活動資料上傳 → 活動資料品質檢查 → 建立整合資料
 （依商品編號與日期整合每日銷量與活動資料）
-→ 執行成效分析 → 產生策略報告 → 查看活動洞察／AI 顧問／主管報表。
+→ 執行活動單位分析 → 查看活動洞察／策略中心／AI 顧問／主管報表。
 
 標準欄位包含：
 sale_date（銷售日期）、product_id（商品編號）、
@@ -336,38 +415,48 @@ activity_start_date（活動開始日期）、activity_end_date（活動結束�
 清洗過程會處理：欄位名稱不一致、日期格式混雜、
 同日同商品多筆紀錄彙總、缺值與格式錯誤標記、疑似異常資料標記。
 
-【核心運算邏輯】
-每日商品銷量 = 同日期、同商品所有交易數量加總。
+【核心運算邏輯（活動單位分析）】
+活動單位：依對應活動組合切出的連續期間，是分析的顆粒度。
 
-活動提升率 =（活動期間日均銷量－活動前日均銷量）÷ 活動前日均銷量。
-當活動前日均銷量為 0 時，不進行一般百分比計算，
-視為低基期或無基期情況。
+同月安靜期基準：同商品同月沒有參與任何活動的期間，
+作為每個活動單位的比較基準。
 
-推估營收 = 活動期間銷量 × 可用的活動價格。
-推估營收不等於實際營收或獲利，尚未納入折扣碼、退貨、
-平台幣、贈品、運費、廣告成本、平台抽成、商品成本與毛利。
+淨營收效應 = 量增效應 + 降價效應：
+量增效應反映銷量相對基準的變化，降價效應反映售價相對基準
+（含代理牌價估算）的變化，兩者相加才是淨營收效應。
 
-系統會依規則將活動分類為「建議延續、建議優化、建議檢討」，
-並標記觀察期間不完整、低基期及活動重疊等情況。
+折扣率 = 1 －（活動售價 ÷ 基準售價）。
+
+瀑布法配對（可拆分／不可拆分）：同商品同月找到「扣掉某個活動後
+組合相同」的對照單位時可以拆分歸因；找不到對照組時歸類為
+不可拆分，代表無法判斷組合裡哪個活動機制真正有效。
+
+系統會依規則將活動單位分類為「建議延續、持續觀察、建議檢討」：
+淨增益為負一律是建議檢討；非負值時達全體活動單位淨增益中位數
+以上為建議延續，未達中位數為持續觀察。
+
+毛利侵蝕風險：降價效應絕對值大於量增效應時判定。
+
+資料信心：依樣本天數、瀑布法配對樣本量與是否用了代理牌價估算判斷。
 
 【分析成效指標】
-uplift_rate（活動提升率）、post_change_rate（活動後變化率）、
-campaign_total_sales（活動總銷量）、estimated_revenue（推估營收）、
-data_confidence（資料信心）、all_periods_complete（觀察期間完整度）、
-overlapping_campaigns / overlapping_benefits（活動與優惠重疊情況）。
+net_revenue_effect_per_day／net_revenue_effect_total（淨營收效應/日、
+合計）、volume_effect_per_day（量增效應/日）、price_effect_per_day
+（降價效應/日）、discount_rate（折扣率）、classification（可否拆分）、
+策略分類（建議延續／持續觀察／建議檢討）、資料信心（較高／較低）。
 
 【AI 顧問定位】
 核心數值一律由 Python 與既定規則計算，
 Gemini 僅負責解讀既有分析結果並提出下一步驗證建議，
 需區分資料觀察、推測與建議，不可將相關性表述為因果，
-需主動提醒期間不完整、低基期與活動重疊，
+需主動提醒資料信心較低或毛利侵蝕風險的活動單位，
 缺少成本或毛利資料時不可宣稱活動有獲利。
 
 【目前限制】
 資料保存在 st.session_state，重新整理、休眠或重新啟動後可能需要重新上傳；
 尚未建立資料庫、登入、權限與永久儲存機制；
-活動前後比較屬觀察性分析，不是隨機實驗或因果推論；
-活動重疊時無法將效果完整歸因於單一活動；
+活動單位分析屬觀察性分析，不是隨機實驗或因果推論；
+疊加多種活動機制的活動單位（不可拆分）無法把效果拆開歸因給單一活動；
 缺少成本、毛利、庫存、退貨、廣告支出及客群資料時，
 無法完整評估獲利。
 """.strip()
@@ -380,7 +469,7 @@ def build_system_explainer_prompt(
     """
     建立「系統說明模式」的完整 Prompt。
 
-    使用者尚未完成資料整合或成效分析時，
+    使用者尚未完成資料整合或活動單位分析時，
     沒有任何實際商品、活動或數值可以引用，
     因此只能根據系統設計本身回答。
     """
@@ -416,7 +505,7 @@ def build_system_explainer_prompt(
     return f"""
 你是「富信新零售銷量與活動分析系統」的系統說明助手。
 
-目前使用者尚未完成資料整合或活動成效分析，
+目前使用者尚未完成資料整合或活動單位分析，
 因此沒有任何實際商品、活動、銷量或營收數字可以引用。
 
 回答時必須遵守以下規則：
@@ -430,7 +519,7 @@ def build_system_explainer_prompt(
    並引導使用者依序完成：
    銷量資料上傳 → 欄位設定 → 銷量資料品質 →
    活動資料上傳 → 活動資料品質 → 建立整合資料 →
-   執行成效分析 → 產生策略報告。
+   執行活動單位分析。
 3. 使用繁體中文，回答簡潔清楚，可使用小標題或條列。
 4. 不需要逐字複誦系統說明全文，只整理與問題相關的重點。
 

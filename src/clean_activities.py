@@ -3,6 +3,8 @@ import re
 
 import pandas as pd
 
+from src.activity_date_utils import parse_flexible_date
+
 
 # =========================================================
 # 專案路徑
@@ -42,28 +44,18 @@ COLUMN_ALIASES = {
     "產品名稱": "product_name",
     "品名": "product_name",
 
+    "加碼贈品": "activity_gift",
     "活動贈品": "activity_gift",
-
-    "活動類型": "activity_type",
-    "類型": "activity_type",
 
     "短促時間": "promotion_period_raw",
     "促銷時間": "promotion_period_raw",
     "活動時間": "promotion_period_raw",
-
-    "起始日期": "activity_start_date_explicit",
-    "開始日期": "activity_start_date_explicit",
-    "活動開始日期": "activity_start_date_explicit",
-
-    "結束日期": "activity_end_date_explicit",
-    "活動結束日期": "activity_end_date_explicit",
 
     "加碼送": "bonus_period_raw",
     "加碼期間": "bonus_period_raw",
 
     "贈品品名": "bonus_gift_name",
     "加碼贈品品名": "bonus_gift_name",
-    "加碼贈品": "bonus_gift_name",
 
     "售價(含稅)": "campaign_price",
     "售價（含稅）": "campaign_price",
@@ -77,16 +69,76 @@ COLUMN_ALIASES = {
 STANDARD_COLUMNS = [
     "product_id",
     "product_name",
-    "activity_type",
     "activity_gift",
     "promotion_period_raw",
-    "activity_start_date_explicit",
-    "activity_end_date_explicit",
     "bonus_period_raw",
     "bonus_gift_name",
     "campaign_price",
     "remark",
 ]
+
+
+# =========================================================
+# 新模板「活動表」欄位對照
+#
+# 新模板把「開始日期／結束日期」拆成兩個獨立欄位，
+# 跟舊格式「單一合併日期文字欄」架構完全不同，
+# 所以獨立一套別名表與標準欄位，不與 COLUMN_ALIASES 混用
+# （避免「加碼送」語意衝突：舊格式指向日期期間欄，
+# 新模板實際內容是贈品文字）。
+# =========================================================
+
+NEW_TEMPLATE_MARKER_COLUMNS = {
+    "活動開始日期",
+    "活動結束日期",
+}
+
+
+NEW_TEMPLATE_COLUMN_ALIASES = {
+    "商品編號": "product_id",
+    "商品名稱": "product_name",
+    "品類": "product_category",
+    "活動開始日期": "activity_start_date_raw",
+    "活動結束日期": "activity_end_date_raw",
+    "活動售價(含稅)": "campaign_price",
+    "贈品": "activity_gift",
+    "加碼送": "bonus_gift_text",
+    "加碼活動": "bonus_campaign_text",
+    "活動類型": "activity_tag_raw",
+}
+
+
+NEW_TEMPLATE_STANDARD_COLUMNS = [
+    "product_id",
+    "product_name",
+    "product_category",
+    "campaign_price",
+    "activity_gift",
+    "bonus_gift_text",
+    "bonus_campaign_text",
+]
+
+
+def detect_activity_sheet_format(
+    raw_dataframe: pd.DataFrame,
+) -> str:
+    """
+    判斷「活動表」是新模板格式（開始/結束日期分兩欄）
+    或舊格式（單一合併日期文字欄），回傳
+    "new_template" 或 "legacy"。
+    """
+
+    normalized_columns = {
+        normalize_column_name(column)
+        for column in raw_dataframe.columns
+    }
+
+    if NEW_TEMPLATE_MARKER_COLUMNS.issubset(
+        normalized_columns
+    ):
+        return "new_template"
+
+    return "legacy"
 
 
 # =========================================================
@@ -451,6 +503,180 @@ def prepare_activity_dataframe(
 ) -> pd.DataFrame:
     """
     統一欄位、向下填補商品資料並清理格式。
+
+    自動判斷是新模板格式（開始/結束日期分兩欄）
+    或舊格式（單一合併日期文字欄），並分派到
+    對應的整理函式。
+    """
+
+    if (
+        detect_activity_sheet_format(raw_dataframe)
+        == "new_template"
+    ):
+        return _prepare_new_template_activity_dataframe(
+            raw_dataframe
+        )
+
+    return _prepare_legacy_activity_dataframe(
+        raw_dataframe
+    )
+
+
+def _prepare_new_template_activity_dataframe(
+    raw_dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    整理新模板「活動表」：
+    商品編號、商品名稱、品類、活動開始/結束日期(分兩欄)、
+    活動售價(含稅)、贈品、[四月多一欄]加碼送、加碼活動。
+
+    此格式的日期已經是「開始/結束」兩個獨立欄位，
+    不需要（也不能）走 promotion_period_raw +
+    parse_period_text() 那條「單一合併日期文字欄」路徑，
+    在這裡直接解析成 activity_start_date/end_date，
+    並標記 is_pre_split=True 供
+    explode_promotion_periods() 短路辨識。
+    """
+
+    dataframe = raw_dataframe.copy()
+
+    dataframe.columns = [
+        normalize_column_name(column)
+        for column in dataframe.columns
+    ]
+
+    rename_mapping = {
+        column: NEW_TEMPLATE_COLUMN_ALIASES[column]
+        for column in dataframe.columns
+        if column in NEW_TEMPLATE_COLUMN_ALIASES
+    }
+
+    dataframe = dataframe.rename(
+        columns=rename_mapping
+    )
+
+    for column in [
+        *NEW_TEMPLATE_STANDARD_COLUMNS,
+        "activity_start_date_raw",
+        "activity_end_date_raw",
+        "activity_tag_raw",
+    ]:
+        if column not in dataframe.columns:
+            dataframe[column] = pd.NA
+
+    dataframe[
+        ["product_id", "product_name", "product_category"]
+    ] = dataframe[
+        ["product_id", "product_name", "product_category"]
+    ].ffill()
+
+    dataframe["product_id"] = (
+        clean_product_id(
+            dataframe["product_id"]
+        )
+    )
+
+    text_columns = [
+        "product_name",
+        "product_category",
+        "activity_gift",
+        "bonus_gift_text",
+        "bonus_campaign_text",
+        "activity_tag_raw",
+    ]
+
+    for column in text_columns:
+        dataframe[column] = clean_text(
+            dataframe[column]
+        )
+
+    dataframe["campaign_price"] = (
+        pd.to_numeric(
+            dataframe["campaign_price"],
+            errors="coerce",
+        )
+    )
+
+    dataframe["activity_start_date"] = (
+        dataframe["activity_start_date_raw"].apply(
+            parse_flexible_date
+        )
+    )
+
+    dataframe["activity_end_date"] = (
+        dataframe["activity_end_date_raw"].apply(
+            parse_flexible_date
+        )
+    )
+
+    dataframe["date_valid"] = (
+        dataframe["activity_start_date"].notna()
+        & dataframe["activity_end_date"].notna()
+        & (
+            dataframe["activity_end_date"]
+            >= dataframe["activity_start_date"]
+        )
+    )
+
+    combined_gift_text = (
+        dataframe["activity_gift"].fillna("")
+        + " "
+        + dataframe["bonus_gift_text"].fillna("")
+        + " "
+        + dataframe["bonus_campaign_text"].fillna("")
+    )
+
+    # 新模板本身有真實的「活動類型」欄位（受控詞彙，如
+    # 「短促」「限搶包套」），優先直接使用；只有該值缺漏時
+    # 才退回用贈品/加碼送文字關鍵字猜測（extract_activity_tag）
+    # 當保險。
+    dataframe["activity_tag"] = dataframe[
+        "activity_tag_raw"
+    ].where(
+        dataframe["activity_tag_raw"].notna(),
+        combined_gift_text.apply(extract_activity_tag),
+    )
+
+    dataframe["is_pre_split"] = True
+
+    # 補上舊格式專屬欄位（維持與 legacy 分支相同的
+    # 欄位集合，讓 pd.concat／下游 create_quality_summary()
+    # 等函式不需要判斷分支就能安全存取這些欄位）。
+    for column in [
+        "promotion_period_raw",
+        "bonus_period_raw",
+        "bonus_gift_name",
+        "remark",
+    ]:
+        dataframe[column] = pd.NA
+
+    columns_to_keep = [
+        "source_file",
+        "source_sheet",
+        "source_month",
+        "source_row_number",
+        *NEW_TEMPLATE_STANDARD_COLUMNS,
+        "promotion_period_raw",
+        "bonus_period_raw",
+        "bonus_gift_name",
+        "remark",
+        "activity_start_date",
+        "activity_end_date",
+        "date_valid",
+        "activity_tag",
+        "is_pre_split",
+    ]
+
+    return dataframe[
+        columns_to_keep
+    ].copy()
+
+
+def _prepare_legacy_activity_dataframe(
+    raw_dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    整理舊格式「活動表」（單一合併日期文字欄）。
     """
 
     dataframe = rename_activity_columns(
@@ -473,7 +699,6 @@ def prepare_activity_dataframe(
 
     text_columns = [
         "product_name",
-        "activity_type",
         "activity_gift",
         "promotion_period_raw",
         "bonus_period_raw",
@@ -486,15 +711,6 @@ def prepare_activity_dataframe(
             dataframe[column]
         )
 
-    for column in [
-        "activity_start_date_explicit",
-        "activity_end_date_explicit",
-    ]:
-        dataframe[column] = pd.to_datetime(
-            dataframe[column],
-            errors="coerce",
-        )
-
     dataframe["campaign_price"] = (
         pd.to_numeric(
             dataframe["campaign_price"],
@@ -502,12 +718,15 @@ def prepare_activity_dataframe(
         )
     )
 
+    dataframe["is_pre_split"] = False
+
     columns_to_keep = [
         "source_file",
         "source_sheet",
         "source_month",
         "source_row_number",
         *STANDARD_COLUMNS,
+        "is_pre_split",
     ]
 
     return dataframe[
@@ -528,64 +747,72 @@ def explode_promotion_periods(
     issue_records = []
 
     for _, row in prepared_dataframe.iterrows():
-        explicit_start = row.get(
-            "activity_start_date_explicit"
-        )
-        explicit_end = row.get(
-            "activity_end_date_explicit"
-        )
-
-        if (
-            pd.notna(explicit_start)
-            and pd.notna(explicit_end)
-        ):
-            activity_type = (
-                str(row.get("activity_type")).strip()
-                if pd.notna(row.get("activity_type"))
-                else "一般活動期間"
-            )
-            remark_tag = (
-                extract_activity_tag(
-                    str(row.get("remark"))
-                )
-                if pd.notna(row.get("remark"))
-                else ""
-            )
-            activity_tag = activity_type
-
-            if (
-                remark_tag
-                and remark_tag != "一般活動期間"
-                and remark_tag not in activity_tag
-            ):
-                activity_tag = (
-                    f"{activity_tag}、{remark_tag}"
+        # 新模板的活動開始/結束日期已經是獨立欄位、
+        # 事先解析好，不需要（也不能）再走
+        # promotion_period_raw + parse_period_text()
+        # 那條「單一合併日期文字欄」路徑。
+        if row.get("is_pre_split", False):
+            if not row["date_valid"]:
+                issue_records.append(
+                    {
+                        "source_file": row["source_file"],
+                        "source_sheet": row["source_sheet"],
+                        "source_row_number": (
+                            row["source_row_number"]
+                        ),
+                        "product_id": row["product_id"],
+                        "product_name": row["product_name"],
+                        "issue_type": "活動日期不合法",
+                        "problem_text": (
+                            f"{row.get('activity_start_date')}"
+                            f"~{row.get('activity_end_date')}"
+                        ),
+                    }
                 )
 
-            parsed_periods = [
+                continue
+
+            activity_records.append(
                 {
-                    "period_line_number": 1,
-                    "period_match_number": 1,
-                    "period_source_line": (
-                        f"{explicit_start:%Y-%m-%d}～"
-                        f"{explicit_end:%Y-%m-%d}"
+                    "source_file": row["source_file"],
+                    "source_sheet": row["source_sheet"],
+                    "source_month": row["source_month"],
+                    "source_row_number": (
+                        row["source_row_number"]
                     ),
-                    "matched_date_text": (
-                        f"{explicit_start:%Y-%m-%d}～"
-                        f"{explicit_end:%Y-%m-%d}"
+                    "product_id": row["product_id"],
+                    "product_name": row["product_name"],
+                    "campaign_price": row["campaign_price"],
+                    "activity_gift": row["activity_gift"],
+                    "bonus_period_raw": pd.NA,
+                    "bonus_gift_name": pd.NA,
+                    "remark": pd.NA,
+                    "promotion_period_raw": pd.NA,
+                    "product_category": row.get(
+                        "product_category", pd.NA
                     ),
-                    "activity_tag": activity_tag,
-                    "activity_start_date": explicit_start,
-                    "activity_end_date": explicit_end,
-                    "date_valid": (
-                        explicit_end >= explicit_start
+                    "bonus_gift_text": row.get(
+                        "bonus_gift_text", pd.NA
                     ),
+                    "bonus_campaign_text": row.get(
+                        "bonus_campaign_text", pd.NA
+                    ),
+                    "activity_tag": row["activity_tag"],
+                    "activity_start_date": (
+                        row["activity_start_date"]
+                    ),
+                    "activity_end_date": (
+                        row["activity_end_date"]
+                    ),
+                    "date_valid": True,
                 }
-            ]
-        else:
-            parsed_periods = parse_period_text(
-                row["promotion_period_raw"]
             )
+
+            continue
+
+        parsed_periods = parse_period_text(
+            row["promotion_period_raw"]
+        )
 
         # 短促時間完全沒有資料
         if not parsed_periods:
@@ -607,17 +834,10 @@ def explode_promotion_periods(
                         row["product_name"]
                     ),
                     "issue_type": (
-                        "活動日期為空或無法解析"
+                        "短促時間為空或無法解析"
                     ),
                     "problem_text": (
                         row["promotion_period_raw"]
-                        if pd.notna(
-                            row["promotion_period_raw"]
-                        )
-                        else (
-                            f"起始日期={explicit_start}；"
-                            f"結束日期={explicit_end}"
-                        )
                     ),
                 }
             )
@@ -662,7 +882,16 @@ def explode_promotion_periods(
                 "promotion_period_raw": (
                     row["promotion_period_raw"]
                 ),
-                **parsed,
+                **{
+                    key: value
+                    for key, value in parsed.items()
+                    if key not in {
+                        "period_line_number",
+                        "period_match_number",
+                        "period_source_line",
+                        "matched_date_text",
+                    }
+                },
             }
 
             activity_records.append(
@@ -811,8 +1040,11 @@ def create_quality_summary(
         {
             "item": "短促時間缺漏",
             "count": int(
-                prepared_dataframe[
-                    "promotion_period_raw"
+                prepared_dataframe.loc[
+                    ~prepared_dataframe[
+                        "is_pre_split"
+                    ].astype(bool),
+                    "promotion_period_raw",
                 ].isna().sum()
             ),
         },

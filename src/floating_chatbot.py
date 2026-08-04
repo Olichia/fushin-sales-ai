@@ -331,15 +331,27 @@ FLOATING_CHAT_DISCLAIMER = (
 FLOATING_CHAT_SHORTCUT_QUESTIONS = [
     (
         "哪些活動最值得延續？",
-        "請根據目前分析，找出最值得延續的活動。"
+        "請根據目前分析，找出最值得延續的活動單位。"
         "請說明數據依據、資料限制，"
         "以及下一步可以如何驗證。",
     ),
     (
         "低成效活動可能有哪些原因？",
-        "請分析目前低成效活動可能的原因。"
+        "請分析目前建議檢討的活動單位可能的原因。"
         "請區分資料能確認的觀察、合理推測，"
         "以及仍需要補充的資料。",
+    ),
+    (
+        "折扣率該打在哪個區間？",
+        "請根據折扣深度洞察，說明折扣率打在哪個區間"
+        "平均表現最好，並指出是否有折扣不深但淨增益"
+        "仍名列前茅的案例。",
+    ),
+    (
+        "贈品或加碼送該怎麼搭配？",
+        "請參考策略分類為建議延續的活動單位，"
+        "整理這些案例搭配了哪些贈品或加碼送組合，"
+        "並提出下一期活動的贈品設計建議。",
     ),
     (
         "下一期促銷應如何規劃？",
@@ -394,32 +406,42 @@ def render_floating_chatbot() -> None:
                 _render_floating_chat_panel()
 
 
-def _get_analysis_sources() -> tuple[str | None, pd.DataFrame | None, pd.DataFrame | None, bool]:
-    strategy_report_text = st.session_state.get(
-        "strategy_report_text"
+def _get_analysis_sources() -> tuple[
+    pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None, bool
+]:
+    """
+    取得活動單位分析（新方法論，AI顧問唯一資料來源）的三份資料。
+
+    只有活動單位分析成功執行時才視為就緒；沒有時一律走
+    系統說明模式，不會退回舊版活動前後比較數字回答。
+    """
+
+    unit_overview_dataframe = st.session_state.get(
+        "activity_unit_overview_dataframe"
     )
-    strategy_dataframe = st.session_state.get(
-        "strategy_report_dataframe"
+    waterfall_summary_dataframe = st.session_state.get(
+        "activity_waterfall_summary_dataframe"
     )
-    performance_dataframe = st.session_state.get(
-        "activity_performance_dataframe"
+    unit_price_dataframe = st.session_state.get(
+        "activity_unit_price_dataframe"
     )
 
-    # 只要「執行成效分析」已經產生結果就視為就緒，
-    # 不需要等到後面「產生策略報告」那步也完成——
-    # build_advisor_context 在沒有策略報告文字時
-    # 會自動標示「尚無策略文字報告」，AI 仍可根據
-    # 成效分析資料本身回答決策建議。
+    unit_analysis_completed = bool(
+        st.session_state.get("unit_analysis_completed", False)
+    )
+
     data_ready = (
-        performance_dataframe is not None
-        and isinstance(performance_dataframe, pd.DataFrame)
-        and not performance_dataframe.empty
+        unit_analysis_completed
+        and isinstance(unit_overview_dataframe, pd.DataFrame)
+        and not unit_overview_dataframe.empty
+        and isinstance(waterfall_summary_dataframe, pd.DataFrame)
+        and not waterfall_summary_dataframe.empty
     )
 
     return (
-        strategy_report_text,
-        strategy_dataframe,
-        performance_dataframe,
+        unit_overview_dataframe,
+        waterfall_summary_dataframe,
+        unit_price_dataframe,
         data_ready,
     )
 
@@ -429,9 +451,9 @@ def _render_floating_chat_panel() -> None:
         st.markdown(":material/smart_toy: **AI 策略顧問**")
 
     (
-        strategy_report_text,
-        strategy_dataframe,
-        performance_dataframe,
+        unit_overview_dataframe,
+        waterfall_summary_dataframe,
+        unit_price_dataframe,
         data_ready,
     ) = _get_analysis_sources()
 
@@ -498,9 +520,9 @@ def _render_floating_chat_panel() -> None:
             with st.spinner("AI 顧問正在分析……"):
                 if data_ready:
                     advisor_context = build_advisor_context(
-                        strategy_report_text=strategy_report_text,
-                        strategy_dataframe=strategy_dataframe,
-                        performance_dataframe=performance_dataframe,
+                        unit_overview_dataframe=unit_overview_dataframe,
+                        waterfall_summary_dataframe=waterfall_summary_dataframe,
+                        unit_price_dataframe=unit_price_dataframe,
                     )
 
                     st.session_state["ai_last_context"] = advisor_context

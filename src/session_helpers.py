@@ -75,6 +75,17 @@ SESSION_DEFAULTS = {
     "analysis_settings": {},
 
     # -----------------------------
+    # 活動單位分析（新方法論，對應參考報表工作表3-7）
+    # -----------------------------
+    "unit_analysis_completed": False,
+    "activity_unit_timeline_dataframe": None,
+    "activity_unit_timeline_wide_dataframe": None,
+    "activity_unit_price_dataframe": None,
+    "activity_unit_overview_dataframe": None,
+    "activity_waterfall_pairing_dataframe": None,
+    "activity_waterfall_summary_dataframe": None,
+
+    # -----------------------------
     # AI 顧問
     # -----------------------------
     "ai_chat_messages": [],
@@ -155,6 +166,13 @@ def clear_downstream_analysis() -> None:
         "analysis_settings",
         "ai_chat_messages",
         "ai_last_context",
+        "unit_analysis_completed",
+        "activity_unit_timeline_dataframe",
+        "activity_unit_timeline_wide_dataframe",
+        "activity_unit_price_dataframe",
+        "activity_unit_overview_dataframe",
+        "activity_waterfall_pairing_dataframe",
+        "activity_waterfall_summary_dataframe",
     ]
 
     reset_session_keys(
@@ -168,6 +186,9 @@ def clear_sales_processing_results() -> None:
 
     保留已上傳的 Excel 檔案，
     但清除欄位對應、標準化資料與確認狀態。
+
+    只重置銷量資料自己的確認狀態；活動資料本身沒有改變，
+    不需要連帶要求使用者回頭重新確認活動資料。
     """
 
     sales_processing_keys = [
@@ -190,6 +211,9 @@ def clear_activity_processing_results() -> None:
     保留已上傳的活動 Excel，
     但清除月份紀錄、標準化結果、
     摘要、問題資料與確認狀態。
+
+    只重置活動資料自己的確認狀態；銷量資料本身沒有改變，
+    不需要連帶要求使用者回頭重新確認銷量資料。
     """
 
     activity_processing_keys = [
