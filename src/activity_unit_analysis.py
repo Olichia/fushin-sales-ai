@@ -398,6 +398,9 @@ def build_daily_sku_price_panel(
                     "sale_date": day,
                     "product_id": row.product_id,
                     "campaign_price_day": row.campaign_price,
+                    "activity_tag": getattr(
+                        row, "activity_tag", None
+                    ),
                     "activity_gift": getattr(
                         row, "activity_gift", None
                     ),
@@ -420,6 +423,7 @@ def build_daily_sku_price_panel(
             ["sale_date", "product_id"], as_index=False
         ).agg(
             campaign_price_day=("campaign_price_day", "min"),
+            activity_tag=("activity_tag", combine_unique_text),
             activity_gift=("activity_gift", combine_gift_text),
             bonus_gift_text=(
                 "bonus_gift_text",
@@ -443,6 +447,7 @@ def build_daily_sku_price_panel(
     else:
         for column in [
             "campaign_price_day",
+            "activity_tag",
             "activity_gift",
             "bonus_gift_text",
             "bonus_campaign_text",
@@ -502,6 +507,7 @@ def build_daily_sku_price_panel(
             "is_participating",
             "effective_price",
             "price_source",
+            "activity_tag",
             "activity_gift",
             "bonus_gift_text",
             "bonus_campaign_text",
@@ -777,6 +783,7 @@ def build_unit_price_table(
                 "end_date",
                 "price",
                 "price_source",
+                "activity_tag",
                 "gift",
                 "bonus_gift_text",
                 "bonus_campaign_text",
@@ -804,6 +811,7 @@ def build_unit_price_table(
                 else pd.NA
             ),
         ),
+        activity_tag=("activity_tag", combine_unique_text),
         gift=("activity_gift", combine_gift_text),
         bonus_gift_text=(
             "bonus_gift_text",
