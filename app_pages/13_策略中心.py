@@ -1,4 +1,5 @@
 from pathlib import Path
+import html
 import sys
 
 import pandas as pd
@@ -25,6 +26,41 @@ from src.unit_overview_helpers import (
     compute_strategy_category,
     prepare_unit_overview_for_display,
 )
+from src.unit_recommendation_notes import (
+    build_unit_personalized_recommendation_sections,
+)
+
+
+def render_personalized_sections(
+    sections: list[tuple[str, str]],
+) -> None:
+    """
+    以 hanging indent 版面呈現個別化建議：
+
+    標籤後方的內容靠左對齊，換行時對齊內容起始位置，
+    不會退回標籤最左邊。
+    """
+
+    blocks = []
+
+    for label, text in sections:
+        indent = len(label)
+
+        blocks.append(
+            '<div style="padding-left:{indent}em;'
+            "text-indent:-{indent}em;"
+            'margin:0 0 0.85em;line-height:1.7;">'
+            "<strong>{label}</strong>{text}</div>".format(
+                indent=indent,
+                label=html.escape(label),
+                text=html.escape(text),
+            )
+        )
+
+    st.markdown(
+        "".join(blocks),
+        unsafe_allow_html=True,
+    )
 
 
 def dataframe_ready(dataframe) -> bool:
@@ -972,6 +1008,167 @@ st.caption(
     "清單內容與完整分析產生的活動策略清單一致，"
     "並套用本頁上方的策略分類、資料信心與最低銷量篩選。"
 )
+
+
+# =========================================================
+# 個別化建議
+#
+# 針對疊加多個活動的活動單位，用瀑布法配對比較（工作表6）
+# 拆出各活動的獨立貢獻；找不到對照期間時如實標示無法拆分。
+# 移植自 PR「feature/strategy-recommendation-rules」的
+# 個別化建議文字概念，但完全改讀新方法論
+# （activity_unit_overview／waterfall_pairing）算出的資料，
+# 不依賴舊版活動前後 N 天比較法。
+# =========================================================
+
+if new_engine_ready:
+    st.divider()
+
+    st.subheader("個別化建議")
+
+    st.caption(
+        "選一個活動單位，查看跟同商品其他活動的比較、"
+        "疊加活動的個別貢獻拆解，以及下一檔可執行的測試建議。"
+    )
+
+    detail_unit_overview = unit_overview.loc[filtered_strategy.index]
+
+    if detail_unit_overview.empty:
+        st.info("目前篩選範圍內沒有可顯示的活動單位。")
+
+    else:
+        pairing_raw = st.session_state.get(
+            "activity_waterfall_pairing_dataframe"
+        )
+        unit_price_raw = st.session_state.get(
+            "activity_unit_price_dataframe"
+        )
+
+        pairing_table = (
+            pairing_raw.copy()
+            if dataframe_ready(pairing_raw)
+            else pd.DataFrame(
+                columns=[
+                    "activity_type",
+                    "product_id",
+                    "target_unit",
+                    "split_status",
+                    "candidate_units",
+                    "net_gain_per_day",
+                    "net_gain_total",
+                    "target_unit_days",
+                    "remainder_corresponding_activities",
+                ]
+            )
+        )
+
+        if not pairing_table.empty:
+            pairing_table["product_id"] = (
+                pairing_table["product_id"].astype(str).str.strip()
+            )
+
+        if dataframe_ready(unit_price_raw):
+            unit_price_table = unit_price_raw.copy()
+            unit_price_table["product_id"] = (
+                unit_price_table["product_id"]
+                .astype(str)
+                .str.strip()
+            )
+        else:
+            unit_price_table = pd.DataFrame(
+                columns=[
+                    "unit_code",
+                    "product_id",
+                    "activity_tag",
+                    "gift",
+                    "bonus_campaign_text",
+                ]
+            )
+
+        mechanism_text_lookup: dict[tuple, str] = {}
+
+        for row in unit_price_table.itertuples():
+            text_parts = [
+                str(part)
+                for part in [
+                    getattr(row, "activity_tag", None),
+                    getattr(row, "gift", None),
+                    getattr(row, "bonus_campaign_text", None),
+                ]
+                if part and pd.notna(part) and str(part).strip()
+            ]
+
+            if text_parts:
+                mechanism_text_lookup[
+                    (row.product_id, row.unit_code)
+                ] = "、".join(dict.fromkeys(text_parts))
+
+        detail_options = list(detail_unit_overview.index)
+
+        def format_detail_option(row_index: int) -> str:
+            row = detail_unit_overview.loc[row_index]
+
+            activities_text = (
+                row["corresponding_activities_label"] or "安靜期"
+            )
+
+            return (
+                f"{row['product_name']}｜{row['unit_code']}"
+                f"（{activities_text}）"
+            )
+
+        selected_index = st.selectbox(
+            "選擇活動單位",
+            options=detail_options,
+            format_func=format_detail_option,
+        )
+
+        selected_unit_row = detail_unit_overview.loc[selected_index]
+
+        unit_pairing_rows = pairing_table[
+            (pairing_table["product_id"] == selected_unit_row["product_id"])
+            & (pairing_table["target_unit"] == selected_unit_row["unit_code"])
+        ]
+
+        mechanism_text = mechanism_text_lookup.get(
+            (
+                selected_unit_row["product_id"],
+                selected_unit_row["unit_code"],
+            ),
+            "",
+        )
+
+        selected_strategy_category = filtered_strategy.loc[
+            selected_index, "策略分類"
+        ]
+
+        personalized_sections = (
+            build_unit_personalized_recommendation_sections(
+                unit_row=selected_unit_row,
+                pairing_rows=unit_pairing_rows,
+                unit_overview=unit_overview,
+                mechanism_text=mechanism_text,
+                strategy_category=selected_strategy_category,
+            )
+        )
+
+        with st.container(border=True):
+            render_personalized_sections(personalized_sections)
+
+        if selected_unit_row.get("sample_size_note") or selected_unit_row.get(
+            "proxy_price_note"
+        ):
+            st.caption(
+                "資料提示："
+                + "；".join(
+                    text
+                    for text in [
+                        selected_unit_row.get("sample_size_note"),
+                        selected_unit_row.get("proxy_price_note"),
+                    ]
+                    if text
+                )
+            )
 
 
 # =========================================================
