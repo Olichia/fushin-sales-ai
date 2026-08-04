@@ -7,7 +7,10 @@ from src.analysis_pipeline import (
     AnalysisSettings,
     run_full_analysis,
 )
+from src.activity_unit_analysis import run_activity_unit_analysis
+from src.column_labels import default_column_config
 from src.session_helpers import initialize_session_state
+from src.unit_overview_helpers import compute_actual_revenue_total
 
 
 # =========================================================
@@ -307,94 +310,19 @@ for column, step in zip(
 
 
 # =========================================================
-# 分析設定
+# 分析設定（舊版方法論不再是主要依據，固定使用預設參數；
+# 舊版流程仍會在背後執行，供「分析完成摘要」KPI 與頁11/13
+# 新引擎失敗時的備援路徑使用）
 # =========================================================
 
-st.subheader("分析設定")
-
-with st.expander(
-    "調整分析參數",
-    expanded=False,
-):
-    setting_col1, setting_col2 = st.columns(2)
-
-    with setting_col1:
-        baseline_days = st.number_input(
-            "活動前觀察天數",
-            min_value=1,
-            max_value=90,
-            value=7,
-            step=1,
-            help="用於計算活動開始前的平均每日銷量。",
-        )
-
-        high_uplift_threshold = st.number_input(
-            "高成效提升率門檻",
-            min_value=-1.0,
-            max_value=10.0,
-            value=0.20,
-            step=0.05,
-            format="%.2f",
-            help="0.20 代表活動期間平均每日銷量提升 20%。",
-        )
-
-        minimum_campaign_sales = st.number_input(
-            "最低活動總銷量",
-            min_value=0.0,
-            value=1.0,
-            step=1.0,
-            help="活動總銷量低於此數值時，不列入高成效活動。",
-        )
-
-    with setting_col2:
-        post_days = st.number_input(
-            "活動後觀察天數",
-            min_value=1,
-            max_value=90,
-            value=7,
-            step=1,
-            help="用於觀察活動結束後的銷量變化。",
-        )
-
-        low_uplift_threshold = st.number_input(
-            "低成效提升率門檻",
-            min_value=-1.0,
-            max_value=10.0,
-            value=0.0,
-            step=0.05,
-            format="%.2f",
-            help="低於此門檻的活動會被歸類為低成效。",
-        )
-
-        fill_missing_dates_with_zero = st.checkbox(
-            "缺少銷量紀錄的日期視為 0",
-            value=True,
-        )
-
-        only_complete_periods = st.checkbox(
-            "策略報告只使用觀察期間完整的活動",
-            value=True,
-        )
-
-
 settings = AnalysisSettings(
-    baseline_days=int(baseline_days),
-    post_days=int(post_days),
-    fill_missing_dates_with_zero=(
-        fill_missing_dates_with_zero
-    ),
-    high_uplift_threshold=float(
-        high_uplift_threshold
-    ),
-    low_uplift_threshold=float(
-        low_uplift_threshold
-    ),
-    minimum_campaign_sales=float(
-        minimum_campaign_sales
-    ),
-    only_complete_periods=(
-        only_complete_periods
-    ),
+    baseline_days=7,
+    post_days=7,
+    fill_missing_dates_with_zero=True,
+    high_uplift_threshold=0.20,
+    low_uplift_threshold=0.0,
+    minimum_campaign_sales=1.0,
+    only_complete_periods=True,
 )
 
 
@@ -546,6 +474,61 @@ if run_button:
 
 
     # =====================================================
+    # 執行活動單位分析（新方法論，獨立 try/except，
+    # 確保萬一失敗也不影響上面舊 pipeline 的結果）
+    # =====================================================
+
+    try:
+        unit_analysis_result = run_activity_unit_analysis(
+            sales_dataframe=sales_dataframe,
+            activity_standardized_dataframe=(
+                activity_dataframe
+            ),
+            activity_calendar_dataframe=(
+                calendar_for_analysis
+            ),
+        )
+
+    except Exception as error:
+        unit_analysis_result = None
+
+        st.warning(
+            "活動單位分析（新方法論）執行失敗，"
+            f"將僅顯示舊版成效分析結果：{error}"
+        )
+
+    if unit_analysis_result is not None:
+        st.session_state[
+            "activity_unit_timeline_dataframe"
+        ] = unit_analysis_result.unit_timeline
+
+        st.session_state[
+            "activity_unit_timeline_wide_dataframe"
+        ] = unit_analysis_result.unit_timeline_wide
+
+        st.session_state[
+            "activity_unit_price_dataframe"
+        ] = unit_analysis_result.unit_price_table
+
+        st.session_state[
+            "activity_unit_overview_dataframe"
+        ] = unit_analysis_result.unit_overview
+
+        st.session_state[
+            "activity_waterfall_pairing_dataframe"
+        ] = unit_analysis_result.waterfall_pairing_table
+
+        st.session_state[
+            "activity_waterfall_summary_dataframe"
+        ] = unit_analysis_result.waterfall_summary
+
+        st.session_state["unit_analysis_completed"] = True
+
+    else:
+        st.session_state["unit_analysis_completed"] = False
+
+
+    # =====================================================
     # 將結果存回原有 Session State
     # =====================================================
 
@@ -620,13 +603,6 @@ if analysis_completed:
         "strategy_report_dataframe"
     )
 
-    strategy_report_text = str(
-        st.session_state.get(
-            "strategy_report_text",
-            "",
-        )
-    )
-
     st.divider()
     st.subheader("分析完成摘要")
 
@@ -666,44 +642,167 @@ if analysis_completed:
                 issues_dataframe,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    issues_dataframe
+                ),
             )
     else:
         st.success(
             "整合過程沒有發現需要另外處理的問題。"
         )
 
-    result_tab1, result_tab2 = st.tabs(
+    unit_timeline_wide_dataframe = get_dataframe(
+        "activity_unit_timeline_wide_dataframe"
+    )
+
+    unit_overview_dataframe = get_dataframe(
+        "activity_unit_overview_dataframe"
+    )
+
+    unit_price_dataframe = get_dataframe(
+        "activity_unit_price_dataframe"
+    )
+
+    unit_analysis_completed = bool(
+        st.session_state.get(
+            "unit_analysis_completed",
+            False,
+        )
+    )
+
+    st.divider()
+
+    st.markdown("##### 活動單位分析（新方法論）")
+    st.caption(
+        "以「活動單位」為顆粒度，比較每個活動單位相對於"
+        "同月安靜期基準的淨營收效應，並拆解量增與降價兩種效應"
+        "（對應參考報表工作表3-5）。取代舊版單純的活動前後"
+        "平均值比較。"
+    )
+
+    result_tab3, result_tab4, result_tab5 = st.tabs(
         [
-            "成效分析預覽",
-            "策略報告預覽",
+            "活動清單",
+            "商品售價表",
+            "整合資料總覽",
         ]
     )
 
-    with result_tab1:
-        if dataframe_ready(performance_dataframe):
+    with result_tab3:
+        st.caption(
+            "對應參考報表工作表3，逐SKU一欄顯示每個單位的對應活動。"
+        )
+
+        if unit_analysis_completed and dataframe_ready(
+            unit_timeline_wide_dataframe
+        ):
+            unit_timeline_wide_display = unit_timeline_wide_dataframe.drop(
+                columns=[
+                    column
+                    for column in ["note"]
+                    if column in unit_timeline_wide_dataframe.columns
+                ]
+            )
+
             st.dataframe(
-                performance_dataframe.head(100),
+                unit_timeline_wide_display,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    unit_timeline_wide_display
+                ),
+            )
+        else:
+            st.info(
+                "目前沒有可顯示的活動清單，"
+                "可能是活動單位分析執行失敗或尚未執行。"
             )
 
-            if len(performance_dataframe) > 100:
-                st.caption(
-                    "目前僅預覽前 100 筆資料。"
+    with result_tab4:
+        st.caption("對應參考報表工作表4「商品售價表(依單位)」。")
+
+        if unit_analysis_completed and dataframe_ready(
+            unit_price_dataframe
+        ):
+            st.dataframe(
+                unit_price_dataframe,
+                use_container_width=True,
+                hide_index=True,
+                column_config=default_column_config(
+                    unit_price_dataframe
+                ),
+            )
+        else:
+            st.info(
+                "目前沒有可顯示的商品售價表，"
+                "可能是活動單位分析執行失敗或尚未執行。"
+            )
+
+    with result_tab5:
+        if unit_analysis_completed and dataframe_ready(
+            unit_overview_dataframe
+        ):
+            unit_metric_col_1, unit_metric_col_2, unit_metric_col_3 = (
+                st.columns(3)
+            )
+
+            with unit_metric_col_1:
+                st.metric(
+                    "活動單位數",
+                    f"{unit_overview_dataframe['unit_code'].nunique():,} 個",
                 )
-        else:
-            st.info(
-                "目前沒有可顯示的成效分析結果。"
+
+            with unit_metric_col_2:
+                st.metric(
+                    "涉及SKU數",
+                    f"{unit_overview_dataframe['product_id'].nunique():,} 個",
+                )
+
+            with unit_metric_col_3:
+                st.metric(
+                    "淨營收效應合計",
+                    f"{unit_overview_dataframe['net_revenue_effect_total'].sum():,.0f} 元",
+                )
+
+            st.caption(
+                "對應參考報表工作表5，"
+                "已略去「分類／樣本量提示／代理牌價提示」3個欄位。"
             )
 
-    with result_tab2:
-        if strategy_report_text.strip():
-            st.markdown(
-                strategy_report_text
+            unit_overview_with_revenue = (
+                unit_overview_dataframe.copy()
+            )
+
+            unit_overview_with_revenue["total_actual_revenue"] = (
+                compute_actual_revenue_total(
+                    unit_overview_with_revenue
+                )
+            )
+
+            unit_overview_display = unit_overview_with_revenue.drop(
+                columns=[
+                    column
+                    for column in [
+                        "classification",
+                        "sample_size_note",
+                        "proxy_price_note",
+                    ]
+                    if column in unit_overview_with_revenue.columns
+                ]
+            )
+
+            st.dataframe(
+                unit_overview_display,
+                use_container_width=True,
+                hide_index=True,
+                column_config=default_column_config(
+                    unit_overview_display
+                ),
             )
         else:
             st.info(
-                "目前沒有策略報告文字。"
+                "目前沒有可顯示的整合資料總覽，"
+                "可能是活動單位分析執行失敗或尚未執行。"
             )
 
     st.success(

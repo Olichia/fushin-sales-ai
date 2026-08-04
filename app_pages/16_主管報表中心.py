@@ -19,7 +19,14 @@ if str(PROJECT_ROOT) not in sys.path:
     )
 
 
+from src.column_labels import default_column_config
 from src.session_helpers import initialize_session_state
+from src.unit_overview_helpers import (
+    compute_actual_revenue_total,
+    compute_risk_mask,
+    compute_strategy_category,
+    prepare_unit_overview_for_display,
+)
 
 
 # =========================================================
@@ -137,6 +144,63 @@ def render_activity_preview_card(
         )
 
 
+def render_unit_preview_card(
+    *,
+    eyebrow: str,
+    title: str,
+    unit_row: pd.Series,
+    accent_class: str,
+) -> None:
+    """顯示最佳或較差活動單位預覽卡片（活動單位分析新方法論）。"""
+
+    product_name = unit_row.get(
+        "product_name", "未提供商品名稱"
+    )
+
+    if pd.isna(product_name):
+        product_name = "未提供商品名稱"
+
+    unit_code = unit_row.get("unit_code", "-")
+
+    combo_label = unit_row.get(
+        "corresponding_activities_label", "-"
+    )
+
+    net_effect = safe_numeric(
+        unit_row.get("net_revenue_effect_per_day")
+    )
+
+    with st.container(border=True):
+        st.markdown(
+            f"""
+            <div class="management-activity-card {accent_class}">
+                <div class="management-activity-eyebrow">
+                    {eyebrow}
+                </div>
+                <div class="management-activity-title">
+                    {title}
+                </div>
+                <div class="management-activity-product">
+                    {product_name}・{unit_code}
+                </div>
+                <div class="management-activity-id">
+                    {combo_label}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.metric(
+            "淨增益/日",
+            (
+                f"{net_effect:,.0f}"
+                if net_effect is not None
+                else "-"
+            ),
+        )
+
+
 # =========================================================
 # 頁面標題
 # =========================================================
@@ -188,6 +252,24 @@ integration_issues_dataframe = st.session_state.get(
     "integration_issues_dataframe"
 )
 
+unit_overview_raw = st.session_state.get(
+    "activity_unit_overview_dataframe"
+)
+
+waterfall_summary_raw = st.session_state.get(
+    "activity_waterfall_summary_dataframe"
+)
+
+unit_analysis_completed = bool(
+    st.session_state.get("unit_analysis_completed", False)
+)
+
+new_engine_ready = (
+    unit_analysis_completed
+    and dataframe_ready(unit_overview_raw)
+    and dataframe_ready(waterfall_summary_raw)
+)
+
 
 # =========================================================
 # 資料完整性檢查
@@ -195,26 +277,27 @@ integration_issues_dataframe = st.session_state.get(
 
 missing_sources = []
 
-if not dataframe_ready(
-    performance_dataframe
-):
-    missing_sources.append(
-        "活動成效分析"
-    )
+if not new_engine_ready:
+    if not dataframe_ready(
+        performance_dataframe
+    ):
+        missing_sources.append(
+            "活動成效分析"
+        )
 
-if not dataframe_ready(
-    strategy_dataframe
-):
-    missing_sources.append(
-        "策略建議資料"
-    )
+    if not dataframe_ready(
+        strategy_dataframe
+    ):
+        missing_sources.append(
+            "策略建議資料"
+        )
 
-if not str(
-    strategy_report_text or ""
-).strip():
-    missing_sources.append(
-        "策略文字報告"
-    )
+    if not str(
+        strategy_report_text or ""
+    ).strip():
+        missing_sources.append(
+            "策略文字報告"
+        )
 
 
 if missing_sources:
@@ -227,56 +310,9 @@ if missing_sources:
     st.stop()
 
 
-performance = (
-    performance_dataframe.copy()
-)
-
-strategy = (
-    strategy_dataframe.copy()
-)
-
-
-if "uplift_rate" not in performance.columns:
-    st.error(
-        "活動成效資料缺少 uplift_rate 欄位，"
-        "請重新執行「03 執行完整分析」。"
-    )
-
-    st.stop()
-
-
-performance["uplift_rate"] = pd.to_numeric(
-    performance["uplift_rate"],
-    errors="coerce",
-)
-
-
 # =========================================================
 # 報表內容摘要
 # =========================================================
-
-activity_count = len(
-    performance
-)
-
-high_count = int(
-    (
-        performance["uplift_rate"]
-        >= 0.20
-    ).sum()
-)
-
-low_count = int(
-    (
-        performance["uplift_rate"]
-        < 0
-    ).sum()
-)
-
-median_uplift = (
-    performance["uplift_rate"]
-    .median()
-)
 
 activity_issue_count = (
     len(activity_issues_dataframe)
@@ -296,6 +332,95 @@ integration_issue_count = (
     else 0
 )
 
+if new_engine_ready:
+    unit_overview = prepare_unit_overview_for_display(
+        unit_overview_raw
+    )
+    unit_overview["策略分類"] = compute_strategy_category(
+        unit_overview
+    )
+    unit_overview["is_risky"] = compute_risk_mask(
+        unit_overview
+    )
+    unit_overview["total_actual_revenue"] = (
+        compute_actual_revenue_total(unit_overview)
+    )
+
+    preview_metrics = [
+        ("活動單位數", f"{len(unit_overview):,}"),
+        (
+            "建議延續數",
+            f"{int((unit_overview['策略分類'] == '建議延續').sum()):,}",
+        ),
+        (
+            "風險檔數",
+            f"{int(unit_overview['is_risky'].sum()):,}",
+        ),
+        (
+            "總GMV合計",
+            f"{unit_overview['total_actual_revenue'].sum():,.0f}",
+        ),
+    ]
+
+else:
+    performance = (
+        performance_dataframe.copy()
+    )
+
+    strategy = (
+        strategy_dataframe.copy()
+    )
+
+    if "uplift_rate" not in performance.columns:
+        st.error(
+            "活動成效資料缺少 uplift_rate 欄位，"
+            "請重新執行「03 執行完整分析」。"
+        )
+
+        st.stop()
+
+    performance["uplift_rate"] = pd.to_numeric(
+        performance["uplift_rate"],
+        errors="coerce",
+    )
+
+    activity_count = len(
+        performance
+    )
+
+    high_count = int(
+        (
+            performance["uplift_rate"]
+            >= 0.20
+        ).sum()
+    )
+
+    low_count = int(
+        (
+            performance["uplift_rate"]
+            < 0
+        ).sum()
+    )
+
+    median_uplift = (
+        performance["uplift_rate"]
+        .median()
+    )
+
+    preview_metrics = [
+        ("活動分析數", f"{activity_count:,}"),
+        ("高成效活動", f"{high_count:,}"),
+        ("低成效活動", f"{low_count:,}"),
+        (
+            "提升率中位數",
+            (
+                f"{median_uplift:.1%}"
+                if pd.notna(median_uplift)
+                else "-"
+            ),
+        ),
+    ]
+
 
 st.subheader("報表內容預覽")
 
@@ -303,86 +428,126 @@ preview_col1, preview_col2, preview_col3, preview_col4 = (
     st.columns(4)
 )
 
-preview_col1.metric(
-    "活動分析數",
-    f"{activity_count:,}",
-)
-
-preview_col2.metric(
-    "高成效活動",
-    f"{high_count:,}",
-)
-
-preview_col3.metric(
-    "低成效活動",
-    f"{low_count:,}",
-)
-
-preview_col4.metric(
-    "提升率中位數",
-    (
-        f"{median_uplift:.1%}"
-        if pd.notna(median_uplift)
-        else "-"
-    ),
-)
+for preview_column, (preview_label, preview_value) in zip(
+    [preview_col1, preview_col2, preview_col3, preview_col4],
+    preview_metrics,
+):
+    preview_column.metric(preview_label, preview_value)
 
 
 with st.container(border=True):
-    st.markdown(
-        """
-        <div class="report-content-heading">
-            <div class="report-content-icon">📄</div>
-            <div>
-                <div class="report-content-title">
-                    PDF 報告將包含
-                </div>
-                <div class="report-content-description">
-                    分析概況、最佳與較差活動、三類策略建議、
-                    資料品質限制，以及主管策略摘要。
+    if new_engine_ready:
+        st.markdown(
+            """
+            <div class="report-content-heading">
+                <div class="report-content-icon">📄</div>
+                <div>
+                    <div class="report-content-title">
+                        PDF 報告將包含
+                    </div>
+                    <div class="report-content-description">
+                        分析概況、商品表現排行、活動單位成效重點、
+                        折扣率洞察、疊加活動組合分析、風險提醒，
+                        以及主管策略摘要。
+                    </div>
                 </div>
             </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    report_item_col1, report_item_col2, report_item_col3 = (
-        st.columns(3)
-    )
-
-    with report_item_col1:
-        st.markdown(
-            """
-            **分析概況**
-
-            - 活動分析數量
-            - 高低成效活動
-            - 提升率摘要
-            """
+            """,
+            unsafe_allow_html=True,
         )
 
-    with report_item_col2:
-        st.markdown(
-            """
-            **策略建議**
-
-            - 建議延續
-            - 建議優化
-            - 建議檢討
-            """
+        report_item_col1, report_item_col2, report_item_col3 = (
+            st.columns(3)
         )
 
-    with report_item_col3:
+        with report_item_col1:
+            st.markdown(
+                """
+                **分析概況**
+
+                - 總GMV／淨增益GMV合計
+                - 活動單位數與風險檔數
+                - 商品表現排行
+                """
+            )
+
+        with report_item_col2:
+            st.markdown(
+                """
+                **策略洞察**
+
+                - 折扣率×淨增益對照
+                - 疊加活動組合排行
+                - 毛利侵蝕風險清單
+                """
+            )
+
+        with report_item_col3:
+            st.markdown(
+                """
+                **資料限制**
+
+                - 資料信心分布
+                - 因果判讀限制
+                - 觀察性分析提醒
+                """
+            )
+
+    else:
         st.markdown(
             """
-            **資料限制**
-
-            - 品質問題
-            - 重疊活動
-            - 因果判讀限制
-            """
+            <div class="report-content-heading">
+                <div class="report-content-icon">📄</div>
+                <div>
+                    <div class="report-content-title">
+                        PDF 報告將包含
+                    </div>
+                    <div class="report-content-description">
+                        分析概況、最佳與較差活動、三類策略建議、
+                        資料品質限制，以及主管策略摘要。
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
+
+        report_item_col1, report_item_col2, report_item_col3 = (
+            st.columns(3)
+        )
+
+        with report_item_col1:
+            st.markdown(
+                """
+                **分析概況**
+
+                - 活動分析數量
+                - 高低成效活動
+                - 提升率摘要
+                """
+            )
+
+        with report_item_col2:
+            st.markdown(
+                """
+                **策略建議**
+
+                - 建議延續
+                - 建議優化
+                - 建議檢討
+                """
+            )
+
+        with report_item_col3:
+            st.markdown(
+                """
+                **資料限制**
+
+                - 品質問題
+                - 重疊活動
+                - 因果判讀限制
+                """
+            )
 
 
 # =========================================================
@@ -392,60 +557,102 @@ with st.container(border=True):
 st.divider()
 st.subheader("重點活動預覽")
 
-valid_performance = (
-    performance.dropna(
-        subset=["uplift_rate"]
-    )
-    .copy()
-)
-
 preview_left, preview_right = (
     st.columns(2)
 )
 
-if valid_performance.empty:
-    st.info(
-        "目前沒有可計算提升率的活動。"
+if new_engine_ready:
+    valid_units = unit_overview.dropna(
+        subset=["net_revenue_effect_per_day"]
     )
+
+    if valid_units.empty:
+        st.info(
+            "目前沒有可計算淨增益的活動單位。"
+        )
+
+    else:
+        best_unit = valid_units.sort_values(
+            "net_revenue_effect_per_day",
+            ascending=False,
+        ).iloc[0]
+
+        worst_unit = valid_units.sort_values(
+            "net_revenue_effect_per_day",
+            ascending=True,
+        ).iloc[0]
+
+        with preview_left:
+            render_unit_preview_card(
+                eyebrow="TOP PERFORMER",
+                title="表現最佳活動單位",
+                unit_row=best_unit,
+                accent_class=(
+                    "management-activity-best"
+                ),
+            )
+
+        with preview_right:
+            render_unit_preview_card(
+                eyebrow="NEEDS REVIEW",
+                title="表現較差活動單位",
+                unit_row=worst_unit,
+                accent_class=(
+                    "management-activity-worst"
+                ),
+            )
 
 else:
-    best_activity = (
-        valid_performance
-        .sort_values(
-            "uplift_rate",
-            ascending=False,
+    valid_performance = (
+        performance.dropna(
+            subset=["uplift_rate"]
         )
-        .iloc[0]
+        .copy()
     )
 
-    worst_activity = (
-        valid_performance
-        .sort_values(
-            "uplift_rate",
-            ascending=True,
-        )
-        .iloc[0]
-    )
-
-    with preview_left:
-        render_activity_preview_card(
-            eyebrow="TOP PERFORMER",
-            title="表現最佳活動",
-            activity_row=best_activity,
-            accent_class=(
-                "management-activity-best"
-            ),
+    if valid_performance.empty:
+        st.info(
+            "目前沒有可計算提升率的活動。"
         )
 
-    with preview_right:
-        render_activity_preview_card(
-            eyebrow="NEEDS REVIEW",
-            title="表現較差活動",
-            activity_row=worst_activity,
-            accent_class=(
-                "management-activity-worst"
-            ),
+    else:
+        best_activity = (
+            valid_performance
+            .sort_values(
+                "uplift_rate",
+                ascending=False,
+            )
+            .iloc[0]
         )
+
+        worst_activity = (
+            valid_performance
+            .sort_values(
+                "uplift_rate",
+                ascending=True,
+            )
+            .iloc[0]
+        )
+
+        with preview_left:
+            render_activity_preview_card(
+                eyebrow="TOP PERFORMER",
+                title="表現最佳活動",
+                activity_row=best_activity,
+                accent_class=(
+                    "management-activity-best"
+                ),
+            )
+
+        with preview_right:
+            render_activity_preview_card(
+                eyebrow="NEEDS REVIEW",
+                title="表現較差活動",
+                activity_row=worst_activity,
+                accent_class=(
+                    "management-activity-worst"
+                ),
+            )
 
 
 # =========================================================
@@ -498,6 +705,9 @@ else:
                 activity_issues_dataframe,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    activity_issues_dataframe
+                ),
             )
 
     if integration_issue_count > 0:
@@ -509,6 +719,9 @@ else:
                 integration_issues_dataframe,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    integration_issues_dataframe
+                ),
             )
 
 
@@ -547,33 +760,50 @@ with st.container(border=True):
 
 if generate_button:
     try:
-        from src.report_generator import (
-            generate_management_pdf,
-        )
-
         with st.spinner(
             "正在整理活動成效與策略建議……"
         ):
-            pdf_bytes = generate_management_pdf(
-                sales_dataframe=(
-                    sales_dataframe
-                ),
-                performance_dataframe=(
-                    performance_dataframe
-                ),
-                strategy_dataframe=(
-                    strategy_dataframe
-                ),
-                strategy_report_text=(
-                    strategy_report_text
-                ),
-                activity_issues_dataframe=(
-                    activity_issues_dataframe
-                ),
-                integration_issues_dataframe=(
-                    integration_issues_dataframe
-                ),
-            )
+            if new_engine_ready:
+                from src.report_generator import (
+                    generate_activity_unit_management_pdf,
+                )
+
+                pdf_bytes = (
+                    generate_activity_unit_management_pdf(
+                        unit_overview_dataframe=(
+                            unit_overview_raw
+                        ),
+                        waterfall_summary_dataframe=(
+                            waterfall_summary_raw
+                        ),
+                    )
+                )
+
+            else:
+                from src.report_generator import (
+                    generate_management_pdf,
+                )
+
+                pdf_bytes = generate_management_pdf(
+                    sales_dataframe=(
+                        sales_dataframe
+                    ),
+                    performance_dataframe=(
+                        performance_dataframe
+                    ),
+                    strategy_dataframe=(
+                        strategy_dataframe
+                    ),
+                    strategy_report_text=(
+                        strategy_report_text
+                    ),
+                    activity_issues_dataframe=(
+                        activity_issues_dataframe
+                    ),
+                    integration_issues_dataframe=(
+                        integration_issues_dataframe
+                    ),
+                )
 
         st.session_state[
             "management_report_pdf"

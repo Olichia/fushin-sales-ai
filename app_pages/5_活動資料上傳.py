@@ -26,6 +26,7 @@ from src.activity_processing import (
     create_activity_data_summary,
     process_activity_files,
 )
+from src.column_labels import default_column_config
 
 from src.session_helpers import (
     clear_activity_data,
@@ -672,10 +673,38 @@ else:
             "同一商品可能有多個活動期間與活動價格。"
         )
 
+        # 新模板／舊格式各自專屬的欄位，另一種格式一律補
+        # 空值，顯示前動態濾掉「這批資料」完全沒有內容的
+        # 欄位，兩種格式都能正確適應（不寫死欄位名稱清單）。
+        non_empty_columns = [
+            column
+            for column in main_activity_dataframe.columns
+            if main_activity_dataframe[column].notna().any()
+        ]
+
+        # 品類欄位習慣上緊接在商品編號、商品名稱之後。
+        ordered_columns = list(non_empty_columns)
+
+        if {
+            "product_id",
+            "product_name",
+            "product_category",
+        }.issubset(ordered_columns):
+            ordered_columns.remove("product_category")
+            insert_at = ordered_columns.index("product_name")
+            ordered_columns.insert(insert_at, "product_category")
+
+        main_activity_preview = (
+            main_activity_dataframe[ordered_columns].head(100)
+        )
+
         st.dataframe(
-            main_activity_dataframe.head(100),
+            main_activity_preview,
             use_container_width=True,
             hide_index=True,
+            column_config=default_column_config(
+                main_activity_preview
+            ),
         )
 
         if len(main_activity_dataframe) > 100:
@@ -698,10 +727,17 @@ else:
             )
 
         else:
+            calendar_preview = (
+                calendar_dataframe.head(100)
+            )
+
             st.dataframe(
-                calendar_dataframe.head(100),
+                calendar_preview,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    calendar_preview
+                ),
             )
 
             if len(calendar_dataframe) > 100:
@@ -724,10 +760,36 @@ else:
             )
 
         else:
+            # 商品專屬優惠（如指定商品贈品）才會有 product_id／
+            # product_name，全站或品牌活動的優惠這兩欄永遠是空
+            # 值；比照「商品活動價格」表，顯示前動態濾掉這批
+            # 資料完全沒有內容的欄位，兩種情況都能正確適應。
+            # product_name 等文字欄位在無資料時預設是空字串而非
+            # NaN，先轉成字串、去除頭尾空白、把空字串當缺值，
+            # 才能正確判斷「整欄皆空」。
+            non_empty_benefit_columns = [
+                column
+                for column in benefits_dataframe.columns
+                if benefits_dataframe[column]
+                .astype("string")
+                .str.strip()
+                .replace("", pd.NA)
+                .notna()
+                .any()
+            ]
+
+            benefits_preview = (
+                benefits_dataframe[non_empty_benefit_columns]
+                .head(100)
+            )
+
             st.dataframe(
-                benefits_dataframe.head(100),
+                benefits_preview,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    benefits_preview
+                ),
             )
 
             if len(benefits_dataframe) > 100:
@@ -755,10 +817,17 @@ else:
                 "需由使用者或企業確認。"
             )
 
+            activity_issues_preview = (
+                activity_issues_dataframe.head(100)
+            )
+
             st.dataframe(
-                activity_issues_dataframe.head(100),
+                activity_issues_preview,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    activity_issues_preview
+                ),
             )
 
             if len(activity_issues_dataframe) > 100:

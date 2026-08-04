@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # 專案模組
 # =========================================================
 
+from src.column_labels import default_column_config
 from src.sales_processing import (
     FIELD_LABELS,
     REQUIRED_FIELDS,
@@ -761,12 +762,17 @@ else:
         "目前僅預覽前 50 筆資料。"
     )
 
+    preview_dataframe = standardized_dataframe[
+        available_preview_columns
+    ].head(50)
+
     st.dataframe(
-        standardized_dataframe[
-            available_preview_columns
-        ].head(50),
+        preview_dataframe,
         use_container_width=True,
         hide_index=True,
+        column_config=default_column_config(
+            preview_dataframe
+        ),
     )
 
 
@@ -790,10 +796,15 @@ else:
             "查看需要確認的資料",
             expanded=False,
         ):
+            issues_preview = issues_dataframe.head(100)
+
             st.dataframe(
-                issues_dataframe.head(100),
+                issues_preview,
                 use_container_width=True,
                 hide_index=True,
+                column_config=default_column_config(
+                    issues_preview
+                ),
             )
 
 

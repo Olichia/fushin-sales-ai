@@ -1323,7 +1323,7 @@ with tab2:
                 ],
             },
             {
-                "項目": "活動標籤",
+                "項目": "活動類型",
                 "內容": selected_activity[
                     "activity_tag"
                 ],

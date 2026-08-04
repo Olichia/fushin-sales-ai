@@ -24,6 +24,13 @@ from src.session_helpers import (
     initialize_session_state,
 )
 
+from src.unit_overview_helpers import (
+    compute_actual_revenue_total,
+    compute_risk_mask,
+    compute_strategy_category,
+    prepare_unit_overview_for_display,
+)
+
 
 # =========================================================
 # 頁面初始化
@@ -41,8 +48,8 @@ st.markdown(
     </div>
 
     <p class="product-page-description">
-        根據活動成效、策略分類與資料限制，
-        協助解讀分析結果並規劃下一期促銷測試。
+        根據活動單位分析（同月安靜期基準、量增/降價效應拆解、
+        瀑布法配對）協助解讀分析結果並規劃下一期促銷測試。
         AI 回答屬於決策輔助，實際執行仍應搭配成本、
         毛利、庫存與商業目標判斷。
     </p>
@@ -52,90 +59,61 @@ st.markdown(
 
 
 # =========================================================
-# 取得既有分析資料
+# 取得既有分析資料（活動單位分析，唯一資料來源）
 # =========================================================
 
-strategy_report_text = st.session_state.get(
-    "strategy_report_text"
+unit_overview_raw = st.session_state.get(
+    "activity_unit_overview_dataframe"
 )
 
-strategy_dataframe = st.session_state.get(
-    "strategy_report_dataframe"
+waterfall_summary_raw = st.session_state.get(
+    "activity_waterfall_summary_dataframe"
 )
 
-performance_dataframe = st.session_state.get(
-    "activity_performance_dataframe"
+unit_price_dataframe = st.session_state.get(
+    "activity_unit_price_dataframe"
 )
 
-
-missing_sources = []
-
-if performance_dataframe is None:
-    missing_sources.append(
-        "活動成效分析"
+unit_analysis_completed = bool(
+    st.session_state.get(
+        "unit_analysis_completed",
+        False,
     )
+)
 
-if strategy_report_text is None:
-    missing_sources.append(
-        "策略文字報告"
-    )
+new_engine_ready = (
+    unit_analysis_completed
+    and isinstance(unit_overview_raw, pd.DataFrame)
+    and not unit_overview_raw.empty
+    and isinstance(waterfall_summary_raw, pd.DataFrame)
+    and not waterfall_summary_raw.empty
+)
 
 
-if missing_sources:
+if not new_engine_ready:
     st.warning(
-        "目前尚缺少："
-        + "、".join(missing_sources)
-        + "。請先完成「03 執行完整分析」。"
+        "目前尚未完成活動單位分析。"
+        "請先完成「03 執行完整分析」，"
+        "確認活動單位分析（新方法論）成功執行。"
     )
     st.stop()
 
 
-if performance_dataframe.empty:
-    st.warning(
-        "目前沒有可提供給 AI 顧問的活動成效資料。"
-    )
-    st.stop()
+unit_overview = prepare_unit_overview_for_display(
+    unit_overview_raw
+)
 
+unit_overview["策略分類"] = compute_strategy_category(
+    unit_overview
+)
 
-performance = performance_dataframe.copy()
+unit_overview["is_risky"] = compute_risk_mask(
+    unit_overview
+)
 
-
-# =========================================================
-# 分析資料型別整理
-# =========================================================
-
-numeric_columns = [
-    "uplift_rate",
-    "post_change_rate",
-    "campaign_total_sales",
-    "estimated_revenue",
-    "baseline_average_daily_sales",
-    "campaign_average_daily_sales",
-    "post_average_daily_sales",
-]
-
-for column in numeric_columns:
-    if column in performance.columns:
-        performance[column] = pd.to_numeric(
-            performance[column],
-            errors="coerce",
-        )
-
-
-boolean_columns = [
-    "all_periods_complete",
-    "baseline_complete",
-    "campaign_complete",
-    "post_complete",
-]
-
-for column in boolean_columns:
-    if column in performance.columns:
-        performance[column] = (
-            performance[column]
-            .fillna(False)
-            .astype(bool)
-        )
+unit_overview["total_actual_revenue"] = (
+    compute_actual_revenue_total(unit_overview)
+)
 
 
 # =========================================================
@@ -143,14 +121,14 @@ for column in boolean_columns:
 # =========================================================
 
 advisor_context = build_advisor_context(
-    strategy_report_text=(
-        strategy_report_text
+    unit_overview_dataframe=(
+        unit_overview_raw
     ),
-    strategy_dataframe=(
-        strategy_dataframe
+    waterfall_summary_dataframe=(
+        waterfall_summary_raw
     ),
-    performance_dataframe=(
-        performance_dataframe
+    unit_price_dataframe=(
+        unit_price_dataframe
     ),
 )
 
@@ -173,9 +151,9 @@ if not st.session_state.get(
             "role": "assistant",
             "content": (
                 "你好，我是 AI 策略顧問。\n\n"
-                "我可以根據目前的活動成效與策略報告，"
-                "協助你判讀高低成效活動、整理資料限制，"
-                "以及規劃下一期促銷測試。"
+                "我可以根據目前的活動單位分析結果，"
+                "協助你判讀高低表現活動、解讀折扣率與贈品搭配、"
+                "提醒風險，並規劃下一期促銷測試。"
             ),
         }
     ]
@@ -205,7 +183,7 @@ with summary_column:
             <div>
                 <div class="advisor-panel-title">分析摘要</div>
                 <div class="advisor-panel-description">
-                    AI 將依據目前活動成效、策略分類與資料限制回答。
+                    AI 將依據目前活動單位分析、策略分類與資料限制回答。
                 </div>
             </div>
         </div>
@@ -213,90 +191,47 @@ with summary_column:
         unsafe_allow_html=True,
     )
 
-    activity_count = len(
-        performance
-    )
+    unit_count = len(unit_overview)
 
-    valid_uplift = performance.dropna(
-        subset=["uplift_rate"]
-    ).copy()
-
-    high_activity_count = int(
+    continue_count = int(
         (
-            performance[
-                "uplift_rate"
-            ] >= 0.20
+            unit_overview["策略分類"]
+            == "建議延續"
         ).sum()
     )
 
-    low_activity_count = int(
-        (
-            performance[
-                "uplift_rate"
-            ] < 0
-        ).sum()
+    risk_count = int(
+        unit_overview["is_risky"].sum()
     )
 
-    median_uplift = (
-        valid_uplift[
-            "uplift_rate"
-        ].median()
-        if not valid_uplift.empty
-        else pd.NA
-    )
-
-    if (
-        "all_periods_complete"
-        in performance.columns
-        and activity_count > 0
-    ):
-        complete_rate = (
-            performance[
-                "all_periods_complete"
-            ].mean()
-        )
-
-    else:
-        complete_rate = pd.NA
+    total_gmv = unit_overview[
+        "total_actual_revenue"
+    ].sum()
 
 
     metric_col1, metric_col2 = st.columns(2)
 
     metric_col1.metric(
-        "活動數",
-        f"{activity_count:,}",
+        "活動單位數",
+        f"{unit_count:,}",
     )
 
     metric_col2.metric(
-        "高成效活動",
-        f"{high_activity_count:,}",
+        "建議延續數",
+        f"{continue_count:,}",
     )
 
 
     metric_col3, metric_col4 = st.columns(2)
 
     metric_col3.metric(
-        "低成效活動",
-        f"{low_activity_count:,}",
+        "風險檔數",
+        f"{risk_count:,}",
     )
 
     metric_col4.metric(
-        "提升率中位數",
-        (
-            f"{median_uplift:.1%}"
-            if pd.notna(median_uplift)
-            else "-"
-        ),
-    )
-
-
-    st.metric(
-        "完整觀察期間比例",
-        (
-            f"{complete_rate:.1%}"
-            if pd.notna(complete_rate)
-            else "-"
-        ),
+        "總GMV合計",
+        f"{total_gmv:,.0f}",
     )
 
 
@@ -309,8 +244,8 @@ with summary_column:
     st.markdown(
         """
         <div class="advisor-shortcut-note">
-            點選常見問題，快速取得活動延續、低成效原因、
-            下一期促銷與資料限制的分析。
+            點選常見問題，快速取得活動延續、折扣與贈品搭配、
+            下一期促銷與風險提醒的分析。
         </div>
         """,
         unsafe_allow_html=True,
@@ -323,7 +258,7 @@ with summary_column:
         key="product_ai_best_activity",
     ):
         shortcut_question = (
-            "請根據目前分析，找出最值得延續的活動。"
+            "請根據目前分析，找出最值得延續的活動單位。"
             "請說明數據依據、資料限制，"
             "以及下一步可以如何驗證。"
         )
@@ -335,9 +270,33 @@ with summary_column:
         key="product_ai_low_activity",
     ):
         shortcut_question = (
-            "請分析目前低成效活動可能的原因。"
+            "請分析目前建議檢討的活動單位可能的原因。"
             "請區分資料能確認的觀察、合理推測，"
             "以及仍需要補充的資料。"
+        )
+
+
+    if st.button(
+        "折扣率該打在哪個區間？",
+        use_container_width=True,
+        key="product_ai_discount_bracket",
+    ):
+        shortcut_question = (
+            "請根據折扣深度洞察，說明折扣率打在哪個區間"
+            "平均表現最好，並指出是否有折扣不深但淨增益"
+            "仍名列前茅的案例。"
+        )
+
+
+    if st.button(
+        "贈品或加碼送該怎麼搭配？",
+        use_container_width=True,
+        key="product_ai_gift_combo",
+    ):
+        shortcut_question = (
+            "請參考策略分類為建議延續的活動單位，"
+            "整理這些案例搭配了哪些贈品或加碼送組合，"
+            "並提出下一期活動的贈品設計建議。"
         )
 
 
@@ -401,19 +360,18 @@ with summary_column:
         "AI 使用的資料範圍"
     ):
         st.write(
-            "AI 顧問目前會讀取："
+            "AI 顧問目前會讀取（活動單位分析）："
         )
 
         st.markdown(
             """
-            - 活動前、中、後銷量
-            - 活動提升率
-            - 活動總銷量
-            - 推估營收
-            - 策略分類
-            - 活動重疊情況
-            - 資料完整度與信心
-            - 規則式策略報告
+            - 淨營收效應（量增/降價效應拆解）
+            - 折扣率
+            - 贈品／加碼送／加碼活動組合
+            - 毛利侵蝕風險
+            - 策略分類（建議延續／持續觀察／建議檢討）
+            - 資料信心
+            - 疊加活動組合可否拆分歸因
             """
         )
 
@@ -437,7 +395,7 @@ with chat_column:
             <div>
                 <div class="advisor-chat-title">與 AI 討論策略</div>
                 <div class="advisor-chat-description">
-                    可直接詢問活動成效、低效原因、促銷規劃或資料限制。
+                    可直接詢問活動成效、折扣與贈品搭配、促銷規劃或資料限制。
                 </div>
             </div>
         </div>
@@ -541,6 +499,5 @@ st.divider()
 
 st.caption(
     "AI 顧問的回答應視為分析與討論起點。"
-    "活動期間銷量上升不等於已證明因果，"
-    "推估營收也不等於實際營收或獲利。"
+    "活動單位分析屬觀察性分析，淨增益不等於實際毛利或淨利潤。"
 )
