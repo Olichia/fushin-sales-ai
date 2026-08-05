@@ -72,6 +72,7 @@ SESSION_DEFAULTS = {
     # -----------------------------
     "strategy_report_dataframe": None,
     "strategy_report_text": None,
+    "analysis_settings": {},
 
     # -----------------------------
     # 活動單位分析（新方法論，對應參考報表工作表3-7）
@@ -162,6 +163,7 @@ def clear_downstream_analysis() -> None:
         "activity_performance_dataframe",
         "strategy_report_dataframe",
         "strategy_report_text",
+        "analysis_settings",
         "ai_chat_messages",
         "ai_last_context",
         "unit_analysis_completed",

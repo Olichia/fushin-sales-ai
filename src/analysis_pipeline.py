@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 import pandas as pd
+
+
+# Pandas 3 預設會把一般文字推斷成 PyArrow 字串。本專案在 macOS 的
+# Streamlit 重跑執行緒中曾於 Arrow 原生層發生 segmentation fault；分析流程
+# 不需要 Arrow 字串的效能，因此固定採用穩定的 Python object/string 後端。
+pd.set_option("future.infer_string", False)
+pd.set_option("mode.string_storage", "python")
 
 
 # =========================================================
@@ -45,12 +53,78 @@ class AnalysisPipelineResult:
 def normalize_product_id(series: pd.Series) -> pd.Series:
     """將商品編號轉成一致且乾淨的文字格式。"""
 
-    return (
-        series.astype("string")
-        .str.strip()
-        .str.replace(r"\.0$", "", regex=True)
-        .replace("", pd.NA)
+    normalized_values: list[object] = []
+
+    # 不使用 pandas/pyarrow 的字串轉型；目前 macOS 的 pyarrow 原生層在
+    # Streamlit 重跑時偶發 segmentation fault，會讓整個網站程序直接終止。
+    for value in series:
+        if pd.isna(value):
+            normalized_values.append(pd.NA)
+            continue
+
+        text = re.sub(r"\.0$", "", str(value).strip())
+        normalized_values.append(text if text else pd.NA)
+
+    return pd.Series(
+        normalized_values,
+        index=series.index,
+        dtype=object,
+        name=series.name,
     )
+
+
+def normalize_text(series: pd.Series) -> pd.Series:
+    """以 Python object 字串整理一般文字欄位，避開 Arrow 原生轉型。"""
+
+    normalized_values: list[object] = []
+
+    for value in series:
+        if pd.isna(value):
+            normalized_values.append(pd.NA)
+            continue
+
+        text = str(value).strip()
+        normalized_values.append(text if text else pd.NA)
+
+    return pd.Series(
+        normalized_values,
+        index=series.index,
+        dtype=object,
+        name=series.name,
+    )
+
+
+def coerce_arrow_strings_to_object(
+    dataframe: pd.DataFrame,
+) -> pd.DataFrame:
+    """把既有 pickle／上傳資料中的 Arrow 字串安全轉成 object。"""
+
+    converted = dataframe.copy()
+
+    # Pandas 3 也可能把 DataFrame 欄名存成 Arrow 字串 Index；即使欄位內容
+    # 已轉型，dropna(subset=...) 的欄位選取仍會進入 pyarrow.take。
+    converted.columns = pd.Index(
+        [str(column) for column in converted.columns],
+        dtype=object,
+    )
+
+    if getattr(converted.index.dtype, "storage", None) == "pyarrow":
+        converted.index = pd.Index(
+            [value for value in converted.index],
+            dtype=object,
+            name=converted.index.name,
+        )
+
+    for column in converted.columns:
+        dtype = converted[column].dtype
+
+        if (
+            isinstance(dtype, pd.StringDtype)
+            and getattr(dtype, "storage", None) == "pyarrow"
+        ):
+            converted[column] = normalize_text(converted[column])
+
+    return converted
 
 
 def combine_unique_text(values: pd.Series) -> str | None:
@@ -68,6 +142,23 @@ def combine_unique_text(values: pd.Series) -> str | None:
         return None
 
     return "、".join(results)
+
+
+def safe_unique_text_list(values: pd.Series) -> list[str]:
+    """以純 Python 取得不重複文字，避開 Arrow unique 原生崩潰。"""
+
+    results: list[str] = []
+
+    for value in values:
+        if pd.isna(value):
+            continue
+
+        text = str(value).strip()
+
+        if text and text not in results:
+            results.append(text)
+
+    return results
 
 
 def safe_percentage_change(
@@ -128,6 +219,747 @@ def activity_label(row: pd.Series) -> str:
     )
 
 
+def has_text(value: object) -> bool:
+    """判斷欄位是否包含可供策略判讀的文字。"""
+
+    return pd.notna(value) and bool(str(value).strip())
+
+
+def unique_text_labels(value: object) -> list[str]:
+    """拆解 Excel 儲存格中的活動／優惠名稱並保留原始順序。"""
+
+    if not has_text(value):
+        return []
+
+    labels: list[str] = []
+
+    for item in re.split(r"[、,，;；\n]+", str(value)):
+        label = item.strip()
+
+        if label and label not in labels:
+            labels.append(label)
+
+    return labels
+
+
+def activity_excel_context(row: pd.Series) -> dict[str, object]:
+    """整理活動 Excel 實際記載的主活動、同期檔期與優惠。"""
+
+    activity_tags = unique_text_labels(row.get("activity_tag"))
+    campaigns = unique_text_labels(
+        row.get("overlapping_campaigns")
+    )
+    benefits = unique_text_labels(
+        row.get("overlapping_benefits")
+    )
+
+    context_parts: list[str] = []
+
+    if activity_tags:
+        context_parts.append(
+            "主活動：" + "、".join(activity_tags[:3])
+        )
+
+    if campaigns:
+        context_parts.append(
+            "同期檔期：" + "、".join(campaigns[:4])
+        )
+
+    if benefits:
+        context_parts.append(
+            "同期優惠：" + "、".join(benefits[:4])
+        )
+
+    return {
+        "activity_tags": activity_tags,
+        "campaigns": campaigns,
+        "benefits": benefits,
+        "label": "；".join(context_parts),
+        "has_excel_context": bool(context_parts),
+        "has_overlap": bool(campaigns or benefits),
+    }
+
+
+def infer_campaign_period(row: pd.Series) -> str:
+    """先採用 Excel 實際活動內容，無內容時才依日期推測。"""
+
+    excel_context = activity_excel_context(row)
+
+    if excel_context["has_excel_context"]:
+        return str(excel_context["label"])
+
+    text_parts = [
+        row.get("activity_gift"),
+    ]
+
+    campaign_text = " ".join(
+        str(value)
+        for value in text_parts
+        if has_text(value)
+    ).lower()
+
+    keyword_periods = [
+        (("春節", "過年", "年貨"), "農曆春節／年貨檔"),
+        (("女王節", "女神節", "38節", "3.8"), "3.8 女王節檔"),
+        (("白色情人",), "白色情人節檔"),
+        (("母親節",), "母親節檔"),
+        (("520",), "520 檔"),
+        (("618", "年中慶"), "618／年中慶檔"),
+        (("父親節", "88節"), "父親節檔"),
+        (("開學",), "開學檔"),
+        (("99購物", "9.9", "九九購物"), "9.9 購物節檔"),
+        (("雙十", "國慶"), "雙十／國慶檔"),
+        (("1111", "11.11", "雙11", "雙 11"), "雙 11 檔"),
+        (("black friday", "黑五"), "黑色星期五檔"),
+        (("1212", "12.12", "雙12", "雙 12"), "雙 12 檔"),
+        (("聖誕", "christmas"), "聖誕檔"),
+        (("年終", "跨年"), "年終／跨年檔"),
+    ]
+
+    for keywords, period_name in keyword_periods:
+        if any(
+            keyword in campaign_text
+            for keyword in keywords
+        ):
+            return period_name
+
+    start_date = row.get("activity_start_date")
+    end_date = row.get("activity_end_date")
+
+    if pd.isna(start_date) or pd.isna(end_date):
+        return "檔期資料不足"
+
+    activity_dates = pd.date_range(
+        pd.Timestamp(start_date).normalize(),
+        pd.Timestamp(end_date).normalize(),
+        freq="D",
+    )
+
+    month_days = {
+        (date.month, date.day)
+        for date in activity_dates
+    }
+
+    date_windows = [
+        (3, range(1, 9), "3.8 女王節檔"),
+        (3, range(12, 18), "白色情人節／三月中旬檔"),
+        (5, range(1, 13), "母親節前導檔"),
+        (5, range(15, 21), "520 檔"),
+        (6, range(12, 21), "618／年中慶檔"),
+        (8, range(1, 9), "父親節檔"),
+        (9, range(1, 11), "9.9 購物節檔"),
+        (10, range(7, 11), "雙十／國慶檔"),
+        (11, range(1, 12), "雙 11 檔"),
+        (12, range(1, 13), "雙 12 檔"),
+        (12, range(20, 26), "聖誕檔"),
+        (12, range(26, 32), "年終／跨年檔"),
+    ]
+
+    for month, days, period_name in date_windows:
+        if any(
+            (month, day) in month_days
+            for day in days
+        ):
+            return period_name
+
+    if any(date.day >= 25 for date in activity_dates):
+        return "月底／發薪後檔"
+
+    if any(date.day <= 5 for date in activity_dates):
+        return "月初檔"
+
+    return "日期推測：一般／品牌自訂檔"
+
+
+def format_date_range(
+    start_value: object,
+    end_value: object,
+) -> str:
+    """將觀察期間格式化為易讀日期範圍。"""
+
+    start_date = pd.to_datetime(start_value, errors="coerce")
+    end_date = pd.to_datetime(end_value, errors="coerce")
+
+    if pd.isna(start_date) or pd.isna(end_date):
+        return "日期未提供"
+
+    return (
+        f"{start_date.strftime('%Y-%m-%d')}～"
+        f"{end_date.strftime('%Y-%m-%d')}"
+    )
+
+
+def build_missing_data_note(row: pd.Series) -> str:
+    """逐段說明活動無法正式分類時缺少的資料。"""
+
+    gaps: list[str] = []
+
+    period_definitions = [
+        (
+            "baseline_complete",
+            "活動前基準",
+            "baseline_start_date",
+            "baseline_end_date",
+        ),
+        (
+            "campaign_complete",
+            "活動期間",
+            "activity_start_date",
+            "activity_end_date",
+        ),
+        (
+            "post_complete",
+            "活動後觀察",
+            "post_start_date",
+            "post_end_date",
+        ),
+    ]
+
+    for flag, name, start_column, end_column in period_definitions:
+        complete_flag = (
+            bool(row.get(flag))
+            if flag in row.index
+            else bool(row.get("all_periods_complete", False))
+        )
+
+        if not complete_flag:
+            gaps.append(
+                f"{name}資料未完整覆蓋（需要 "
+                f"{format_date_range(row.get(start_column), row.get(end_column))}）"
+            )
+
+    baseline_average = row.get(
+        "baseline_average_daily_sales"
+    )
+
+    if pd.isna(baseline_average):
+        gaps.append("活動前日均銷量缺漏，無法計算提升率")
+    elif float(baseline_average) == 0:
+        gaps.append("活動前日均銷量為 0，提升率無法作為分類依據")
+    elif pd.isna(row.get("uplift_rate")):
+        gaps.append("提升率無法計算")
+
+    if not gaps:
+        return "資料完整，可進行正式策略分類。"
+
+    return "；".join(gaps) + "。"
+
+
+def data_completeness_label(row: pd.Series) -> str:
+    """將日期覆蓋狀態改成不帶主觀判斷的完整度名稱。"""
+
+    if bool(row.get("all_periods_complete", False)):
+        return "完整（活動前、中、後皆齊）"
+
+    if bool(row.get("campaign_complete", False)):
+        return "部分（活動期完整，前或後缺漏）"
+
+    return "不足（活動期本身未完整）"
+
+
+def build_product_history_context(
+    row: pd.Series,
+    comparable_dataframe: pd.DataFrame,
+    include_current_comparison: bool = True,
+) -> str:
+    """將單筆活動與同商品其他可比活動的歷史表現比較。"""
+
+    product_id = str(row.get("product_id", ""))
+    history = comparable_dataframe[
+        normalize_product_id(comparable_dataframe["product_id"])
+        == product_id
+    ].copy()
+
+    current_start = pd.to_datetime(
+        row.get("activity_start_date"),
+        errors="coerce",
+    )
+    current_end = pd.to_datetime(
+        row.get("activity_end_date"),
+        errors="coerce",
+    )
+
+    if not history.empty:
+        same_row_mask = (
+            pd.to_datetime(
+                history["activity_start_date"],
+                errors="coerce",
+            ).eq(current_start)
+            & pd.to_datetime(
+                history["activity_end_date"],
+                errors="coerce",
+            ).eq(current_end)
+        )
+        history = history[~same_row_mask].copy()
+
+    history = history.dropna(subset=["uplift_rate"])
+
+    if history.empty:
+        return "同商品目前沒有其他資料完整的活動可比較"
+
+    median_uplift = history["uplift_rate"].median()
+    current_uplift = row.get("uplift_rate")
+
+    if not include_current_comparison:
+        return (
+            f"同商品另有 {len(history)} 筆資料完整的可比活動，"
+            f"提升率中位數 {format_percentage(median_uplift)}"
+        )
+
+    if pd.isna(current_uplift) or pd.isna(median_uplift):
+        comparison = "本次提升率暫時無法與歷史中位數比較"
+    else:
+        difference = float(current_uplift) - float(median_uplift)
+        direction = "高" if difference >= 0 else "低"
+        comparison = (
+            f"本次較歷史中位數{direction} "
+            f"{abs(difference):.1%} 個百分點"
+        )
+
+    return (
+        f"同商品另有 {len(history)} 筆資料完整的可比活動，"
+        f"提升率中位數 {format_percentage(median_uplift)}，"
+        f"{comparison}"
+    )
+
+
+def build_mechanism_test_plan(row: pd.Series) -> str:
+    """依 Excel 活動機制提出下一檔可執行的單一變因測試。"""
+
+    mechanism_text = " ".join(
+        str(row.get(column))
+        for column in ["activity_tag", "activity_gift"]
+        if has_text(row.get(column))
+    )
+
+    if any(keyword in mechanism_text for keyword in ["限搶", "限時"]):
+        return (
+            "保留商品與價格，僅測試一個限搶時段或限量門檻，"
+            "逐時追蹤曝光、下單與售罄時間"
+        )
+
+    if any(keyword in mechanism_text for keyword in ["加碼", "贈", "贈品"]):
+        return (
+            "固定曝光與價格，只測試贈品內容或滿額門檻其中一項，"
+            "追蹤贈品兌換率、轉換率與每筆贈品成本"
+        )
+
+    if any(keyword in mechanism_text for keyword in ["包套", "組合"]):
+        return (
+            "固定主商品價格，只調整一個組合品或組合價，"
+            "追蹤組合滲透率、客單價與連帶購買率"
+        )
+
+    if any(keyword in mechanism_text for keyword in ["折", "券", "降價"]):
+        return (
+            "固定流量來源，只測試一個折扣或券門檻，"
+            "同時追蹤實付價、轉換率與增量毛利"
+        )
+
+    return (
+        "維持商品、價格與渠道不變，每次只調整曝光、活動天數"
+        "或優惠門檻其中一項，避免多變因造成無法歸因"
+    )
+
+
+def calculate_strategy_metrics(
+    row: pd.Series,
+) -> dict[str, object]:
+    """計算策略表可直接使用的代營運延伸指標。"""
+
+    baseline_average = row.get(
+        "baseline_average_daily_sales"
+    )
+    campaign_average = row.get(
+        "campaign_average_daily_sales"
+    )
+    post_average = row.get(
+        "post_average_daily_sales"
+    )
+    campaign_total = row.get("campaign_total_sales")
+    activity_days = row.get("activity_days")
+    campaign_price = row.get("campaign_price")
+
+    incremental_sales: object = pd.NA
+    incremental_revenue: object = pd.NA
+    daily_revenue: object = pd.NA
+    post_retention_rate: object = pd.NA
+    post_vs_baseline_rate: object = pd.NA
+
+    if (
+        pd.notna(campaign_total)
+        and pd.notna(baseline_average)
+        and pd.notna(activity_days)
+    ):
+        incremental_sales = float(campaign_total) - (
+            float(baseline_average) * float(activity_days)
+        )
+
+    if (
+        pd.notna(incremental_sales)
+        and pd.notna(campaign_price)
+    ):
+        incremental_revenue = (
+            float(incremental_sales)
+            * float(campaign_price)
+        )
+
+    if (
+        pd.notna(row.get("estimated_revenue"))
+        and pd.notna(activity_days)
+        and float(activity_days) > 0
+    ):
+        daily_revenue = (
+            float(row.get("estimated_revenue"))
+            / float(activity_days)
+        )
+
+    if (
+        pd.notna(post_average)
+        and pd.notna(campaign_average)
+        and float(campaign_average) > 0
+    ):
+        post_retention_rate = (
+            float(post_average)
+            / float(campaign_average)
+        )
+
+    if (
+        pd.notna(post_average)
+        and pd.notna(baseline_average)
+        and float(baseline_average) > 0
+    ):
+        post_vs_baseline_rate = (
+            float(post_average) - float(baseline_average)
+        ) / float(baseline_average)
+
+    return {
+        "基準日均銷量": baseline_average,
+        "活動日均銷量": campaign_average,
+        "活動增量銷量": incremental_sales,
+        "推估增量營收": incremental_revenue,
+        "活動日均營收": daily_revenue,
+        "活動後銷量延續率": post_retention_rate,
+        "活動後較基準變化": post_vs_baseline_rate,
+    }
+
+
+def build_attribution_note(
+    row: pd.Series,
+    campaign_period: str,
+    metrics: dict[str, object],
+) -> str:
+    """產生保守且可驗證的檔期與成效歸因說明。"""
+
+    notes: list[str] = []
+
+    excel_context = activity_excel_context(row)
+
+    if excel_context["has_excel_context"]:
+        notes.append(
+            f"活動 Excel 顯示「{campaign_period}」；"
+            "這些是本次歸因候選，不是只由日期猜測的檔期"
+        )
+    elif campaign_period not in {
+        "日期推測：一般／品牌自訂檔",
+        "檔期資料不足",
+    }:
+        notes.append(
+            f"活動表沒有可用名稱，僅依日期推測可能接近"
+            f"「{campaign_period}」，需人工確認"
+        )
+    else:
+        notes.append(
+            "活動表未提供可辨識的檔期名稱，較適合先視為"
+            "品牌自有活動，並與相鄰無活動週比較"
+        )
+
+    overlapping_campaigns = row.get(
+        "overlapping_campaigns"
+    )
+    overlapping_benefits = row.get(
+        "overlapping_benefits"
+    )
+
+    overlap_labels = (
+        unique_text_labels(overlapping_campaigns)
+        + unique_text_labels(overlapping_benefits)
+    )
+
+    if overlap_labels:
+        notes.append(
+            "同期間另有「"
+            + "；".join(overlap_labels)
+            + "」，目前不能把增量完全歸因於單一活動"
+        )
+
+    post_vs_baseline_rate = metrics[
+        "活動後較基準變化"
+    ]
+
+    if (
+        pd.notna(post_vs_baseline_rate)
+        and float(post_vs_baseline_rate) <= -0.10
+    ):
+        notes.append(
+            "活動後日均銷量低於活動前基準至少 10%，"
+            "可能有需求提前透支或活動結束後回落"
+        )
+    elif (
+        pd.notna(post_vs_baseline_rate)
+        and float(post_vs_baseline_rate) >= 0.10
+    ):
+        notes.append(
+            "活動後日均銷量仍高於活動前基準至少 10%，"
+            "可能存在曝光延續或新需求留存"
+        )
+
+    if not bool(row.get("all_periods_complete", False)):
+        notes.append(
+            "觀察期間尚未完整覆蓋，本次只能列出候選原因，"
+            "不能進行正式成效歸因"
+        )
+
+    notes.append(
+        "以上為關聯性推估，建議以未參與活動的相似商品、"
+        "同期去年或區域／渠道對照組驗證"
+    )
+
+    return "；".join(notes) + "。"
+
+
+def build_strategy_reason(
+    row: pd.Series,
+    category: str,
+    settings: AnalysisSettings,
+) -> str:
+    """用實際數字說明單筆活動為何落入該策略分類。"""
+
+    uplift = row.get("uplift_rate")
+    campaign_sales = row.get("campaign_total_sales")
+
+    uplift_text = format_percentage(uplift)
+    sales_text = (
+        f"{float(campaign_sales):,.0f}"
+        if pd.notna(campaign_sales)
+        else "無法計算"
+    )
+
+    if category == "資料不足／待補資料":
+        return (
+            "本活動先保留在清單，但不套用延續／優化／檢討規則。"
+            + build_missing_data_note(row)
+        )
+
+    if category == "建議延續":
+        rule_text = (
+            f"提升率 ≥ {settings.high_uplift_threshold:.1%}，"
+            f"且總銷量 ≥ {settings.minimum_campaign_sales:,.0f}"
+        )
+    elif category == "建議檢討":
+        rule_text = (
+            f"提升率 < {settings.low_uplift_threshold:.1%}"
+        )
+    else:
+        rule_text = (
+            f"{settings.low_uplift_threshold:.1%} ≤ 提升率 < "
+            f"{settings.high_uplift_threshold:.1%}，或提升率已達"
+            "高門檻但總銷量未達最低規模"
+        )
+
+    return (
+        f"本活動提升率 {uplift_text}、總銷量 {sales_text}，"
+        f"套用規則「{rule_text}」後歸為{category}。"
+    )
+
+
+def build_personalized_recommendation(
+    row: pd.Series,
+    category: str,
+    campaign_period: str,
+    metrics: dict[str, object],
+    settings: AnalysisSettings,
+    history_context: str,
+) -> str:
+    """依單筆活動表現、期間與風險產生差異化建議。"""
+
+    product_name = row.get("product_name")
+    product_text = (
+        str(product_name).strip()
+        if has_text(product_name)
+        else str(row.get("product_id", "此商品"))
+    )
+
+    uplift_text = format_percentage(row.get("uplift_rate"))
+    activity_days = row.get("activity_days")
+    days_text = (
+        f"{int(activity_days)} 天"
+        if pd.notna(activity_days)
+        else "目前活動期間"
+    )
+    campaign_sales = row.get("campaign_total_sales")
+    sales_text = (
+        f"{float(campaign_sales):,.0f} 件"
+        if pd.notna(campaign_sales)
+        else "銷量資料不足"
+    )
+    incremental_sales = metrics["活動增量銷量"]
+    increment_text = (
+        f"約 {float(incremental_sales):+,.0f} 件"
+        if pd.notna(incremental_sales)
+        else "暫時無法估算"
+    )
+    post_retention_rate = metrics["活動後銷量延續率"]
+    overlap_exists = any(
+        has_text(row.get(column))
+        for column in [
+            "overlapping_campaigns",
+            "overlapping_benefits",
+        ]
+    )
+
+    if category == "資料不足／待補資料":
+        return (
+            f"【績效診斷】「{product_text}」於 {campaign_period}執行"
+            f" {days_text}，目前記錄到 {sales_text}；{history_context}。"
+            "【建議決策】暫不判定延續、優化或檢討，也不採用未完整"
+            "期間計算的提升率與增量。"
+            f"【下一檔執行】{build_missing_data_note(row)}"
+            "【驗證方式】由使用者選定活動前基準與活動後觀察天數，"
+            "補齊相對應日期後重算，並保留活動 Excel 的檔期與優惠標記。"
+        )
+
+    opening = (
+        f"「{product_text}」在 {campaign_period}的 {days_text}內"
+        f"銷售 {sales_text}，日均銷量較活動前變動 {uplift_text}，"
+        f"推估增量為 {increment_text}；{history_context}。"
+    )
+
+    actions: list[str] = []
+
+    if category == "建議延續":
+        if (
+            pd.notna(post_retention_rate)
+            and float(post_retention_rate) >= 0.80
+        ):
+            actions.append(
+                "活動後仍保留至少八成活動期日均銷量，"
+                "下次可先增加 10%～20% 曝光或備貨，"
+                "並維持相同商品與優惠機制做單一變因驗證"
+            )
+        else:
+            actions.append(
+                "成效達延續門檻，但活動後回落較明顯；"
+                "建議保留核心優惠，先以相同天數重跑，"
+                "不要同時放大折扣與曝光"
+            )
+
+        if pd.notna(row.get("campaign_average_daily_sales")):
+            suggested_stock = (
+                float(row.get("campaign_average_daily_sales"))
+                * (
+                    float(activity_days)
+                    if pd.notna(activity_days)
+                    else 1.0
+                )
+                * 1.15
+            )
+            actions.append(
+                f"若下次期間相同，可先以約 {suggested_stock:,.0f} 件"
+                "作為含 15% 緩衝的備貨參考，再依實際庫存週轉修正"
+            )
+
+    elif category == "建議優化":
+        if (
+            pd.notna(row.get("uplift_rate"))
+            and float(row.get("uplift_rate"))
+            >= settings.high_uplift_threshold
+        ):
+            actions.append(
+                "提升率已高但總銷量規模不足，優先判斷是否為"
+                "曝光、庫存或受眾過窄，而不是直接加深折扣；"
+                "下次可擴大一個流量入口並保留對照組"
+            )
+        elif (
+            pd.notna(row.get("uplift_rate"))
+            and float(row.get("uplift_rate")) >= 0
+        ):
+            actions.append(
+                "活動帶來正向但有限的增幅，建議在優惠門檻、"
+                "主圖／文案或曝光時段中只選一項做 A/B 測試，"
+                "以提升率與增量營收共同決定是否放大"
+            )
+        else:
+            actions.append(
+                "目前接近低成效邊界，先縮小活動範圍，"
+                "重新檢查價格帶、組合商品與目標客群匹配度"
+            )
+
+        if pd.notna(activity_days) and float(activity_days) >= 10:
+            actions.append(
+                "檔期偏長，應拆看前／中／後段日銷，"
+                "確認是否因後段疲乏拉低平均成效"
+            )
+        elif pd.notna(activity_days) and float(activity_days) <= 3:
+            actions.append(
+                "檔期偏短，可先確認曝光是否充分，再測試延長"
+                " 1～2 天，而非直接判定商品沒有潛力"
+            )
+
+    else:
+        post_vs_baseline_rate = metrics[
+            "活動後較基準變化"
+        ]
+
+        if (
+            pd.notna(post_vs_baseline_rate)
+            and float(post_vs_baseline_rate) > 0
+        ):
+            actions.append(
+                "活動期表現低於基準、但活動後回升，可能是活動"
+                "設計抑制轉換或消費者延後購買；應檢查價格、"
+                "結帳門檻與贈品規則，不建議照原方案延續"
+            )
+        else:
+            actions.append(
+                "活動期未優於基準，先停止原樣複製，依序檢查"
+                "缺貨、頁面流量、轉換率、實付價與競品價格；"
+                "確認問題來源後再用較小預算重測"
+            )
+
+    mechanism_plan = build_mechanism_test_plan(row)
+    decision_text = actions[0]
+    execution_parts = actions[1:] + [mechanism_plan]
+    validation_parts = [
+        "以活動提升率、增量銷量與增量營收作為第一層成效指標，"
+        "補有成本資料後改以增量毛利作為放大或停損依據"
+    ]
+
+    if overlap_exists:
+        validation_parts.append(
+            "活動 Excel 顯示本次存在同期檔期或優惠重疊；"
+            "下次應保留一組未疊加優惠的對照商品／渠道，"
+            "才能拆出主活動、平台流量與優惠各自的增量"
+        )
+    else:
+        validation_parts.append(
+            "以下一檔同商品、相近星期結構與相同觀察窗比較，"
+            "避免只看單次活動的絕對銷量"
+        )
+
+    if not bool(row.get("all_periods_complete", False)):
+        validation_parts.append(
+            "資料完整度不足，應補齊活動前後觀察日再決策"
+        )
+
+    return (
+        f"【績效診斷】{opening}"
+        f"【建議決策】{decision_text}。"
+        f"【下一檔執行】{'；'.join(execution_parts)}。"
+        f"【驗證方式】{'；'.join(validation_parts)}。"
+    )
+
+
 # =========================================================
 # 第一階段：銷量與活動資料整合
 # =========================================================
@@ -167,12 +999,7 @@ def prepare_daily_sales(
         sales["product_id"]
     )
 
-    sales["product_name"] = (
-        sales["product_name"]
-        .astype("string")
-        .str.strip()
-        .replace("", pd.NA)
-    )
+    sales["product_name"] = normalize_text(sales["product_name"])
 
     sales["quantity"] = pd.to_numeric(
         sales["quantity"],
@@ -719,7 +1546,9 @@ def prepare_daily_performance_sales(
 ) -> pd.DataFrame:
     """整理活動成效分析使用的每日商品銷量。"""
 
-    integrated = integrated_dataframe.copy()
+    integrated = coerce_arrow_strings_to_object(
+        integrated_dataframe
+    )
 
     required_columns = [
         "sale_date",
@@ -814,7 +1643,9 @@ def prepare_activity_periods(
 ) -> pd.DataFrame:
     """整理可供成效分析使用的商品活動期間。"""
 
-    activities = activity_dataframe.copy()
+    activities = coerce_arrow_strings_to_object(
+        activity_dataframe
+    )
 
     required_columns = [
         "product_id",
@@ -1076,14 +1907,9 @@ def calculate_activity_performance(
         estimated_revenue = pd.NA
 
     overlapping_campaigns = (
-        campaign_sales["campaign_name"]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .replace("", pd.NA)
-        .dropna()
-        .unique()
-        .tolist()
+        safe_unique_text_list(
+            campaign_sales["campaign_name"]
+        )
         if not campaign_sales.empty
         else []
     )
@@ -1096,15 +1922,8 @@ def calculate_activity_performance(
             "product_benefit_type",
         ]:
             if benefit_column in campaign_sales.columns:
-                values = (
+                values = safe_unique_text_list(
                     campaign_sales[benefit_column]
-                    .dropna()
-                    .astype(str)
-                    .str.strip()
-                    .replace("", pd.NA)
-                    .dropna()
-                    .unique()
-                    .tolist()
                 )
 
                 for value in values:
@@ -1296,6 +2115,14 @@ def generate_strategy_report(
 
     settings = settings or AnalysisSettings()
 
+    if (
+        settings.high_uplift_threshold
+        <= settings.low_uplift_threshold
+    ):
+        raise ValueError(
+            "高成效提升率門檻必須大於低成效提升率門檻。"
+        )
+
     if performance_dataframe is None:
         raise ValueError("缺少活動成效分析結果。")
 
@@ -1328,18 +2155,19 @@ def generate_strategy_report(
             + "、".join(missing_columns)
         )
 
-    analysis_base = performance.copy()
+    decision_ready_mask = performance["uplift_rate"].notna()
 
     if settings.only_complete_periods:
-        analysis_base = analysis_base[
-            analysis_base["all_periods_complete"]
-        ].copy()
+        decision_ready_mask = (
+            decision_ready_mask
+            & performance["all_periods_complete"]
+        )
 
-    valid_uplift = analysis_base.dropna(
-        subset=["uplift_rate"]
-    ).copy()
+    valid_uplift = performance[
+        decision_ready_mask
+    ].copy()
 
-    high_performance = valid_uplift[
+    continue_mask = (
         (
             valid_uplift["uplift_rate"]
             >= settings.high_uplift_threshold
@@ -1348,22 +2176,25 @@ def generate_strategy_report(
             valid_uplift["campaign_total_sales"]
             >= settings.minimum_campaign_sales
         )
+    )
+
+    review_mask = (
+        valid_uplift["uplift_rate"]
+        < settings.low_uplift_threshold
+    )
+
+    optimize_mask = ~(continue_mask | review_mask)
+
+    high_performance = valid_uplift[
+        continue_mask
     ].copy()
 
     low_performance = valid_uplift[
-        valid_uplift["uplift_rate"]
-        < settings.low_uplift_threshold
+        review_mask
     ].copy()
 
     stable_performance = valid_uplift[
-        (
-            valid_uplift["uplift_rate"]
-            >= settings.low_uplift_threshold
-        )
-        & (
-            valid_uplift["uplift_rate"]
-            < settings.high_uplift_threshold
-        )
+        optimize_mask
     ].copy()
 
     incomplete_periods = performance[
@@ -1393,48 +2224,44 @@ def generate_strategy_report(
 
     strategy_rows: list[dict[str, object]] = []
 
-    for _, row in high_performance.iterrows():
-        strategy_rows.append(
-            {
-                "策略分類": "建議延續",
-                "商品活動": activity_label(row),
-                "活動提升率": row["uplift_rate"],
-                "活動總銷量": row[
-                    "campaign_total_sales"
-                ],
-                "推估營收": row.get("estimated_revenue"),
-                "資料信心": row.get("data_confidence"),
-                "建議": (
-                    "保留此活動機制，"
-                    "並測試擴大曝光、增加庫存"
-                    "或延伸至相似商品。"
-                ),
-            }
+    for row_index, row in performance.iterrows():
+        decision_ready = bool(
+            decision_ready_mask.loc[row_index]
         )
 
-    for _, row in low_performance.iterrows():
-        strategy_rows.append(
-            {
-                "策略分類": "建議檢討",
-                "商品活動": activity_label(row),
-                "活動提升率": row["uplift_rate"],
-                "活動總銷量": row[
-                    "campaign_total_sales"
-                ],
-                "推估營收": row.get("estimated_revenue"),
-                "資料信心": row.get("data_confidence"),
-                "建議": (
-                    "檢查活動價格、曝光位置、"
-                    "商品吸引力、庫存與重疊優惠，"
-                    "不建議直接照原方案延續。"
-                ),
+        if not decision_ready:
+            category = "資料不足／待補資料"
+        elif row["uplift_rate"] < settings.low_uplift_threshold:
+            category = "建議檢討"
+        elif (
+            row["uplift_rate"]
+            >= settings.high_uplift_threshold
+            and row["campaign_total_sales"]
+            >= settings.minimum_campaign_sales
+        ):
+            category = "建議延續"
+        else:
+            category = "建議優化"
+
+        campaign_period = infer_campaign_period(row)
+        strategy_metrics = calculate_strategy_metrics(row)
+        excel_context = activity_excel_context(row)
+
+        if not decision_ready:
+            strategy_metrics = {
+                metric_name: pd.NA
+                for metric_name in strategy_metrics
             }
+
+        history_context = build_product_history_context(
+            row=row,
+            comparable_dataframe=valid_uplift,
+            include_current_comparison=decision_ready,
         )
 
-    for _, row in stable_performance.iterrows():
         strategy_rows.append(
             {
-                "策略分類": "建議優化",
+                "策略分類": category,
                 "商品活動": activity_label(row),
                 "活動提升率": row["uplift_rate"],
                 "活動總銷量": row[
@@ -1442,24 +2269,78 @@ def generate_strategy_report(
                 ],
                 "推估營收": row.get("estimated_revenue"),
                 "資料信心": row.get("data_confidence"),
-                "建議": (
-                    "活動有一定效果但未達高成效門檻，"
-                    "可透過優惠門檻、活動文案"
-                    "或曝光時間進行小幅測試。"
+                "資料完整度": data_completeness_label(row),
+                "活動天數": row.get("activity_days"),
+                "正式判讀": decision_ready,
+                "資料缺漏說明": build_missing_data_note(row),
+                **strategy_metrics,
+                "判斷依據": build_strategy_reason(
+                    row=row,
+                    category=category,
+                    settings=settings,
+                ),
+                "可能影響檔期／活動": campaign_period,
+                "檔期判讀來源": (
+                    "活動 Excel"
+                    if excel_context["has_excel_context"]
+                    else "日期推測"
+                ),
+                "活動／優惠重疊": bool(
+                    excel_context["has_overlap"]
+                ),
+                "檔期／歸因判讀": build_attribution_note(
+                    row=row,
+                    campaign_period=campaign_period,
+                    metrics=strategy_metrics,
+                ),
+                "建議": build_personalized_recommendation(
+                    row=row,
+                    category=category,
+                    campaign_period=campaign_period,
+                    metrics=strategy_metrics,
+                    settings=settings,
+                    history_context=history_context,
                 ),
             }
         )
 
     strategy_dataframe = pd.DataFrame(strategy_rows)
 
+    if not strategy_dataframe.empty:
+        category_order = {
+            "建議延續": 0,
+            "建議優化": 1,
+            "建議檢討": 2,
+            "資料不足／待補資料": 3,
+        }
+        strategy_dataframe["分類排序"] = (
+            strategy_dataframe["策略分類"].map(
+                category_order
+            )
+        )
+        strategy_dataframe = (
+            strategy_dataframe.sort_values(
+                by=["分類排序", "活動提升率"],
+                ascending=[True, False],
+            )
+            .drop(columns=["分類排序"])
+            .reset_index(drop=True)
+        )
+
     total_count = len(performance)
     complete_count = int(
         performance["all_periods_complete"].sum()
     )
 
-    high_count = len(high_performance)
-    low_count = len(low_performance)
-    stable_count = len(stable_performance)
+    category_counts = strategy_dataframe[
+        "策略分類"
+    ].value_counts()
+    high_count = int(category_counts.get("建議延續", 0))
+    low_count = int(category_counts.get("建議檢討", 0))
+    stable_count = int(category_counts.get("建議優化", 0))
+    insufficient_count = int(
+        category_counts.get("資料不足／待補資料", 0)
+    )
 
     median_uplift = valid_uplift["uplift_rate"].median()
 
@@ -1470,15 +2351,44 @@ def generate_strategy_report(
         "",
         f"- 共分析 {total_count} 筆商品活動。",
         f"- 完整前、中、後觀察期間：{complete_count} 筆。",
-        f"- 高成效活動：{high_count} 筆。",
-        f"- 一般成效活動：{stable_count} 筆。",
-        f"- 低成效活動：{low_count} 筆。",
+        f"- 建議延續：{high_count} 筆。",
+        f"- 建議優化：{stable_count} 筆。",
+        f"- 建議檢討：{low_count} 筆。",
+        f"- 資料不足／待補資料：{insufficient_count} 筆（仍保留在清單）。",
         (
             "- 可計算活動的提升率中位數："
             f"{format_percentage(median_uplift)}。"
         ),
         "",
-        "## 二、策略建議",
+        "## 二、分類標準",
+        "",
+        (
+            "- 建議延續：活動提升率 ≥ "
+            f"{settings.high_uplift_threshold:.1%}，且活動總銷量 ≥ "
+            f"{settings.minimum_campaign_sales:,.0f}。"
+        ),
+        (
+            "- 建議檢討：活動提升率 < "
+            f"{settings.low_uplift_threshold:.1%}。"
+        ),
+        (
+            "- 建議優化：提升率介於上述門檻，或提升率已達高門檻"
+            "但活動總銷量未達最低規模。"
+        ),
+        (
+            "- 活動提升率 =（活動期平均日銷量－活動前平均日銷量）"
+            "÷ 活動前平均日銷量。"
+        ),
+        (
+            "- 資料不足／待補資料：活動前、中、後觀察期間未完整，"
+            "或活動前基準為 0，先不套用三種正式策略分類。"
+        ),
+        (
+            "- 活動與檔期名稱以活動 Excel 為主要依據；"
+            "只有 Excel 無可用名稱時才以日期推測。"
+        ),
+        "",
+        "## 三、策略建議",
         "",
     ]
 
@@ -1518,7 +2428,7 @@ def generate_strategy_report(
     report_lines.extend(
         [
             "",
-            "## 三、資料限制",
+            "## 四、資料限制",
             "",
             (
                 "- 觀察期間不完整："
