@@ -82,6 +82,12 @@ strategy_center_page = st.Page(
     icon=":material/assignment:",
 )
 
+whatif_simulation_page = st.Page(
+    PAGES_DIR / "17_情境模擬.py",
+    title="情境模擬",
+    icon=":material/tune:",
+)
+
 management_report_page = st.Page(
     PAGES_DIR / "16_主管報表中心.py",
     title="主管報表中心",
@@ -156,6 +162,7 @@ navigation = st.navigation(
             product_home_page,
             activity_insight_page,
             strategy_center_page,
+            whatif_simulation_page,
             management_report_page,
             ai_advisor_page,
         ],
