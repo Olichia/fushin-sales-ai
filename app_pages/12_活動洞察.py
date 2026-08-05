@@ -489,9 +489,13 @@ if split_filter == "僅看可拆分":
         filtered_summary["split_status"] == "可拆分"
     ]
 elif split_filter == "僅看不可拆分":
+    # 「不可分割活動組合」（母子活動群組已被明確定義）與
+    # 「多活動疊加,待瀑布法檢驗」（單純疊加多個標籤，還沒
+    # 確定能不能拆）都算「不可拆分」，取代舊的單一分類值。
     filtered_unit_overview = filtered_unit_overview[
-        filtered_unit_overview["classification"]
-        == "多活動合併,不可分離"
+        filtered_unit_overview["classification"].isin(
+            ["多活動疊加,待瀑布法檢驗", "不可分割活動組合"]
+        )
     ]
     filtered_pairing = filtered_pairing[
         filtered_pairing["split_status"] != "可拆分"
@@ -548,7 +552,9 @@ total_incremental_gmv = filtered_unit_overview[
 ].sum()
 
 multi_avg = filtered_unit_overview.loc[
-    filtered_unit_overview["classification"] == "多活動合併,不可分離",
+    filtered_unit_overview["classification"].isin(
+        ["多活動疊加,待瀑布法檢驗", "不可分割活動組合"]
+    ),
     "net_revenue_effect_per_day",
 ].mean()
 
@@ -1279,7 +1285,7 @@ if not filtered_pairing.empty:
 
     with pairing_tab2:
         st.caption(
-            "各活動組合的拆分狀態、涵蓋天數與總增益"
+            "各活動組合的拆分狀態、涵蓋天數與全商品加總總增益"
             "（對應參考報表工作表7）。"
         )
 
@@ -1290,9 +1296,22 @@ if not filtered_pairing.empty:
             "total_gain",
         ]
 
-        summary_view_display = filtered_summary[
-            summary_view_columns
-        ].reset_index(drop=True)
+        # filtered_summary 是「每個商品 × 每個活動組合」一列，
+        # 同一個活動組合會依商品數重複出現。這裡改成依活動組合
+        # 彙總：涵蓋天數是日曆驅動的，同一組合下每個商品理論上
+        # 天數一致，取最大值代表即可；總增益則需要把所有商品的
+        # 效應加總，才代表這個活動組合對全商品的整體影響。
+        summary_view_display = (
+            filtered_summary.groupby(
+                ["corresponding_activities", "split_status"],
+                as_index=False,
+            )
+            .agg(
+                total_days=("total_days", "max"),
+                total_gain=("total_gain", "sum"),
+            )[summary_view_columns]
+            .reset_index(drop=True)
+        )
 
         summary_view_column_config = {
             "corresponding_activities": st.column_config.Column(
