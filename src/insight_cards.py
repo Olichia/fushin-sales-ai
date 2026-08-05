@@ -85,16 +85,20 @@ def render_ai_insight_card(
     finding: str,
     reason: str,
     action: str,
+    confidence: str | None = None,
 ) -> None:
     """
-    以「發現／原因／建議」三段格式呈現規則式的 AI 洞察摘要。
+    以「發現／原因／建議」三段格式呈現規則式的 AI 洞察摘要，
+    confidence 給定時在標題列右側加上資料信心徽章。
 
     跟 render_structured_advisor_card() 的差異：這裡的內容是直接
-    從已經算好的數字組句（例如情境模擬結果），不是即時呼叫 LLM，
-    所以標籤用「✨ AI 洞察」而不是「✨ AI 結構化回覆」，讓使用者
-    能分辨哪些內容是即時 AI 判讀、哪些是規則式摘要——兩者都有用，
-    但不該混為一談。適合需要使用者反覆調整輸入、即時看到結果的
-    場景（LLM 呼叫的延遲不適合這種互動節奏）。
+    從已經算好的數字組句（例如情境模擬結果、既有的策略分類／
+    風險判斷），不是即時呼叫 LLM，所以標籤用「✨ AI 洞察」而不是
+    「✨ AI 結構化回覆」，讓使用者能分辨哪些內容是即時 AI 判讀、
+    哪些是規則式摘要——兩者都有用，但不該混為一談。適合需要
+    使用者反覆調整輸入、即時看到結果的場景（LLM 呼叫的延遲不
+    適合這種互動節奏），也適合單純重新包裝既有規則式分析結果的
+    場景。
     """
 
     rows = [
@@ -111,10 +115,22 @@ def render_ai_insight_card(
         for label, text in rows
     )
 
+    if confidence is not None:
+        confidence_class = _CONFIDENCE_BADGE_CLASS.get(
+            confidence, "badge-confidence-mid"
+        )
+        confidence_badge = (
+            f'<span class="badge {confidence_class}">'
+            f"資料信心：{html.escape(str(confidence))}</span>"
+        )
+    else:
+        confidence_badge = ""
+
     card_html = (
         '<div class="advisor-card">'
         '<div class="advisor-card-header">'
         '<span class="advisor-tag">✨ AI 洞察</span>'
+        f"{confidence_badge}"
         "</div>"
         f"{row_html}"
         "</div>"

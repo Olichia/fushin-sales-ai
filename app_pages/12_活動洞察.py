@@ -3,7 +3,6 @@ import sys
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 
 # =========================================================
@@ -17,9 +16,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 from src.column_labels import default_column_config
+from src.insight_cards import render_ai_insight_card
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
     CATEGORY_COLOR_MAP,
+    compute_confidence_label,
     compute_risk_mask,
     prepare_unit_overview_for_display,
 )
@@ -36,11 +37,6 @@ MINIMUM_DAYS_FOR_CONFIDENCE = 2
 CHART_MAX_HEIGHT = 460
 CHART_ROW_HEIGHT = 22
 CHART_MIN_HEIGHT = 280
-
-# 雙軌配對拆解圖在疊加多個活動時會多顯示一個 st.selectbox，
-# 這段高度差會讓左右兩欄圖表底部對不齊，縮小圖表容器高度
-# 抵銷差距（估計值，抓 Streamlit selectbox 標準高度+上下間距）。
-EXTRA_WIDGET_HEIGHT_OFFSET = 56
 
 
 def resolve_bar_chart_sizing(
@@ -523,6 +519,10 @@ if filtered_unit_overview.empty:
     st.warning("目前篩選條件下沒有活動單位資料。")
     st.stop()
 
+filtered_confidence_label = compute_confidence_label(
+    filtered_unit_overview
+)
+
 
 # =========================================================
 # 聯動篩選提示條（反映 SKU 篩選狀態）
@@ -667,7 +667,7 @@ product_chart_col1, product_chart_col2 = st.columns(2)
 
 with product_chart_col1:
     st.markdown("###### 活動單位淨增益排行")
-    st.caption("點一下長條可切換下方「雙軌配對拆解圖」檢視對象；顏色＝分類")
+    st.caption("顏色＝分類")
 
     ranking_data = filtered_unit_overview.sort_values(
         "net_revenue_effect_per_day", ascending=True
@@ -734,21 +734,10 @@ with product_chart_col1:
     )
 
     with st.container(height=CHART_MAX_HEIGHT):
-        bar_event = st.plotly_chart(
+        st.plotly_chart(
             ranking_figure,
             use_container_width=True,
-            on_select="rerun",
-            selection_mode="points",
-            key="unit_ranking_chart",
         )
-
-    if bar_event and bar_event.selection.points:
-        clicked_unit_label = bar_event.selection.points[0].get("y")
-
-        if clicked_unit_label:
-            st.session_state[
-                "campaign_insight_selected_unit"
-            ] = clicked_unit_label
 
 with product_chart_col2:
     st.markdown("###### 折扣與增益散佈矩陣")
@@ -791,200 +780,204 @@ with product_chart_col2:
                 scatter_figure, use_container_width=True
             )
 
-st.markdown("###### 活動單位總覽明細")
+st.markdown("##### 🤖 AI 洞察")
 
-unit_detail_columns = [
-    "unit_code",
-    "product_name",
-    "corresponding_activities_label",
-    "days",
-    "baseline_price",
-    "unit_avg_price",
-    "volume_effect_per_day",
-    "price_effect_per_day",
-    "net_revenue_effect_per_day",
-    "classification",
-    "hint",
-]
+if selected_sku_ids:
+    st.caption("依目前篩選的商品逐一列出最佳與較差的活動組合。")
 
-unit_detail_display = filtered_unit_overview[
-    unit_detail_columns
-].sort_values(
-    "net_revenue_effect_per_day", ascending=False
-).reset_index(drop=True)
-
-unit_detail_column_config = {
-    "baseline_price": st.column_config.NumberColumn(
-        "基準售價", format="%.0f"
-    ),
-    "unit_avg_price": st.column_config.NumberColumn(
-        "活動售價", format="%.0f"
-    ),
-    "volume_effect_per_day": st.column_config.NumberColumn(
-        "量增效應/日", format="%.0f"
-    ),
-    "price_effect_per_day": st.column_config.NumberColumn(
-        "存量降價/日", format="%.0f"
-    ),
-    "net_revenue_effect_per_day": st.column_config.NumberColumn(
-        "淨增益/日", format="%.0f"
-    ),
-    "hint": st.column_config.Column("提示"),
-}
-unit_detail_column_config.update(
-    default_column_config(
-        unit_detail_display,
-        exclude=unit_detail_column_config.keys(),
-    )
-)
-
-table_event = st.dataframe(
-    unit_detail_display,
-    use_container_width=True,
-    hide_index=True,
-    column_config=unit_detail_column_config,
-    on_select="rerun",
-    selection_mode="single-row",
-    key="unit_overview_detail_table",
-)
-
-if table_event and table_event.selection.rows:
-    selected_row_index = table_event.selection.rows[0]
-    st.session_state["campaign_insight_selected_unit"] = (
-        unit_detail_display.iloc[selected_row_index][
-            "unit_code"
+    for sku_index, sku_id in enumerate(selected_sku_ids):
+        product_rows = filtered_unit_overview[
+            filtered_unit_overview["product_id"] == sku_id
         ]
-    )
 
-st.markdown("##### 💡 系統洞察")
+        if product_rows.empty:
+            continue
 
-with st.container(border=True):
-    if selected_sku_ids:
-        st.markdown("**💡 商品洞察**")
-        st.caption("依目前篩選的商品逐一列出最佳與較差的活動組合。")
+        product_name = product_rows.iloc[0]["product_name"]
 
-        for sku_index, sku_id in enumerate(selected_sku_ids):
-            product_rows = filtered_unit_overview[
-                filtered_unit_overview["product_id"] == sku_id
-            ]
+        if sku_index > 0:
+            st.divider()
 
-            if product_rows.empty:
-                continue
+        st.markdown(f"**{product_name}（{sku_id}）**")
 
-            product_name = product_rows.iloc[0]["product_name"]
+        best_row = product_rows.sort_values(
+            "net_revenue_effect_per_day", ascending=False
+        ).iloc[0]
 
-            if sku_index > 0:
-                st.divider()
+        best_gift_text = lookup_gift_text(
+            sku_id, best_row["unit_code"]
+        )
 
-            st.markdown(f"**{product_name}（{sku_id}）**")
-
-            best_row = product_rows.sort_values(
-                "net_revenue_effect_per_day", ascending=False
-            ).iloc[0]
-
-            best_gift_text = lookup_gift_text(
-                sku_id, best_row["unit_code"]
-            )
-
-            st.markdown(
-                f"- ✅ 表現最佳：活動單位 **{best_row['unit_code']}**"
+        render_ai_insight_card(
+            finding=(
+                f"表現最佳：活動單位 {best_row['unit_code']}"
                 f"（{best_row['corresponding_activities_label']}）"
                 + (
                     f"，搭配「{best_gift_text}」"
                     if best_gift_text
                     else ""
                 )
-                + f"，淨增益達 "
-                f"<span style='color:#009B73;font-weight:700;'>"
-                f"+\\${best_row['net_revenue_effect_per_day']:,.0f}/日"
-                f"</span>。",
-                unsafe_allow_html=True,
-            )
-
-            worst_row = product_rows.sort_values(
-                "net_revenue_effect_per_day", ascending=True
-            ).iloc[0]
-
-            worst_is_risky = (
-                pd.notna(worst_row["price_effect_per_day"])
-                and worst_row["price_effect_per_day"] < 0
-                and abs(worst_row["price_effect_per_day"])
-                > abs(worst_row["volume_effect_per_day"])
-            )
-
-            risk_note = (
-                "，存量降價效應大於量增效應，屬於毛利侵蝕風險"
-                if worst_is_risky
-                else ""
-            )
-
-            st.markdown(
-                f"- ⚠️ 表現較差：活動單位 **{worst_row['unit_code']}**"
-                f"（{worst_row['corresponding_activities_label']}），"
-                f"淨增益 \\${worst_row['net_revenue_effect_per_day']:,.0f}/日"
-                f"{risk_note}。"
-            )
-
-            st.markdown("**📊 折扣率洞察**")
-            render_discount_rate_insight(
-                product_rows, show_product_name=False
-            )
-
-    else:
-        st.markdown("**💡 最佳折扣區間**")
-
-        discount_candidates = filtered_unit_overview[
-            filtered_unit_overview["net_revenue_effect_per_day"] > 0
-        ].sort_values("net_revenue_effect_per_day", ascending=False)
-
-        if discount_candidates.empty:
-            st.caption("目前篩選範圍內沒有淨增益為正的活動單位。")
-        else:
-            best_row = discount_candidates.iloc[0]
-            discount_text = (
-                f"{best_row['discount_rate']:.0%}折"
-                if pd.notna(best_row["discount_rate"])
-                else "折扣率不明"
-            )
-
-            st.markdown(
-                f"【{best_row['product_name']}】活動單位 "
-                f"**{best_row['unit_code']}**：{discount_text}"
-                f"（\\${best_row['unit_avg_price']:,.0f}），"
-                f"淨增益達 "
-                f"<span style='color:#009B73;font-weight:700;'>"
-                f"+\\${best_row['net_revenue_effect_per_day']:,.0f}/日"
-                f"</span>，是目前篩選範圍內表現最佳的組合。",
-                unsafe_allow_html=True,
-            )
-
-        st.divider()
-        st.markdown("**🚩 毛利侵蝕預警**")
-
-        risk_rows = filtered_unit_overview[risk_mask].sort_values(
-            "net_revenue_effect_per_day"
+                + "，淨增益達 "
+                f"+${best_row['net_revenue_effect_per_day']:,.0f}/日。"
+            ),
+            reason="依此商品目前篩選範圍內淨增益由高到低排序取得最高者。",
+            action="可考慮延續此組合，並測試擴大曝光或延伸至相似商品。",
+            confidence=filtered_confidence_label.loc[best_row.name],
         )
 
-        if risk_rows.empty:
-            st.success("目前篩選範圍內未發現明顯的毛利侵蝕風險。")
-        else:
-            worst_risk = risk_rows.iloc[0]
+        worst_row = product_rows.sort_values(
+            "net_revenue_effect_per_day", ascending=True
+        ).iloc[0]
 
-            st.error(
-                f"{worst_risk['unit_code']}"
-                f"（{worst_risk['product_name']}）"
-                f"售價降至 \\${worst_risk['unit_avg_price']:,.0f}，"
-                "銷量未相應提升，"
-                f"淨營收虧損 "
-                f"\\${worst_risk['net_revenue_effect_per_day']:,.0f}/日。"
+        worst_is_risky = (
+            pd.notna(worst_row["price_effect_per_day"])
+            and worst_row["price_effect_per_day"] < 0
+            and abs(worst_row["price_effect_per_day"])
+            > abs(worst_row["volume_effect_per_day"])
+        )
+
+        render_ai_insight_card(
+            finding=(
+                f"表現較差：活動單位 {worst_row['unit_code']}"
+                f"（{worst_row['corresponding_activities_label']}），"
+                f"淨增益 ${worst_row['net_revenue_effect_per_day']:,.0f}/日"
+                + (
+                    "，存量降價效應大於量增效應，屬於毛利侵蝕風險。"
+                    if worst_is_risky
+                    else "。"
+                )
+            ),
+            reason=(
+                "存量降價效應（絕對值）大於量增效應（絕對值），"
+                "屬於毛利侵蝕風險。"
+                if worst_is_risky
+                else "此商品目前篩選範圍內淨增益最低的組合。"
+            ),
+            action=(
                 "建議下檔縮減折幅，改以贈品吸引轉換。"
-            )
+                if worst_is_risky
+                else "建議檢視活動設計、曝光或改以其他機制測試。"
+            ),
+            confidence=filtered_confidence_label.loc[worst_row.name],
+        )
 
-        st.divider()
         st.markdown("**📊 折扣率洞察**")
         render_discount_rate_insight(
-            filtered_unit_overview, show_product_name=True
+            product_rows, show_product_name=False
         )
+
+else:
+    discount_candidates = filtered_unit_overview[
+        filtered_unit_overview["net_revenue_effect_per_day"] > 0
+    ].sort_values("net_revenue_effect_per_day", ascending=False)
+
+    if discount_candidates.empty:
+        st.caption("目前篩選範圍內沒有淨增益為正的活動單位。")
+    else:
+        best_row = discount_candidates.iloc[0]
+        discount_text = (
+            f"{best_row['discount_rate']:.0%}折"
+            if pd.notna(best_row["discount_rate"])
+            else "折扣率不明"
+        )
+
+        render_ai_insight_card(
+            finding=(
+                f"【{best_row['product_name']}】活動單位 "
+                f"{best_row['unit_code']}：{discount_text}"
+                f"（${best_row['unit_avg_price']:,.0f}），"
+                "淨增益達 "
+                f"+${best_row['net_revenue_effect_per_day']:,.0f}/日，"
+                "是目前篩選範圍內表現最佳的組合。"
+            ),
+            reason="依目前篩選範圍內淨增益由高到低排序取得最高者。",
+            action="可考慮延續此折扣深度，並測試擴大曝光。",
+            confidence=filtered_confidence_label.loc[best_row.name],
+        )
+
+    risk_rows = filtered_unit_overview[risk_mask].sort_values(
+        "net_revenue_effect_per_day"
+    )
+
+    if risk_rows.empty:
+        st.success("目前篩選範圍內未發現明顯的毛利侵蝕風險。")
+    else:
+        worst_risk = risk_rows.iloc[0]
+
+        render_ai_insight_card(
+            finding=(
+                f"{worst_risk['unit_code']}"
+                f"（{worst_risk['product_name']}）"
+                f"售價降至 ${worst_risk['unit_avg_price']:,.0f}，"
+                "銷量未相應提升，淨營收虧損 "
+                f"${worst_risk['net_revenue_effect_per_day']:,.0f}/日。"
+            ),
+            reason=(
+                "存量降價效應（絕對值）大於量增效應（絕對值），"
+                "屬於毛利侵蝕風險。"
+            ),
+            action="建議下檔縮減折幅，改以贈品吸引轉換。",
+            confidence=filtered_confidence_label.loc[worst_risk.name],
+        )
+
+    st.markdown("**📊 折扣率洞察**")
+    render_discount_rate_insight(
+        filtered_unit_overview, show_product_name=True
+    )
+
+
+with st.expander("活動單位總覽明細", expanded=False):
+    unit_detail_columns = [
+        "unit_code",
+        "product_name",
+        "corresponding_activities_label",
+        "days",
+        "baseline_price",
+        "unit_avg_price",
+        "volume_effect_per_day",
+        "price_effect_per_day",
+        "net_revenue_effect_per_day",
+        "classification",
+        "hint",
+    ]
+
+    unit_detail_display = filtered_unit_overview[
+        unit_detail_columns
+    ].sort_values(
+        "net_revenue_effect_per_day", ascending=False
+    ).reset_index(drop=True)
+
+    unit_detail_column_config = {
+        "baseline_price": st.column_config.NumberColumn(
+            "基準售價", format="%.0f"
+        ),
+        "unit_avg_price": st.column_config.NumberColumn(
+            "活動售價", format="%.0f"
+        ),
+        "volume_effect_per_day": st.column_config.NumberColumn(
+            "量增效應/日", format="%.0f"
+        ),
+        "price_effect_per_day": st.column_config.NumberColumn(
+            "存量降價/日", format="%.0f"
+        ),
+        "net_revenue_effect_per_day": st.column_config.NumberColumn(
+            "淨增益/日", format="%.0f"
+        ),
+        "hint": st.column_config.Column("提示"),
+    }
+    unit_detail_column_config.update(
+        default_column_config(
+            unit_detail_display,
+            exclude=unit_detail_column_config.keys(),
+        )
+    )
+
+    st.dataframe(
+        unit_detail_display,
+        use_container_width=True,
+        hide_index=True,
+        column_config=unit_detail_column_config,
+    )
 
 
 st.divider()
@@ -1075,268 +1068,7 @@ with activity_chart_col1:
             )
 
 with activity_chart_col2:
-    st.markdown("###### 雙軌配對拆解圖 Paired Comparison Waterfall")
-
-    if filtered_pairing.empty:
-        st.info("目前篩選條件下沒有配對比對明細資料。")
-    else:
-        # unit_code（如 M10）常常同時對應多個活動組合完全相同的
-        # 商品，只用 target_unit 篩選會把不同商品的配對列混在
-        # 一起，下面的活動類型選單也會出現同名重複選項。改用
-        # unit_code（商品名稱）複合標籤，確保每個選項、每次篩選
-        # 都唯一對應到一組(商品,活動組合)。
-        filtered_pairing["unit_product_label"] = (
-            filtered_pairing["target_unit"]
-            + "（"
-            + filtered_pairing["product_name"]
-            + "）"
-        )
-
-        available_units = (
-            filtered_pairing["unit_product_label"]
-            .drop_duplicates()
-            .tolist()
-        )
-
-        stored_default_unit = st.session_state.get(
-            "campaign_insight_selected_unit"
-        )
-
-        if stored_default_unit not in available_units:
-            stored_default_unit = available_units[0]
-
-        # 用下拉選單讓使用者可以直接選要看哪個活動單位，不用
-        # 依賴「點長條」或「點下方表格列」這種容易被忽略的
-        # 互動方式。key 用新的名稱，不直接沿用
-        # campaign_insight_selected_unit 當 widget key，因為
-        # 下方「配對比對-單一活動拆解」表格的點擊事件也會寫入
-        # campaign_insight_selected_unit，兩者共用同一個 key
-        # 會在同一次執行裡違反「widget 實例化後不能再改它的
-        # session_state」規則而丟例外。
-        default_unit = st.selectbox(
-            "選擇要檢視的活動單位",
-            options=available_units,
-            index=available_units.index(stored_default_unit),
-            key="campaign_insight_unit_direct_select",
-        )
-
-        st.session_state["campaign_insight_selected_unit"] = default_unit
-
-        st.caption(
-            f"目前檢視：{default_unit} "
-            "— 可用上方下拉選單、點長條或點下方表格任一列切換"
-        )
-
-        unit_pairing_rows = filtered_pairing[
-            filtered_pairing["unit_product_label"] == default_unit
-        ].reset_index(drop=True)
-
-        # 上面新增的活動單位下拉選單一定會顯示，一定要扣一次
-        # 高度；如果這個單位還疊加了多個活動、多顯示第二個
-        # selectbox，再扣一次，抵銷多出來的高度，讓標題
-        # （頂部對齊）與圖表（底部）都能跟左欄切齊。
-        extra_widget_count = 1
-
-        if len(unit_pairing_rows) > 1:
-            activity_type_choice = st.selectbox(
-                f"「{default_unit}」疊加了多個活動，選擇要檢視的活動",
-                options=unit_pairing_rows["activity_type"].tolist(),
-                key="campaign_insight_waterfall_activity_type",
-            )
-            waterfall_row = unit_pairing_rows[
-                unit_pairing_rows["activity_type"]
-                == activity_type_choice
-            ].iloc[0]
-            extra_widget_count += 1
-        else:
-            waterfall_row = unit_pairing_rows.iloc[0]
-
-        waterfall_container_height = (
-            CHART_MAX_HEIGHT
-            - EXTRA_WIDGET_HEIGHT_OFFSET * extra_widget_count
-        )
-
-        candidate_value = waterfall_row["candidate_weighted_avg_daily_revenue"]
-        actual_value = waterfall_row["actual_daily_revenue"]
-        net_value = waterfall_row["net_gain_per_day"]
-
-        # 圖表本身的高度要跟外層 st.container(height=
-        # waterfall_container_height) 完全一致，不能像之前用
-        # resolve_bar_chart_sizing(3, ...) 固定回傳
-        # CHART_MAX_HEIGHT(460)——因為外層容器已經依疊加活動
-        # selectbox 是否顯示，扣掉對應的 EXTRA_WIDGET_HEIGHT_OFFSET
-        # 縮小過，圖表高度若還是撐到完整的460，會比容器高，
-        # 底部（X軸刻度文字）就會被容器裁掉、看不到。柱寬交給
-        # Plotly 自動計算（bargap），效果比照頁面其他圖表「全螢幕
-        # 撐滿、等比例縮放」的作法。
-        waterfall_height = waterfall_container_height
-        waterfall_bar_width = None
-
-        waterfall_bar_kwargs = (
-            {"width": waterfall_bar_width}
-            if waterfall_bar_width is not None
-            else {}
-        )
-
-        waterfall_figure = go.Figure(
-            data=[
-                go.Bar(
-                    x=["目標單位 實際日營收", "對照候選單位 加權日營收", "淨增益/日"],
-                    y=[
-                        actual_value if pd.notna(actual_value) else 0,
-                        candidate_value if pd.notna(candidate_value) else 0,
-                        net_value if pd.notna(net_value) else 0,
-                    ],
-                    **waterfall_bar_kwargs,
-                    marker_color=[
-                        "#4E56A6",
-                        "#9AA5B1",
-                        (
-                            "#009B73"
-                            if pd.notna(net_value) and net_value >= 0
-                            else "#C62828"
-                        ),
-                    ],
-                    text=[
-                        f"${actual_value:,.0f}" if pd.notna(actual_value) else "-",
-                        f"${candidate_value:,.0f}" if pd.notna(candidate_value) else "-",
-                        f"${net_value:,.0f}" if pd.notna(net_value) else "-",
-                    ],
-                    textposition="outside",
-                )
-            ]
-        )
-
-        waterfall_figure.update_layout(
-            margin={"l": 10, "r": 10, "t": 20, "b": 10},
-            yaxis_title="日營收",
-            showlegend=False,
-            height=waterfall_height,
-        )
-
-        with st.container(height=waterfall_container_height):
-            st.plotly_chart(
-                waterfall_figure, use_container_width=True
-            )
-
-if not filtered_pairing.empty:
-    pairing_tab1, pairing_tab2 = st.tabs(
-        ["單一活動拆解", "彙總"]
-    )
-
-    with pairing_tab1:
-        pairing_display_columns = [
-            "activity_type",
-            "product_name",
-            "target_unit",
-            "target_unit_days",
-            "candidate_units",
-            "candidate_weighted_avg_daily_revenue",
-            "actual_daily_revenue",
-            "net_gain_per_day",
-            "split_status",
-        ]
-
-        pairing_display = filtered_pairing[
-            pairing_display_columns
-        ].reset_index(drop=True)
-
-        pairing_column_config = {
-            "candidate_weighted_avg_daily_revenue": (
-                st.column_config.NumberColumn(
-                    "對照組日營收", format="%.0f"
-                )
-            ),
-            "actual_daily_revenue": st.column_config.NumberColumn(
-                "實際日營收", format="%.0f"
-            ),
-            "net_gain_per_day": st.column_config.NumberColumn(
-                "淨增益/日", format="%.0f"
-            ),
-        }
-        pairing_column_config.update(
-            default_column_config(
-                pairing_display,
-                exclude=pairing_column_config.keys(),
-            )
-        )
-
-        pairing_table_event = st.dataframe(
-            pairing_display,
-            use_container_width=True,
-            hide_index=True,
-            column_config=pairing_column_config,
-            on_select="rerun",
-            selection_mode="single-row",
-            key="pairing_detail_table",
-        )
-
-        if pairing_table_event and pairing_table_event.selection.rows:
-            selected_pairing_index = (
-                pairing_table_event.selection.rows[0]
-            )
-            selected_pairing_row = pairing_display.iloc[
-                selected_pairing_index
-            ]
-            st.session_state["campaign_insight_selected_unit"] = (
-                f"{selected_pairing_row['target_unit']}"
-                f"（{selected_pairing_row['product_name']}）"
-            )
-
-    with pairing_tab2:
-        st.caption(
-            "各活動組合的拆分狀態、涵蓋天數與全商品加總總增益"
-            "（對應參考報表工作表7）。"
-        )
-
-        summary_view_columns = [
-            "corresponding_activities",
-            "split_status",
-            "total_days",
-            "total_gain",
-        ]
-
-        # filtered_summary 是「每個商品 × 每個活動組合」一列，
-        # 同一個活動組合會依商品數重複出現。這裡改成依活動組合
-        # 彙總：涵蓋天數是日曆驅動的，同一組合下每個商品理論上
-        # 天數一致，取最大值代表即可；總增益則需要把所有商品的
-        # 效應加總，才代表這個活動組合對全商品的整體影響。
-        summary_view_display = (
-            filtered_summary.groupby(
-                ["corresponding_activities", "split_status"],
-                as_index=False,
-            )
-            .agg(
-                total_days=("total_days", "max"),
-                total_gain=("total_gain", "sum"),
-            )[summary_view_columns]
-            .reset_index(drop=True)
-        )
-
-        summary_view_column_config = {
-            "corresponding_activities": st.column_config.Column(
-                "活動組合"
-            ),
-            "split_status": st.column_config.Column("拆分狀態"),
-            "total_days": st.column_config.NumberColumn(
-                "涵蓋天數", format="%d"
-            ),
-            "total_gain": st.column_config.NumberColumn(
-                "總增益", format="%.0f"
-            ),
-        }
-
-        st.dataframe(
-            summary_view_display,
-            use_container_width=True,
-            hide_index=True,
-            column_config=summary_view_column_config,
-        )
-
-st.markdown("##### 💡 系統洞察")
-
-with st.container(border=True):
-    st.markdown("**💡 最佳活動搭檔**")
+    st.markdown("###### 🤖 AI 洞察")
 
     combo_candidates = filtered_summary[
         filtered_summary["split_status"] == "無法拆分"
@@ -1357,20 +1089,25 @@ with st.container(border=True):
             "avg_gain", ascending=True
         ).iloc[0]
 
-        st.markdown(
-            f"「{combo_best['corresponding_activities']}」"
-            f"平均淨增益 "
-            f"<span style='color:#009B73;font-weight:700;'>"
-            f"+\\${combo_best['avg_gain']:,.0f}/單位</span>，"
-            f"為目前篩選範圍內最佳疊加組合；"
-            f"相較之下「{combo_worst['corresponding_activities']}」"
-            f"平均淨增益僅 \\${combo_worst['avg_gain']:,.0f}/單位，"
-            "建議優先安排前者的活動搭配。",
-            unsafe_allow_html=True,
+        # 彙總資料沒有個別活動單位的天數／代理牌價提示，用配對
+        # 區間數當作簡易信心依據：達 2 個以上區間視為較高信心，
+        # 呼應頁面上方「樣本天數 < 2 天」的信心提示邏輯。
+        combo_confidence = (
+            "較高" if combo_best["interval_count"] >= 2 else "較低"
         )
 
-    st.divider()
-    st.markdown("**⚠ 統計信賴度警示**")
+        render_ai_insight_card(
+            finding=(
+                f"「{combo_best['corresponding_activities']}」"
+                f"平均淨增益 +${combo_best['avg_gain']:,.0f}/單位，"
+                "為目前篩選範圍內最佳疊加組合；相較之下"
+                f"「{combo_worst['corresponding_activities']}」"
+                f"平均淨增益僅 ${combo_worst['avg_gain']:,.0f}/單位。"
+            ),
+            reason="依配對比對彙總（工作表7）的平均淨增益排序取得。",
+            action="建議優先安排前者的活動搭配。",
+            confidence=combo_confidence,
+        )
 
     low_confidence_rows = filtered_pairing[
         (filtered_pairing["target_unit_days"] < MINIMUM_DAYS_FOR_CONFIDENCE)
@@ -1382,10 +1119,117 @@ with st.container(border=True):
     else:
         example_row = low_confidence_rows.iloc[0]
 
-        st.warning(
-            f"{example_row['target_unit']}"
-            f"（{example_row['product_id']}）"
-            f"涵蓋天數僅 {int(example_row['target_unit_days'])} 天"
-            "且無同月同組合對照期，已退回安靜期基準估算，"
-            "建議僅作輔助參考。"
+        render_ai_insight_card(
+            finding=(
+                f"{example_row['target_unit']}"
+                f"（{example_row['product_id']}）"
+                f"涵蓋天數僅 {int(example_row['target_unit_days'])} 天"
+                "且無同月同組合對照期，已退回安靜期基準估算。"
+            ),
+            reason=(
+                f"樣本天數低於 {MINIMUM_DAYS_FOR_CONFIDENCE} 天的門檻，"
+                "且找不到可比對照期間。"
+            ),
+            action="建議僅作輔助參考，累積更多天數樣本後再下結論。",
+            confidence="較低",
         )
+
+if not filtered_pairing.empty:
+    with st.expander("配對比對明細", expanded=False):
+        pairing_tab1, pairing_tab2 = st.tabs(
+            ["單一活動拆解", "彙總"]
+        )
+
+        with pairing_tab1:
+            pairing_display_columns = [
+                "activity_type",
+                "product_name",
+                "target_unit",
+                "target_unit_days",
+                "candidate_units",
+                "candidate_weighted_avg_daily_revenue",
+                "actual_daily_revenue",
+                "net_gain_per_day",
+                "split_status",
+            ]
+
+            pairing_display = filtered_pairing[
+                pairing_display_columns
+            ].reset_index(drop=True)
+
+            pairing_column_config = {
+                "candidate_weighted_avg_daily_revenue": (
+                    st.column_config.NumberColumn(
+                        "對照組日營收", format="%.0f"
+                    )
+                ),
+                "actual_daily_revenue": st.column_config.NumberColumn(
+                    "實際日營收", format="%.0f"
+                ),
+                "net_gain_per_day": st.column_config.NumberColumn(
+                    "淨增益/日", format="%.0f"
+                ),
+            }
+            pairing_column_config.update(
+                default_column_config(
+                    pairing_display,
+                    exclude=pairing_column_config.keys(),
+                )
+            )
+
+            st.dataframe(
+                pairing_display,
+                use_container_width=True,
+                hide_index=True,
+                column_config=pairing_column_config,
+            )
+
+        with pairing_tab2:
+            st.caption(
+                "各活動組合的拆分狀態、涵蓋天數與全商品加總總增益"
+                "（對應參考報表工作表7）。"
+            )
+
+            summary_view_columns = [
+                "corresponding_activities",
+                "split_status",
+                "total_days",
+                "total_gain",
+            ]
+
+            # filtered_summary 是「每個商品 × 每個活動組合」一列，
+            # 同一個活動組合會依商品數重複出現。這裡改成依活動組合
+            # 彙總：涵蓋天數是日曆驅動的，同一組合下每個商品理論上
+            # 天數一致，取最大值代表即可；總增益則需要把所有商品的
+            # 效應加總，才代表這個活動組合對全商品的整體影響。
+            summary_view_display = (
+                filtered_summary.groupby(
+                    ["corresponding_activities", "split_status"],
+                    as_index=False,
+                )
+                .agg(
+                    total_days=("total_days", "max"),
+                    total_gain=("total_gain", "sum"),
+                )[summary_view_columns]
+                .reset_index(drop=True)
+            )
+
+            summary_view_column_config = {
+                "corresponding_activities": st.column_config.Column(
+                    "活動組合"
+                ),
+                "split_status": st.column_config.Column("拆分狀態"),
+                "total_days": st.column_config.NumberColumn(
+                    "涵蓋天數", format="%d"
+                ),
+                "total_gain": st.column_config.NumberColumn(
+                    "總增益", format="%.0f"
+                ),
+            }
+
+            st.dataframe(
+                summary_view_display,
+                use_container_width=True,
+                hide_index=True,
+                column_config=summary_view_column_config,
+            )

@@ -9,6 +9,7 @@ from src.unit_overview_helpers import (
     compute_strategy_category,
     prepare_unit_overview_for_display,
 )
+from src.unit_recommendation_notes import format_signed_currency
 
 
 # =========================================================
@@ -474,3 +475,138 @@ def build_activity_unit_strategy_text(
     )
 
     return "\n".join(lines)
+
+
+# =========================================================
+# 分析總覽首屏摘要
+# =========================================================
+
+def build_executive_brief_summary(
+    unit_overview_dataframe: pd.DataFrame,
+) -> dict:
+    """
+    彙整成分析總覽首屏用的精簡摘要：一句話摘要、四個 KPI 計數，
+    加上一張 AI 洞察卡要用的 finding/reason/action/confidence。
+
+    完全複用既有的策略分類／風險判斷／色彩分類邏輯
+    （compute_strategy_category／compute_risk_mask／
+    prepare_unit_overview_for_display 產生的 color_category），
+    不重新定義任何規則，只是為了首屏而重新包裝呈現方式。
+
+    「不可分離」（color_category）對應母子活動組合或疊加多個
+    活動、瀑布法尚未拆分的活動單位，即摘要句裡「不適合直接
+    歸因」的活動數。
+    """
+
+    unit_overview = prepare_unit_overview_for_display(
+        unit_overview_dataframe
+    )
+    unit_overview["策略分類"] = compute_strategy_category(
+        unit_overview
+    )
+    unit_overview["is_risky"] = compute_risk_mask(unit_overview)
+    unit_overview["資料信心"] = compute_confidence_label(
+        unit_overview
+    )
+
+    total_units = len(unit_overview)
+    continue_count = int(
+        (unit_overview["策略分類"] == "建議延續").sum()
+    )
+    review_count = int(
+        (unit_overview["策略分類"] == "建議檢討").sum()
+    )
+    risk_count = int(unit_overview["is_risky"].sum())
+    unclear_count = int(
+        (unit_overview["color_category"] == "不可分離").sum()
+    )
+
+    headline_text = (
+        f"本期共辨識 {total_units} 個活動單位，"
+        f"其中 {continue_count} 個值得優先延續、"
+        f"{review_count} 個需要檢討，"
+        f"另有 {unclear_count} 個因疊加多個活動而不適合直接歸因。"
+    )
+
+    risk_rows = unit_overview[
+        unit_overview["is_risky"]
+    ].dropna(subset=["net_revenue_effect_per_day"])
+
+    continue_rows = unit_overview[
+        unit_overview["策略分類"] == "建議延續"
+    ].dropna(subset=["net_revenue_effect_per_day"])
+
+    top_risk_row = (
+        risk_rows.sort_values("net_revenue_effect_per_day").iloc[0]
+        if not risk_rows.empty
+        else None
+    )
+
+    top_opportunity_row = (
+        continue_rows.sort_values(
+            "net_revenue_effect_per_day", ascending=False
+        ).iloc[0]
+        if not continue_rows.empty
+        else None
+    )
+
+    headline_row = (
+        top_risk_row
+        if top_risk_row is not None
+        else top_opportunity_row
+    )
+
+    if top_risk_row is not None:
+        insight_finding = (
+            f"本期最需要留意的是「{top_risk_row['product_name']}」"
+            f"的 {top_risk_row['unit_code']}"
+            f"（{top_risk_row['corresponding_activities_label']}）"
+            "活動組合，降價效應大於量增效應，屬於毛利侵蝕風險，"
+            "淨損約 "
+            f"{format_signed_currency(top_risk_row['net_revenue_effect_per_day'])}"
+            "/日。"
+        )
+        insight_reason = (
+            "毛利侵蝕風險存在時優先顯示風險單位，"
+            "否則顯示淨增益最高的建議延續單位。"
+        )
+    elif top_opportunity_row is not None:
+        insight_finding = (
+            f"本期表現最佳的是「{top_opportunity_row['product_name']}」"
+            f"的 {top_opportunity_row['unit_code']}"
+            f"（{top_opportunity_row['corresponding_activities_label']}）"
+            "活動組合，淨營收效應達全體中位數以上，約 "
+            f"{format_signed_currency(top_opportunity_row['net_revenue_effect_per_day'])}"
+            "/日。"
+        )
+        insight_reason = (
+            "目前沒有偵測到毛利侵蝕風險，"
+            "顯示淨增益最高的建議延續單位。"
+        )
+    else:
+        insight_finding = "目前沒有足夠的活動單位資料可產生建議。"
+        insight_reason = "尚未有可用的淨營收效應資料。"
+
+    insight_action = (
+        "建議前往「策略中心」查看完整策略清單與個別化建議，"
+        "或使用「情境模擬」測試不同價格與贈品組合。"
+    )
+
+    insight_confidence = (
+        headline_row["資料信心"]
+        if headline_row is not None
+        else "較低"
+    )
+
+    return {
+        "total_units": total_units,
+        "continue_count": continue_count,
+        "review_count": review_count,
+        "risk_count": risk_count,
+        "unclear_count": unclear_count,
+        "headline_text": headline_text,
+        "insight_finding": insight_finding,
+        "insight_reason": insight_reason,
+        "insight_action": insight_action,
+        "insight_confidence": insight_confidence,
+    }
