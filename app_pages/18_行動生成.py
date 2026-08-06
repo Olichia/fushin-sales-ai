@@ -29,6 +29,7 @@ from src.unit_overview_helpers import (
     compute_strategy_category,
     prepare_unit_overview_for_display,
 )
+from src.whatif_simulation import build_scenario_identity
 
 initialize_session_state()
 
@@ -59,8 +60,8 @@ st.markdown(
     }
 
     .action-title-mark {
-        width: 6px;
-        height: 31px;
+        width: 9px;
+        height: 47px;
         border-radius: 4px;
         background: linear-gradient(
             180deg,
@@ -294,6 +295,7 @@ selected_source = (
 )
 
 evidence = None
+price_locked = False
 
 if selected_source == "已完成活動（活動單位分析）":
     unit_overview = prepare_unit_overview_for_display(unit_overview_raw)
@@ -389,9 +391,36 @@ if selected_source == "已完成活動（活動單位分析）":
 
 else:
     product_name = st.session_state.get("whatif_last_product_name") or "此商品"
+    current_product_id = st.session_state.get("whatif_last_product_id")
+
+    adopted_scenarios = st.session_state.get("adopted_whatif_scenarios", [])
+    adopted_entry_ids = {entry.get("entry_id") for entry in adopted_scenarios}
+
+    adopted_labels_for_product = set()
+    if whatif_scenario_inputs:
+        for scenario_input_item in whatif_scenario_inputs:
+            identity = build_scenario_identity(
+                current_product_id,
+                scenario_input_item.label,
+                scenario_input_item,
+            )
+            if identity in adopted_entry_ids:
+                adopted_labels_for_product.add(scenario_input_item.label)
+
     scenario_label_map = {
         result.label: result for result in whatif_scenario_results
     }
+
+    if adopted_labels_for_product:
+        scenario_label_map = {
+            label: result
+            for label, result in scenario_label_map.items()
+            if label in adopted_labels_for_product
+        }
+        st.caption(
+            "📌 此商品已有採用方案，僅列出已採用的情境模擬方案。"
+        )
+
     selected_scenario_label = st.selectbox(
         "選擇情境模擬方案",
         options=list(scenario_label_map.keys()),
@@ -402,6 +431,8 @@ else:
     if whatif_scenario_inputs:
         input_map = {item.label: item for item in whatif_scenario_inputs}
         scenario_input = input_map.get(selected_scenario_label)
+
+    price_locked = selected_scenario_label in adopted_labels_for_product
 
     evidence = build_whatif_action_evidence(
         scenario_result=selected_scenario_result,
@@ -459,6 +490,11 @@ if evidence is not None:
                     "僅下列欄位會公開給消費者；未提供的資訊不會由 AI 自行補充。"
                 )
 
+                if price_locked:
+                    st.caption(
+                        "🔒 此方案已於情境模擬頁採用，價格鎖定為採用時的數值，不可修改。"
+                    )
+
                 public_offer["product_name"] = st.text_input(
                     "商品名稱＊",
                     value=str(public_offer.get("product_name") or ""),
@@ -471,6 +507,7 @@ if evidence is not None:
                         min_value=0.0,
                         value=float(public_offer.get("original_price") or 0.0),
                         step=10.0,
+                        disabled=price_locked,
                     )
                 with price_col2:
                     public_offer["activity_price"] = st.number_input(
@@ -478,6 +515,7 @@ if evidence is not None:
                         min_value=0.0,
                         value=float(public_offer.get("activity_price") or 0.0),
                         step=10.0,
+                        disabled=price_locked,
                     )
 
                 public_offer["gift_name"] = st.text_input(
