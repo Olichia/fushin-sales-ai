@@ -208,12 +208,6 @@ def bootstrap_session_from_db() -> None:
     ):
         load_analysis_snapshot_into_session()
 
-    if not st.session_state.get("adopted_whatif_scenarios"):
-        adopted_scenarios = load_state("adopted_whatif_scenarios")
-
-        if adopted_scenarios:
-            st.session_state["adopted_whatif_scenarios"] = adopted_scenarios
-
 
 def clear_analysis_snapshot() -> None:
     """

@@ -297,6 +297,7 @@ def create_pdf_styles() -> dict[str, ParagraphStyle]:
             textColor=colors.HexColor("#273142"),
             alignment=TA_LEFT,
             spaceAfter=6,
+            wordWrap="CJK",
         ),
         "small": ParagraphStyle(
             "TraditionalChineseSmall",
@@ -306,6 +307,7 @@ def create_pdf_styles() -> dict[str, ParagraphStyle]:
             leading=12,
             textColor=colors.HexColor("#667085"),
             alignment=TA_LEFT,
+            wordWrap="CJK",
         ),
         "table_header": ParagraphStyle(
             "TraditionalChineseTableHeader",
@@ -315,6 +317,7 @@ def create_pdf_styles() -> dict[str, ParagraphStyle]:
             leading=11,
             textColor=colors.white,
             alignment=TA_CENTER,
+            wordWrap="CJK",
         ),
         "table_body": ParagraphStyle(
             "TraditionalChineseTableBody",
@@ -324,6 +327,7 @@ def create_pdf_styles() -> dict[str, ParagraphStyle]:
             leading=11,
             textColor=colors.HexColor("#273142"),
             alignment=TA_LEFT,
+            wordWrap="CJK",
         ),
         "kpi_label": ParagraphStyle(
             "TraditionalChineseKpiLabel",
@@ -333,6 +337,7 @@ def create_pdf_styles() -> dict[str, ParagraphStyle]:
             leading=11,
             textColor=colors.HexColor("#667085"),
             alignment=TA_CENTER,
+            wordWrap="CJK",
         ),
         "kpi_value": ParagraphStyle(
             "TraditionalChineseKpiValue",
@@ -2219,22 +2224,15 @@ def generate_activity_unit_management_pdf(
                 )
                 story.append(Spacer(1, 6))
 
-            ai_summary = scenario_entry.get("ai_summary") or {}
+            ai_summary_short = scenario_entry.get("ai_summary_short")
 
-            for field_label, field_key in (
-                ("AI 發現", "finding"),
-                ("AI 原因", "reason"),
-                ("AI 建議", "action"),
-            ):
-                field_value = ai_summary.get(field_key)
-
-                if field_value:
-                    story.append(
-                        Paragraph(
-                            f"【{field_label}】{field_value}",
-                            styles["body"],
-                        )
+            if ai_summary_short:
+                story.append(
+                    Paragraph(
+                        f"【AI 建議】{ai_summary_short}",
+                        styles["body"],
                     )
+                )
 
             story.append(Spacer(1, 14))
 
