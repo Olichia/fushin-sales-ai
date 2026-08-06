@@ -88,6 +88,12 @@ whatif_simulation_page = st.Page(
     icon=":material/tune:",
 )
 
+action_generation_page = st.Page(
+    PAGES_DIR / "18_行動生成.py",
+    title="行動生成",
+    icon=":material/forward_to_inbox:",
+)
+
 management_report_page = st.Page(
     PAGES_DIR / "16_主管報表中心.py",
     title="主管報表中心",
@@ -163,6 +169,7 @@ navigation = st.navigation(
             activity_insight_page,
             strategy_center_page,
             whatif_simulation_page,
+            action_generation_page,
             management_report_page,
             ai_advisor_page,
         ],
