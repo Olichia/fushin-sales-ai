@@ -83,7 +83,8 @@ def test_composition_note_flags_platform_and_product_together():
     unit_row = _sample_unit_row("女王節正式、買二送一")
 
     note = build_unit_activity_composition_note(
-        unit_row, _sample_calendar()
+        unit_row,
+        _sample_calendar(),
     )
 
     assert "平台檔期" in note
@@ -95,7 +96,8 @@ def test_composition_note_single_platform_activity_no_mixed_note():
     unit_row = _sample_unit_row("女王節正式")
 
     note = build_unit_activity_composition_note(
-        unit_row, _sample_calendar()
+        unit_row,
+        _sample_calendar(),
     )
 
     assert "平台檔期" in note
@@ -105,7 +107,10 @@ def test_composition_note_single_platform_activity_no_mixed_note():
 def test_composition_note_missing_calendar_admits_uncertainty():
     unit_row = _sample_unit_row("女王節正式、買二送一")
 
-    note = build_unit_activity_composition_note(unit_row, None)
+    note = build_unit_activity_composition_note(
+        unit_row,
+        None,
+    )
 
     assert "無法判斷" in note
 
@@ -114,7 +119,8 @@ def test_composition_note_quiet_period_unit():
     unit_row = _sample_unit_row("")
 
     note = build_unit_activity_composition_note(
-        unit_row, _sample_calendar()
+        unit_row,
+        _sample_calendar(),
     )
 
     assert "安靜期" in note
@@ -145,7 +151,12 @@ def test_build_unit_action_evidence_includes_composition_section():
     )
 
     assert evidence["source_type"] == "活動單位分析"
-    labels = [label for label, _ in evidence["sections"]]
+
+    labels = [
+        label
+        for label, _ in evidence["sections"]
+    ]
+
     assert "【活動組成】" in labels
     assert "平台檔期" in evidence["evidence_text"]
     assert "商品/品牌活動" in evidence["evidence_text"]
@@ -155,19 +166,23 @@ def test_build_unit_action_evidence_includes_composition_section():
 # 證據組裝：情境模擬
 # =========================================================
 
-def _sample_scenario_result(**overrides) -> WhatIfScenarioResult:
-    base = dict(
-        label="方案 B・您的方案",
-        discount_rate=0.1,
-        estimated_activity_revenue=9000.0,
-        expected_revenue_without_activity=10000.0,
-        net_revenue_gain=-1000.0,
-        total_gift_cost=200.0,
-        simplified_net_benefit=-1200.0,
-        has_gift=True,
-        platform_overlap=False,
-    )
+def _sample_scenario_result(
+    **overrides,
+) -> WhatIfScenarioResult:
+    base = {
+        "label": "方案 B・您的方案",
+        "discount_rate": 0.1,
+        "estimated_activity_revenue": 9000.0,
+        "expected_revenue_without_activity": 10000.0,
+        "net_revenue_gain": -1000.0,
+        "total_gift_cost": 200.0,
+        "simplified_net_benefit": -1200.0,
+        "has_gift": True,
+        "platform_overlap": False,
+    }
+
     base.update(overrides)
+
     return WhatIfScenarioResult(**base)
 
 
@@ -179,26 +194,38 @@ def test_build_whatif_action_evidence_flags_hypothetical_nature():
 
     assert evidence["source_type"] == "情境模擬"
     assert "情境試算" in evidence["evidence_text"]
-    assert "不是已經發生的真實活動成效" in evidence["evidence_text"]
+    assert (
+        "不是已經發生的真實活動成效"
+        in evidence["evidence_text"]
+    )
 
 
 def test_build_whatif_action_evidence_keeps_platform_overlap_caveat():
     evidence = build_whatif_action_evidence(
-        scenario_result=_sample_scenario_result(platform_overlap=True),
+        scenario_result=_sample_scenario_result(
+            platform_overlap=True,
+        ),
         product_name="測試商品",
     )
 
-    assert "平台活動" in evidence["evidence_text"]
-    assert "並未計入這部分效果" in evidence["evidence_text"]
+    evidence_text = evidence["evidence_text"]
+
+    assert "平台活動" in evidence_text
+    assert "未計入" in evidence_text
 
 
 def test_build_whatif_action_evidence_no_platform_caveat_when_unchecked():
     evidence = build_whatif_action_evidence(
-        scenario_result=_sample_scenario_result(platform_overlap=False),
+        scenario_result=_sample_scenario_result(
+            platform_overlap=False,
+        ),
         product_name="測試商品",
     )
 
-    assert "並未計入這部分效果" not in evidence["evidence_text"]
+    evidence_text = evidence["evidence_text"]
+
+    assert "平台活動的疊加貢獻" not in evidence_text
+    assert "本次試算未計入" not in evidence_text
 
 
 # =========================================================
@@ -207,27 +234,44 @@ def test_build_whatif_action_evidence_no_platform_caveat_when_unchecked():
 
 @pytest.mark.parametrize(
     "channel",
-    ["電話話術", "LINE/簡訊", "Email", "拜訪提綱"],
+    [
+        "電話話術",
+        "LINE/簡訊",
+        "Email",
+        "拜訪提綱",
+    ],
 )
-def test_build_fallback_action_content_never_empty(channel):
+def test_build_fallback_action_content_never_empty(
+    channel: str,
+):
     sections = [
         ("【績效診斷】", "測試診斷內容。"),
         ("【建議決策】", "測試建議內容。"),
     ]
 
     content = build_fallback_action_content(
-        sections=sections, channel=channel, tone="專業"
+        sections=sections,
+        channel=channel,
+        tone="專業",
     )
 
     assert content.strip()
-    assert "測試診斷內容" in content or "測試建議內容" in content
+
+    assert (
+        "測試診斷內容" in content
+        or "測試建議內容" in content
+    )
 
 
 def test_build_fallback_action_content_email_has_subject_line():
-    sections = [("【績效診斷】", "測試診斷內容。")]
+    sections = [
+        ("【績效診斷】", "測試診斷內容。"),
+    ]
 
     content = build_fallback_action_content(
-        sections=sections, channel="Email", tone="關係維護"
+        sections=sections,
+        channel="Email",
+        tone="關係維護",
     )
 
     assert content.startswith("主旨：")

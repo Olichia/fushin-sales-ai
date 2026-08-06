@@ -255,6 +255,11 @@ with output_col:
         st.session_state["whatif_last_scenario_results"] = (
             scenario_results
         )
+        # 同時保存原始方案輸入，讓行動生成頁可帶入活動價、基準價等
+        # 可公開欄位；不再只剩內部營收試算數字。
+        st.session_state["whatif_last_scenario_inputs"] = (
+            scenario_inputs
+        )
         st.session_state["whatif_last_product_id"] = (
             selected_product_id
         )
