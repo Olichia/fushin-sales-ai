@@ -26,5 +26,8 @@ Thumbs.db
 data/raw/*.xlsx
 data/processed/*.csv
 
+# Persisted app state (local SQLite key-value store)
+data/*.db
+
 .venv/
 .venv-test/

@@ -17,6 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 from src.insight_cards import render_ai_insight_card, render_scenario_card
+from src.persistence import save_state
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import prepare_unit_overview_for_display
 from src.whatif_simulation import (
@@ -373,6 +374,11 @@ with output_col:
                         if entry.get("scenario_key") != scenario_key
                     ] + [new_entry]
 
+                    save_state(
+                        "adopted_whatif_scenarios",
+                        st.session_state["adopted_whatif_scenarios"],
+                    )
+
                     st.toast(
                         f"已採用「{title}・{badge_text}」，"
                         "將加入主管報表匯出區塊。",
@@ -429,6 +435,11 @@ if adopted_scenarios_display:
                         for item in adopted_scenarios_display
                         if item["scenario_key"] != entry["scenario_key"]
                     ]
+
+                    save_state(
+                        "adopted_whatif_scenarios",
+                        st.session_state["adopted_whatif_scenarios"],
+                    )
 
                     st.rerun()
 

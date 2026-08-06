@@ -9,6 +9,7 @@ from src.analysis_pipeline import (
 )
 from src.activity_unit_analysis import run_activity_unit_analysis
 from src.column_labels import default_column_config
+from src.persistence import save_analysis_snapshot
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import compute_actual_revenue_total
 
@@ -575,6 +576,12 @@ if run_button:
     st.session_state[
         "strategy_report_completed"
     ] = True
+
+    # 分析結果不需要另外比對/選擇，銷量與活動資料在各自的
+    # 確認步驟已經做過覆蓋/保留的把關，這裡算出來的結果直接
+    # 存檔即可，重新整理瀏覽器時才能連分析結果一起帶回來，
+    # 不用逼使用者重新按一次「執行完整分析」。
+    save_analysis_snapshot()
 
     st.success(
         "完整分析已成功完成，可以前往成果頁面查看結果。"

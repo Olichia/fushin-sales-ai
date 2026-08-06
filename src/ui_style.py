@@ -15,8 +15,7 @@ def apply_product_styles(dark_mode: bool = False) -> None:
     選擇器補一條深色版本。
     """
 
-    st.markdown(
-        """
+    base_style = """
         <style>
         /* ==================================================
            品牌與介面變數
@@ -1448,6 +1447,10 @@ def apply_product_styles(dark_mode: bool = False) -> None:
             max-width: 252px !important;
             flex: 0 0 252px !important;
 
+            /* 保險措施：就算樣式不是一次性插入，寬度變化也不會
+               有動畫過渡，不會被使用者看到「彈出又收回」的過程 */
+            transition: none !important;
+
             background:
                 linear-gradient(
                     180deg,
@@ -2438,12 +2441,21 @@ def apply_product_styles(dark_mode: bool = False) -> None:
         }
 
         </style>
-        """,
-        unsafe_allow_html=True,
+        """
+
+    # 亮／暗模式切換時（尤其是切成深色）觀察到側邊欄會短暫
+    # 「彈出又收回」一下：原因是亮色樣式跟深色覆寫樣式分兩次
+    # st.markdown() 呼叫、分兩次插入 DOM，瀏覽器可能先畫出
+    # 亮色版側邊欄寬度，深色覆寫才接著套用，中間那一瞬間就是
+    # 使用者看到的閃爍。改成組成同一個字串、一次性插入，讓
+    # 瀏覽器一次拿到最終樣式，不會有中間態可以畫出來。
+    combined_style = (
+        base_style + _DARK_OVERRIDE_STYLE
+        if dark_mode
+        else base_style
     )
 
-    if dark_mode:
-        st.markdown(_DARK_OVERRIDE_STYLE, unsafe_allow_html=True)
+    st.markdown(combined_style, unsafe_allow_html=True)
 
 
 def render_theme_toggle() -> None:
@@ -2534,7 +2546,7 @@ def render_sidebar_icon_only_toggle() -> None:
 
     # icon-only 模式下側邊欄只有 96px 寬，按鈕文字要夠短才不會
     # 擠壓變形，完整說明改放到 help 提示文字裡。
-    toggle_label = "▤ 展開" if icon_only else "▥ 精簡"
+    toggle_label = "展開" if icon_only else "精簡"
 
     if st.button(
         toggle_label,

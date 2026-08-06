@@ -97,6 +97,15 @@ Hero 區塊顏色全部走 apply_product_styles() 已注入的共用
     white-space: nowrap !important;
 }
 
+/*
+純拉丁字母「AI」跟中文粗體字放在同一個 font-size 底下，
+視覺上還是會顯得比中文字小一號（拉丁字母的字面框內本身
+留白比較多），這裡額外放大一點讓兩者視覺大小接近。
+*/
+.hero-title-ai {
+    font-size: 1.15em !important;
+}
+
 .hero-title-accent {
     background:
         linear-gradient(
@@ -483,7 +492,7 @@ Rounded），四色徽章底色／邊框色用 color-mix() 從既有的
                 富信新零售 × 台灣大哥大・AI 電商活動策略決策助手
             </div>
             <h1 class="hero-title">
-                智慧零售
+                <span class="hero-title-ai">AI</span>智慧零售
                 <span class="hero-title-accent">決策引擎</span>
             </h1>
             <div class="hero-subtitle">

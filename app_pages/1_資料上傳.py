@@ -33,7 +33,15 @@ from src.sales_processing import (
     validate_sales_mapping,
 )
 
+from src.persistence import (
+    clear_analysis_snapshot,
+    diff_dataframes,
+    load_state,
+    load_sales_snapshot_into_session,
+    save_sales_snapshot,
+)
 from src.session_helpers import (
+    clear_downstream_analysis,
     clear_uploaded_data,
     initialize_session_state,
     load_uploaded_sheet,
@@ -867,6 +875,70 @@ else:
     st.subheader("最終確認")
 
     if result_is_current:
+        old_sales_dataframe = load_state(
+            "standardized_dataframe"
+        )
+
+        sales_diff_result = diff_dataframes(
+            old_sales_dataframe,
+            standardized_dataframe,
+        )
+
+        if sales_diff_result["has_old_data"]:
+            if sales_diff_result["identical"]:
+                st.info(
+                    "這份資料跟資料庫中的舊資料完全相同，不需要覆蓋。"
+                )
+            else:
+                st.warning(
+                    f"偵測到資料異動：資料庫中舊資料"
+                    f"{sales_diff_result['old_row_count']} 筆，"
+                    f"本次上傳{sales_diff_result['new_row_count']} 筆，"
+                    f"其中{sales_diff_result['differing_row_count']} 筆內容不同。"
+                    "請選擇要覆蓋還是保留舊資料。"
+                )
+
+                overwrite_col, keep_col = st.columns(2)
+
+                if overwrite_col.button(
+                    "覆蓋舊資料，使用本次上傳",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    st.session_state.sales_data_confirmed = (
+                        True
+                    )
+
+                    save_sales_snapshot()
+
+                    # 銷量資料被覆蓋，先前用舊資料算出來的分析
+                    # 結果已經失效，連同資料庫中的分析快照一併
+                    # 清除，「執行完整分析」頁面才會恢復成尚未
+                    # 執行的初始狀態。
+                    clear_downstream_analysis()
+                    clear_analysis_snapshot()
+
+                    st.success(
+                        "已覆蓋資料庫中的舊資料，"
+                        "銷量資料已完成最終確認。"
+                    )
+
+                    st.rerun()
+
+                if keep_col.button(
+                    "保留舊資料，捨棄本次上傳",
+                    use_container_width=True,
+                ):
+                    load_sales_snapshot_into_session()
+
+                    st.success(
+                        "已保留資料庫中的舊資料，本次上傳已捨棄。"
+                    )
+
+                    st.rerun()
+
+                st.stop()
+
         confirmed_checkbox = st.checkbox(
             "我已確認欄位對應、標準化資料與品質摘要",
             value=st.session_state.get(
@@ -889,6 +961,8 @@ else:
             st.session_state.sales_data_confirmed = (
                 True
             )
+
+            save_sales_snapshot()
 
             st.success(
                 "銷量資料已完成最終確認，"

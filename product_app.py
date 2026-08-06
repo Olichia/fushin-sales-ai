@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from src.floating_chatbot import render_floating_chatbot
+from src.persistence import bootstrap_session_from_db
 from src.session_helpers import initialize_session_state
 from src.ui_style import (
     apply_product_styles,
@@ -31,6 +32,10 @@ st.set_page_config(
 # =========================================================
 
 initialize_session_state()
+
+if not st.session_state.get("_db_bootstrap_done"):
+    bootstrap_session_from_db()
+    st.session_state["_db_bootstrap_done"] = True
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 PAGES_DIR = PROJECT_ROOT / "app_pages"
@@ -209,6 +214,14 @@ if navigation.title != "首頁":
 
 # =========================================================
 # 側邊欄進度
+#
+# 銷量／活動資料不會在啟動時從資料庫回填（見
+# src/persistence.py 的 bootstrap_session_from_db），所以
+# sales_ready／activity_ready 只反映「這個 session 有沒有
+# 真的重新上傳並確認過」；analysis_ready 也刻意疊加這兩個
+# 條件，即使資料庫裡還留著上次分析結果，只要這個 session
+# 沒有重新完成前兩步，進度就會顯示 0／3，不會因為背景保留
+# 的舊分析結果而誤顯示成「已完成」。
 # =========================================================
 
 sales_dataframe = st.session_state.get(
@@ -246,7 +259,9 @@ activity_ready = (
 )
 
 analysis_ready = (
-    isinstance(performance_dataframe, pd.DataFrame)
+    sales_ready
+    and activity_ready
+    and isinstance(performance_dataframe, pd.DataFrame)
     and not performance_dataframe.empty
     and bool(
         st.session_state.get(

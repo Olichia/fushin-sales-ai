@@ -83,6 +83,16 @@ SESSION_DEFAULTS = {
     "activity_unit_overview_dataframe": None,
     "activity_waterfall_pairing_dataframe": None,
     "activity_waterfall_summary_dataframe": None,
+    "activity_bundle_rules_dataframe": None,
+    "activity_bundle_date_mismatch_dataframe": None,
+
+    # -----------------------------
+    # 完整分析（舊版流程）完成狀態
+    # -----------------------------
+    "full_analysis_completed": False,
+    "integration_completed": False,
+    "performance_analysis_completed": False,
+    "strategy_report_completed": False,
 
     # -----------------------------
     # AI 顧問
@@ -183,6 +193,12 @@ def clear_downstream_analysis() -> None:
         "activity_unit_overview_dataframe",
         "activity_waterfall_pairing_dataframe",
         "activity_waterfall_summary_dataframe",
+        "activity_bundle_rules_dataframe",
+        "activity_bundle_date_mismatch_dataframe",
+        "full_analysis_completed",
+        "integration_completed",
+        "performance_analysis_completed",
+        "strategy_report_completed",
     ]
 
     reset_session_keys(
