@@ -485,6 +485,97 @@ def apply_product_styles(dark_mode: bool = False) -> None:
 
 
         /* ==================================================
+           KPI 卡片（彩色圓形 icon 徽章版，取代部分頁面的
+           st.metric()，配色沿用既有品牌變數，亮／暗模式自動換色）
+        ================================================== */
+
+        .kpi-card {
+            position: relative;
+            min-height: 112px;
+            height: 100%;
+
+            padding: 1rem 1.1rem;
+
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+
+            box-shadow: var(--shadow-sm);
+
+            transition:
+                transform 0.15s ease,
+                box-shadow 0.15s ease,
+                border-color 0.15s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--brand-orange-border);
+            box-shadow: var(--shadow-md);
+        }
+
+        .kpi-card-icon {
+            position: absolute;
+            top: 0.95rem;
+            right: 0.95rem;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            width: 2.15rem;
+            height: 2.15rem;
+            border-radius: 50%;
+
+            background: transparent;
+            border: 1.5px solid;
+
+            font-size: 1.05rem;
+        }
+
+        .kpi-card-icon--blue {
+            border-color: var(--brand-blue);
+            color: var(--brand-blue);
+        }
+
+        .kpi-card-icon--green {
+            border-color: var(--brand-green);
+            color: var(--brand-green);
+        }
+
+        .kpi-card-icon--orange {
+            border-color: var(--brand-orange);
+            color: var(--brand-orange);
+        }
+
+        .kpi-card-icon--red {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .kpi-card-label {
+            padding-right: 2.6rem;
+
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            font-weight: 650;
+        }
+
+        .kpi-card-value {
+            margin-top: 0.35rem;
+
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            font-weight: 850;
+            line-height: 1.3;
+        }
+
+        .kpi-card-value--lg {
+            font-size: 1.5rem;
+        }
+
+
+        /* ==================================================
            按鈕
         ================================================== */
 
@@ -2331,6 +2422,11 @@ def apply_product_styles(dark_mode: bool = False) -> None:
         }
 
         .advisor-tag {
+            background: var(--brand-blue);
+            color: #FFFFFF;
+        }
+
+        .advisor-tag--blue {
             background: var(--ai-accent);
             color: #FFFFFF;
         }
@@ -2356,9 +2452,13 @@ def apply_product_styles(dark_mode: bool = False) -> None:
             flex: 0 0 auto;
             min-width: 4.4rem;
 
-            color: var(--ai-accent-deep);
+            color: var(--brand-blue);
             font-size: 0.78rem;
             font-weight: 850;
+        }
+
+        .advisor-row-label--blue {
+            color: var(--ai-accent-deep);
         }
 
         .advisor-row-text {
@@ -2366,24 +2466,6 @@ def apply_product_styles(dark_mode: bool = False) -> None:
             font-size: 0.88rem;
             font-weight: 550;
             line-height: 1.6;
-        }
-
-
-        /* ==================================================
-           工作表來源標籤（沿用共用變數，取代頁面內聯色碼）
-        ================================================== */
-
-        .sheet-source-tag {
-            display: inline-block;
-
-            background: var(--ai-accent-soft);
-            color: var(--ai-accent-deep);
-
-            border-radius: 999px;
-            padding: 0.3rem 0.8rem;
-
-            font-size: 0.82rem;
-            font-weight: 600;
         }
 
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+import html
 import sys
 
 import pandas as pd
@@ -17,7 +18,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.chart_theme import apply_chart_theme, get_category_color_map
 from src.column_labels import default_column_config
-from src.insight_cards import render_ai_insight_card
+from src.insight_cards import (
+    render_ai_insight_card,
+    render_discount_insight_card,
+)
+from src.kpi_cards import render_kpi_card
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
     compute_confidence_label,
@@ -81,11 +86,11 @@ header_col, badge_col = st.columns([3, 1])
 with header_col:
     st.markdown(
         """
-        <div class="step-label">銷售成效分析</div>
+        <div class="step-label">CAMPAIGN INSIGHTS</div>
 
         <div class="product-page-title">
             <div class="product-page-title-bar"></div>
-            <h1>活動洞察 Campaign Insights</h1>
+            <h1>活動洞察</h1>
         </div>
 
         <p class="product-page-description">
@@ -237,16 +242,19 @@ def render_discount_rate_insight(
     )
     bracket_stats = bracket_stats[bracket_stats["unit_count"] > 0]
 
+    rows: list[tuple[str, str]] = []
+
     if not bracket_stats.empty:
         best_bracket = bracket_stats["avg_net_effect"].idxmax()
         best_bracket_row = bracket_stats.loc[best_bracket]
 
-        st.markdown(
-            f"折扣率落在「{best_bracket}」區間的活動單位"
-            "平均淨營收效應最高，約 "
-            f"\\${best_bracket_row['avg_net_effect']:,.0f}/日"
-            f"（共{int(best_bracket_row['unit_count'])}檔）。"
-        )
+        rows.append((
+            "折扣率",
+            f"落在「{html.escape(str(best_bracket))}」區間的"
+            "活動單位平均淨營收效應最高，約 "
+            f"${best_bracket_row['avg_net_effect']:,.0f}/日"
+            f"（共{int(best_bracket_row['unit_count'])}檔）。",
+        ))
 
     positive_data = discount_insight_data[
         discount_insight_data["net_revenue_effect_per_day"] > 0
@@ -277,22 +285,26 @@ def render_discount_rate_insight(
             )
 
             product_name_prefix = (
-                f"**{example['product_name']}** "
+                f"<strong>{html.escape(str(example['product_name']))}</strong> "
                 if show_product_name
                 else ""
             )
 
-            st.markdown(
-                f"值得留意：{product_name_prefix}活動單位 "
-                f"**{example['unit_code']}** "
-                f"折扣率僅 {example_discount_text}"
+            rows.append((
+                "值得留意",
+                f"{product_name_prefix}活動單位 "
+                f"<strong>{html.escape(str(example['unit_code']))}</strong> "
+                f"折扣率僅 {html.escape(example_discount_text)}"
                 "（低於範圍內中位數），"
                 "淨增益仍達 "
-                f"\\${example['net_revenue_effect_per_day']:,.0f}/日，"
+                f"${example['net_revenue_effect_per_day']:,.0f}/日，"
                 "排在前段班；這類案例代表不一定要打到很深的折扣"
                 "才能維持不錯的營收表現，深折扣可能只是白白讓出"
-                "存量降價的營收，可考慮嘗試較淺的折扣區間。"
-            )
+                "存量降價的營收，可考慮嘗試較淺的折扣區間。",
+            ))
+
+    if rows:
+        render_discount_insight_card(rows)
 
 
 # =========================================================
@@ -606,35 +618,45 @@ risk_mask = compute_risk_mask(filtered_unit_overview)
 risk_rate_count = int(risk_mask.sum())
 
 with kpi_col1:
-    st.metric(
-        "📈 累積淨增益 GMV",
-        f"${total_incremental_gmv:,.0f}",
-        help="篩選範圍內所有活動單位淨營收效應合計",
+    render_kpi_card(
+        icon="📈",
+        label="累積淨增益 GMV",
+        value=f"${total_incremental_gmv:,.0f}",
+        help_text="篩選範圍內所有活動單位淨營收效應合計",
+        accent="blue",
+        value_size="lg",
     )
 
 with kpi_col2:
-    st.metric(
-        "✨ 疊加綜效提升率 Synergy Uplift",
-        (
+    render_kpi_card(
+        icon="✨",
+        label="疊加綜效提升率 Synergy Uplift",
+        value=(
             f"{synergy_uplift:+.0%}"
             if synergy_uplift is not None
             else "-"
         ),
-        help="多活動疊加單位 vs 可分離單一活動單位的平均淨增益差異",
+        help_text="多活動疊加單位 vs 可分離單一活動單位的平均淨增益差異",
+        accent="green",
+        value_size="lg",
     )
 
 with kpi_col3:
-    st.metric(
-        "🏆 最佳槓桿 Best Lever",
-        best_lever or "-",
-        help="配對比對彙總中，平均淨增益貢獻最高的活動類型",
+    render_kpi_card(
+        icon="🏆",
+        label="最佳槓桿 Best Lever",
+        value=best_lever or "-",
+        help_text="配對比對彙總中，平均淨增益貢獻最高的活動類型",
+        accent="orange",
     )
 
 with kpi_col4:
-    st.metric(
-        "⚠ 風險檔數 Risk Rate",
-        f"{risk_rate_count} 檔",
-        help="存量降價效應(絕對值) > 量增效應(絕對值) 的活動單位數",
+    render_kpi_card(
+        icon="⚠",
+        label="風險檔數 Risk Rate",
+        value=f"{risk_rate_count} 檔",
+        help_text="存量降價效應(絕對值) > 量增效應(絕對值) 的活動單位數",
+        accent="red",
     )
 
 
@@ -652,28 +674,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-product_view_title_col, product_view_tag_col = st.columns([3, 2])
-
-with product_view_title_col:
-    st.caption(
-        "回答：這款商品在哪個活動組合下增益最大？"
-        "折扣要給到幾折？"
-    )
-
-with product_view_tag_col:
-    st.markdown(
-        """
-        <div style="text-align:right;">
-            <span class="sheet-source-tag">
-                工作表5・活動單位總覽(vs基準)
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+st.caption(
+    "回答：這款商品在哪個活動組合下增益最大？"
+    "折扣要給到幾折？"
+)
 
 product_chart_col, product_insight_col = st.columns(
-    [3, 2], gap="large"
+    [3, 2], gap="medium"
 )
 
 with product_chart_col:
@@ -839,6 +846,7 @@ with product_insight_col:
                     reason="依此商品目前篩選範圍內淨增益由高到低排序取得最高者。",
                     action="可考慮延續此組合，並測試擴大曝光或延伸至相似商品。",
                     confidence=filtered_confidence_label.loc[best_row.name],
+                    outcome="表現最佳",
                 )
 
                 worst_row = product_rows.sort_values(
@@ -875,9 +883,9 @@ with product_insight_col:
                         else "建議檢視活動設計、曝光或改以其他機制測試。"
                     ),
                     confidence=filtered_confidence_label.loc[worst_row.name],
+                    outcome="表現較差",
                 )
 
-                st.markdown("**📊 折扣率洞察**")
                 render_discount_rate_insight(
                     product_rows, show_product_name=False
                 )
@@ -909,6 +917,7 @@ with product_insight_col:
                     reason="依目前篩選範圍內淨增益由高到低排序取得最高者。",
                     action="可考慮延續此折扣深度，並測試擴大曝光。",
                     confidence=filtered_confidence_label.loc[best_row.name],
+                    outcome="表現最佳",
                 )
 
             risk_rows = filtered_unit_overview[risk_mask].sort_values(
@@ -934,9 +943,9 @@ with product_insight_col:
                     ),
                     action="建議下檔縮減折幅，改以贈品吸引轉換。",
                     confidence=filtered_confidence_label.loc[worst_risk.name],
+                    outcome="表現較差",
                 )
 
-            st.markdown("**📊 折扣率洞察**")
             render_discount_rate_insight(
                 filtered_unit_overview, show_product_name=True
             )
@@ -1085,7 +1094,7 @@ with activity_chart_col1:
             )
 
 with activity_chart_col2:
-    st.markdown("###### 🤖 AI 洞察")
+    st.markdown("##### 🤖 AI 洞察")
 
     combo_candidates = filtered_summary[
         filtered_summary["split_status"] == "無法拆分"
@@ -1203,8 +1212,7 @@ if not filtered_pairing.empty:
 
         with pairing_tab2:
             st.caption(
-                "各活動組合的拆分狀態、涵蓋天數與全商品加總總增益"
-                "（對應參考報表工作表7）。"
+                "各活動組合的拆分狀態、涵蓋天數與全商品加總總增益。"
             )
 
             summary_view_columns = [
