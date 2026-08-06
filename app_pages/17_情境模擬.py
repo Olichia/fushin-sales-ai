@@ -355,6 +355,14 @@ with output_col:
             scenario_results
         )
 
+        render_ai_insight_card(
+            finding=summary_insight["finding"],
+            reason=summary_insight["reason"],
+            action=summary_insight["action"],
+        )
+
+        st.write("")
+
         scenario_card_meta = [
             ("方案 A", "無贈品", "neutral"),
             (
@@ -524,39 +532,32 @@ with output_col:
 
         st.write("")
 
-        render_ai_insight_card(
-            finding=summary_insight["finding"],
-            reason=summary_insight["reason"],
-            action=summary_insight["action"],
-        )
-
-        st.write("")
-
-        st.caption(
-            "**計算邏輯**　折扣率＝1－活動價÷安靜期基準價；"
-            "預估活動銷量＝預估日均銷量×（1＋歷史同折扣區間平均銷量提升率）；"
-            "活動營收＝活動價×預估活動銷量×天數；"
-            "無活動預期營收＝安靜期基準價×預估日均銷量×天數；"
-            "淨營收增益＝活動營收－無活動預期營收；"
-            "簡化後淨效益＝淨營收增益－贈品成本"
-            "（贈品成本＝贈品成本/件×預估活動銷量×天數）。"
-        )
-
-        st.caption(
-            "**A／B／C 如何產出**　方案 B 為您輸入的條件；"
-            "方案 A 在 B 的基礎上拿掉贈品；"
-            "方案 C 在 B 的活動價再降 10% 且不含贈品；"
-            "三者共用安靜期基準價、預估日均銷量與活動天數，"
-            "只差折扣深度與是否贈品，方便同時比較"
-            "「要不要送贈品」與「乾脆降更多價」。"
-        )
-
         uplift_note_text = "；".join(
             f"{label}：{note}" for label, note in uplift_notes.items()
         )
 
-        if uplift_note_text:
-            st.caption(f"**本次換算依據**　{uplift_note_text}")
+        with st.expander("計算邏輯與方案說明", expanded=False):
+            st.caption(
+                "**計算邏輯**　折扣率＝1－活動價÷安靜期基準價；"
+                "預估活動銷量＝預估日均銷量×（1＋歷史同折扣區間平均銷量提升率）；"
+                "活動營收＝活動價×預估活動銷量×天數；"
+                "無活動預期營收＝安靜期基準價×預估日均銷量×天數；"
+                "淨營收增益＝活動營收－無活動預期營收；"
+                "簡化後淨效益＝淨營收增益－贈品成本"
+                "（贈品成本＝贈品成本/件×預估活動銷量×天數）。"
+            )
+
+            st.caption(
+                "**A／B／C 如何產出**　方案 B 為您輸入的條件；"
+                "方案 A 在 B 的基礎上拿掉贈品；"
+                "方案 C 在 B 的活動價再降 10% 且不含贈品；"
+                "三者共用安靜期基準價、預估日均銷量與活動天數，"
+                "只差折扣深度與是否贈品，方便同時比較"
+                "「要不要送贈品」與「乾脆降更多價」。"
+            )
+
+            if uplift_note_text:
+                st.caption(f"**本次換算依據**　{uplift_note_text}")
 
         if platform_overlap:
             st.caption(
