@@ -41,6 +41,11 @@ def apply_product_styles() -> None:
             --warning: #B45309;
             --danger: #C62828;
 
+            --ai-accent: #5DA9FF;
+            --ai-accent-deep: #1D6FCC;
+            --ai-accent-soft: rgba(93, 169, 255, 0.10);
+            --ai-accent-border: rgba(93, 169, 255, 0.4);
+
             --shadow-sm:
                 0 1px 2px rgba(16, 24, 40, 0.05),
                 0 3px 8px rgba(16, 24, 40, 0.05);
@@ -2077,6 +2082,189 @@ def apply_product_styles() -> None:
                     13px
                     15px !important;
             }
+        }
+
+
+        /* ==================================================
+           AI 顧問結構化回覆卡片
+        ================================================== */
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+
+            font-size: 0.74rem;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+
+        .badge-confidence-high {
+            background: #E8F7EF;
+            color: #137A48;
+            border: 1px solid rgba(19, 122, 72, 0.3);
+        }
+
+        .badge-confidence-mid {
+            background: #FFF4E5;
+            color: #A65300;
+            border: 1px solid rgba(166, 83, 0, 0.3);
+        }
+
+        .badge-confidence-low {
+            background: #FDEDED;
+            color: #B45309;
+            border: 1px solid rgba(180, 83, 9, 0.3);
+        }
+
+        .badge-neutral {
+            background: #EEF1F5;
+            color: #526076;
+            border: 1px solid rgba(82, 96, 118, 0.25);
+        }
+
+        /* ==================================================
+           情境模擬・方案卡片
+        ================================================== */
+
+        .scenario-card {
+            padding: 0.9rem 1rem;
+
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 13px;
+
+            box-shadow: var(--shadow-sm);
+        }
+
+        .scenario-card-best {
+            border-color: var(--success);
+
+            box-shadow:
+                0 0 0 2px rgba(21, 128, 61, 0.15),
+                var(--shadow-sm);
+        }
+
+        .scenario-card-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .scenario-card-title {
+            font-size: 0.92rem;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .scenario-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 0.6rem;
+
+            padding: 0.32rem 0;
+            border-bottom: 1px dashed var(--border-soft);
+
+            font-size: 0.86rem;
+        }
+
+        .scenario-row:last-child {
+            border-bottom: none;
+        }
+
+        .scenario-row-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .scenario-row-value {
+            color: var(--text-primary);
+            font-weight: 750;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .advisor-card {
+            padding: 1rem 1.2rem;
+            margin: 0.4rem 0 0.2rem;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    var(--ai-accent-soft) 0%,
+                    #FFFFFF 55%
+                );
+
+            border: 1px solid var(--ai-accent-border);
+            border-radius: 13px;
+
+            box-shadow: var(--shadow-sm);
+        }
+
+        .advisor-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.65rem;
+        }
+
+        .advisor-tag,
+        .advisor-tag-fallback {
+            display: inline-flex;
+            align-items: center;
+
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+
+            font-size: 0.72rem;
+            font-weight: 850;
+            letter-spacing: 0.02em;
+        }
+
+        .advisor-tag {
+            background: var(--ai-accent);
+            color: #FFFFFF;
+        }
+
+        .advisor-tag-fallback {
+            background: #E7EBF0;
+            color: #45526B;
+            border: 1px dashed #B7C0CE;
+        }
+
+        .advisor-row {
+            display: flex;
+            gap: 0.55rem;
+            align-items: baseline;
+            margin-bottom: 0.45rem;
+        }
+
+        .advisor-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .advisor-row-label {
+            flex: 0 0 auto;
+            min-width: 4.4rem;
+
+            color: var(--ai-accent-deep);
+            font-size: 0.78rem;
+            font-weight: 850;
+        }
+
+        .advisor-row-text {
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            font-weight: 550;
+            line-height: 1.6;
         }
 
         </style>

@@ -16,9 +16,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 from src.ai_advisor import (
-    ask_gemini_advisor,
     build_advisor_context,
+    condense_structured_response,
+    get_structured_advisor_answer,
 )
+
+from src.insight_cards import render_structured_advisor_card
 
 from src.session_helpers import (
     initialize_session_state,
@@ -419,13 +422,20 @@ with chat_column:
                 "assistant",
             )
 
-            content = message.get(
-                "content",
-                "",
-            )
+            structured = message.get("structured")
 
             with st.chat_message(role):
-                st.markdown(content)
+                if structured:
+                    render_structured_advisor_card(
+                        **structured,
+                        is_fallback=message.get(
+                            "is_fallback", False
+                        ),
+                    )
+                else:
+                    st.markdown(
+                        message.get("content", "")
+                    )
 
 
     typed_question = st.chat_input(
@@ -463,14 +473,19 @@ if user_question:
         with st.spinner(
             "AI 顧問正在分析資料……"
         ):
-            answer = ask_gemini_advisor(
-                user_question=user_question,
-                advisor_context=advisor_context,
-                chat_messages=(
-                    st.session_state[
-                        "ai_chat_messages"
-                    ]
-                ),
+            structured_answer, is_fallback = (
+                get_structured_advisor_answer(
+                    user_question=user_question,
+                    advisor_context=advisor_context,
+                    chat_messages=(
+                        st.session_state[
+                            "ai_chat_messages"
+                        ]
+                    ),
+                    unit_overview_dataframe=(
+                        unit_overview_raw
+                    ),
+                )
             )
 
         st.session_state[
@@ -478,7 +493,13 @@ if user_question:
         ].append(
             {
                 "role": "assistant",
-                "content": answer,
+                "content": condense_structured_response(
+                    structured_answer
+                ),
+                "structured": (
+                    structured_answer.model_dump()
+                ),
+                "is_fallback": is_fallback,
             }
         )
 

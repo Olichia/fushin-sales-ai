@@ -522,6 +522,14 @@ if run_button:
             "activity_waterfall_summary_dataframe"
         ] = unit_analysis_result.waterfall_summary
 
+        st.session_state[
+            "activity_bundle_rules_dataframe"
+        ] = unit_analysis_result.bundle_rules
+
+        st.session_state[
+            "activity_bundle_date_mismatch_dataframe"
+        ] = unit_analysis_result.bundle_date_mismatches
+
         st.session_state["unit_analysis_completed"] = True
 
     else:
@@ -650,6 +658,36 @@ if analysis_completed:
         st.success(
             "整合過程沒有發現需要另外處理的問題。"
         )
+
+    bundle_date_mismatch_dataframe = get_dataframe(
+        "activity_bundle_date_mismatch_dataframe"
+    )
+
+    if dataframe_ready(bundle_date_mismatch_dataframe):
+        st.warning(
+            f"發現 {len(bundle_date_mismatch_dataframe):,} 筆"
+            "活動組合名稱相符但日期未完全對齊的提醒，"
+            "請展開查看。"
+        )
+
+        with st.expander(
+            "查看活動組合日期提醒",
+            expanded=False,
+        ):
+            st.caption(
+                "以下活動名稱包含同一個母活動的關鍵字，"
+                "但日期沒有完全一致，因此未被系統合併成"
+                "同一個不可分割活動組合。建議確認來源資料"
+                "的日期是否填寫正確。"
+            )
+            st.dataframe(
+                bundle_date_mismatch_dataframe,
+                use_container_width=True,
+                hide_index=True,
+                column_config=default_column_config(
+                    bundle_date_mismatch_dataframe
+                ),
+            )
 
     unit_timeline_wide_dataframe = get_dataframe(
         "activity_unit_timeline_wide_dataframe"

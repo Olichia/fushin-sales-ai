@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
 
 from src.column_labels import label_for
 from src.executive_summary import build_activity_unit_strategy_text
 from src.unit_overview_helpers import (
     compute_confidence_label,
+    compute_risk_mask,
     compute_strategy_category,
     prepare_unit_overview_for_display,
 )
@@ -384,6 +387,251 @@ def ask_gemini_advisor(
         )
 
     return response_text.strip()
+
+
+# =========================================================
+# 結構化回覆（14_AI顧問.py 專用）
+#
+# 上面的 ask_gemini_advisor() 回傳自由文字，floating_chatbot.py
+# 與舊版 10_AI行銷策略顧問.py 仍在使用，不能更動其行為。這裡
+# 另外新增一組固定 JSON schema 版本，只給「AI 策略顧問」頁使用：
+# 關鍵發現／判斷原因／資料證據／建議行動／替代方案／信心程度／
+# 資料限制，解析失敗兩次後改用規則式 fallback，不讓對話中斷。
+# =========================================================
+
+class AdvisorStructuredResponse(BaseModel):
+    """AI 策略顧問固定回覆結構。"""
+
+    finding: str = Field(
+        description=(
+            "關鍵發現：本次問題最重要的一個觀察，"
+            "需引用具體商品、活動或數字。"
+        )
+    )
+    reason: str = Field(
+        description="判斷原因：為什麼會有這個發現，說明機制或推論依據。"
+    )
+    evidence: str = Field(
+        description=(
+            "資料證據：引用背景資料中具體的商品、活動組合、"
+            "淨增益、折扣率等數值。"
+        )
+    )
+    action: str = Field(
+        description="建議行動：具體、可在下一檔活動執行的行動。"
+    )
+    alternative: str = Field(
+        description="替代方案：如果不採用建議行動時，另一個可考慮的選項。"
+    )
+    confidence: Literal["高", "中", "低"] = Field(
+        description="信心程度，只能是「高」「中」或「低」三選一。"
+    )
+    limitations: str = Field(
+        description="資料限制：樣本量不足、無法歸因或需要補充的資料。"
+    )
+
+
+def build_structured_conversation_prompt(
+    user_question: str,
+    advisor_context: str,
+    chat_messages: list[dict[str, Any]],
+) -> str:
+    """
+    建立要求固定 JSON 結構輸出的完整 Prompt。
+
+    業務規則跟 build_conversation_prompt() 完全一致（不可捏造、
+    需區分觀察/推測/建議、資料信心提醒等），差別只在於這裡改
+    要求輸出對應到 AdvisorStructuredResponse 的七個欄位，
+    而不是自由格式的散文。
+    """
+
+    history_lines = []
+
+    for message in chat_messages[-8:]:
+        role = message.get("role", "user")
+        content = str(message.get("content", ""))
+        role_name = "AI 顧問" if role == "assistant" else "使用者"
+        history_lines.append(f"{role_name}：{content}")
+
+    history_text = "\n".join(history_lines)
+
+    return f"""
+你是零售促銷與品牌行銷策略顧問，熟悉「活動單位分析」方法論。
+
+請只根據提供的分析資料回答，不可捏造不存在的商品、
+活動、數值、成本、毛利或因果關係。
+
+【活動單位分析方法論】
+- 活動單位：依對應活動組合切出的連續期間，是這套方法論的分析顆粒度。
+- 同月安靜期基準：同商品同月沒有參與任何活動的期間，作為比較基準。
+- 淨營收效應 = 量增效應 + 降價效應：拆解「賣更多」與「賣更便宜」對營收的
+  個別貢獻。
+- 折扣率：以基準售價（含代理牌價估算）相對活動售價計算。
+- 瀑布法配對（可拆分／不可拆分）：可否把疊加的多個活動效果拆開歸因給單一
+  活動；不可拆分代表無法判斷組合裡哪個活動機制真正有效。
+- 策略分類：淨增益為負一律是「建議檢討」；非負值時達全體活動單位淨增益
+  中位數以上為「建議延續」，未達中位數為「持續觀察」。
+- 毛利侵蝕風險：降價效應絕對值大於量增效應時判定。
+- 資料信心：依樣本天數、瀑布法配對樣本量與是否用了代理牌價估算判斷。
+
+回答時必須遵守以下規則：
+
+1. 明確區分「資料觀察」、「推測」與「建議」，分別寫進對應欄位。
+2. 不可將活動期間銷量上升直接說成活動造成。
+3. 若活動單位資料信心較低（樣本天數少、瀑布法對照組樣本量小，或使用了
+   代理牌價估算），或活動組合為「不可拆分」，信心程度須填「低」或「中」，
+   並在資料限制欄位說明原因。
+4. 淨增益已扣除同月安靜期基準，但不等於實際毛利或淨利潤（未納入成本、
+   退貨、平台抽成）。
+5. 沒有成本或毛利資料時，不可宣稱活動有獲利。
+6. 建議行動與替代方案都必須具體、可執行、可驗證，不可空泛。
+7. 資料證據欄位要點名實際商品、活動或數字，不要只重複發現欄位的說法。
+8. 若資料不足以回答，在資料限制欄位直接說明還需要哪些資料，並將信心程度
+   填「低」。
+9. 使用者問到以下類型問題時，優先從背景資料對應段落找依據：
+   - 折扣策略／折扣率該打多少 → 引用「活動單位分析摘要」裡的折扣深度洞察
+   - 贈品或加碼送組合設計 → 引用「商品售價與贈品明細」
+   - 活動方向／要不要疊加多個活動 → 引用「疊加活動組合彙總」
+   - 風險提醒 → 引用資料信心較低或有毛利侵蝕風險的活動單位
+   - 類似成功案例 → 從「活動單位總覽明細」找相近且策略分類為「建議延續」
+     的過往案例
+10. 全部使用繁體中文。
+
+以下是目前系統分析背景：
+
+{advisor_context}
+
+以下是最近對話：
+
+{history_text}
+
+使用者最新問題：
+
+{user_question}
+""".strip()
+
+
+def ask_gemini_advisor_structured(
+    user_question: str,
+    advisor_context: str,
+    chat_messages: list[dict[str, Any]],
+) -> AdvisorStructuredResponse:
+    """
+    呼叫 Gemini 並要求回傳符合 AdvisorStructuredResponse 的固定
+    JSON 結構（單次嘗試，不含重試）。重試與 fallback 邏輯統一交給
+    get_structured_advisor_answer() 處理，這裡只負責單次呼叫。
+    """
+
+    client = get_gemini_client()
+
+    prompt = build_structured_conversation_prompt(
+        user_question=user_question,
+        advisor_context=advisor_context,
+        chat_messages=chat_messages,
+    )
+
+    response = client.models.generate_content(
+        model="gemini-flash-lite-latest",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=AdvisorStructuredResponse,
+            temperature=0.2,
+        ),
+    )
+
+    parsed = response.parsed
+
+    if not isinstance(parsed, AdvisorStructuredResponse):
+        raise ValueError("Gemini 沒有回傳可解析的結構化內容。")
+
+    return parsed
+
+
+def build_fallback_advisor_response(
+    unit_overview_dataframe: pd.DataFrame,
+) -> AdvisorStructuredResponse:
+    """
+    Gemini 連續兩次呼叫都失敗時的規則式備援內容。
+
+    完全複用既有的策略分類／風險判斷邏輯彙總出一句可用的摘要，
+    讓對話不中斷；卡片渲染時會額外標示「示範備援」，
+    不會偽裝成正常的 AI 即時判讀結果。
+    """
+
+    unit_overview = prepare_unit_overview_for_display(
+        unit_overview_dataframe
+    )
+
+    strategy_category = compute_strategy_category(unit_overview)
+    risk_mask = compute_risk_mask(unit_overview)
+
+    total_units = len(unit_overview)
+    continue_count = int((strategy_category == "建議延續").sum())
+    risk_count = int(risk_mask.sum())
+
+    return AdvisorStructuredResponse(
+        finding=(
+            f"目前共 {total_units} 個活動單位，其中 {continue_count} 個"
+            f"建議延續、{risk_count} 個存在毛利侵蝕風險。"
+        ),
+        reason=(
+            "AI 顧問服務暫時無法回應，以下為系統依既有規則彙總的摘要，"
+            "非本次問題的即時判讀。"
+        ),
+        evidence="彙總自目前活動單位分析的策略分類與風險判斷欄位。",
+        action=(
+            "請稍後再重新提問，或前往「策略中心」查看完整決策佇列"
+            "與個別化建議。"
+        ),
+        alternative="可先參考「主管報表中心」的文字策略報告。",
+        confidence="低",
+        limitations=(
+            "此為示範備援內容，非 AI 即時判讀結果，"
+            "資料細節請以其他頁面的分析結果為準。"
+        ),
+    )
+
+
+def get_structured_advisor_answer(
+    user_question: str,
+    advisor_context: str,
+    chat_messages: list[dict[str, Any]],
+    unit_overview_dataframe: pd.DataFrame,
+) -> tuple[AdvisorStructuredResponse, bool]:
+    """
+    呼叫結構化 AI 顧問，最多嘗試兩次；兩次都失敗（API 錯誤、逾時，
+    或回傳內容無法對應到 AdvisorStructuredResponse）時改用規則式
+    fallback，確保對話不中斷。
+
+    回傳 (回覆內容, 是否為 fallback)。
+    """
+
+    for _ in range(2):
+        try:
+            return (
+                ask_gemini_advisor_structured(
+                    user_question=user_question,
+                    advisor_context=advisor_context,
+                    chat_messages=chat_messages,
+                ),
+                False,
+            )
+        except Exception:
+            continue
+
+    return (
+        build_fallback_advisor_response(unit_overview_dataframe),
+        True,
+    )
+
+
+def condense_structured_response(
+    response: AdvisorStructuredResponse,
+) -> str:
+    """把結構化回覆壓成一行摘要，供對話歷史（Prompt 用）使用。"""
+
+    return f"{response.finding}｜建議：{response.action}"
 
 
 # =========================================================

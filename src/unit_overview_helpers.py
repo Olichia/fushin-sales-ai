@@ -61,7 +61,14 @@ def prepare_unit_overview_for_display(
     )
 
     def classify_color_category(row: pd.Series) -> str:
-        if row.get("classification") == "多活動合併,不可分離":
+        # 「不可分割活動組合」（母子活動群組已被明確定義）與
+        # 「多活動疊加,待瀑布法檢驗」（單純疊加多個標籤，還
+        # 沒確定能不能拆）都代表這個單位不是單一活動，沿用
+        # 同一個「不可分離」風險色。
+        if row.get("classification") in {
+            "多活動疊加,待瀑布法檢驗",
+            "不可分割活動組合",
+        }:
             return "不可分離"
 
         net_effect = row.get("net_revenue_effect_per_day")

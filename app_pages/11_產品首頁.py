@@ -19,6 +19,8 @@ if str(PROJECT_ROOT) not in sys.path:
     )
 
 
+from src.executive_summary import build_executive_brief_summary
+from src.insight_cards import render_ai_insight_card
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
     CATEGORY_COLOR_MAP,
@@ -129,6 +131,48 @@ if new_engine_ready:
 else:
     unit_overview = None
     unit_risk_mask = None
+
+
+# =========================================================
+# 本期摘要（首屏，只在活動單位分析已就緒時顯示；
+# 沒有分析結果時頁面行為與改版前完全相同）
+# =========================================================
+
+if new_engine_ready:
+    brief = build_executive_brief_summary(unit_overview_raw)
+
+    with st.container(border=True):
+        st.markdown(
+            '<div class="output-card-label">本期摘要</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"**{brief['headline_text']}**")
+
+    brief_kpi_col1, brief_kpi_col2, brief_kpi_col3, brief_kpi_col4 = (
+        st.columns(4)
+    )
+
+    brief_kpi_col1.metric(
+        "可分析活動數", f"{brief['total_units']:,}"
+    )
+    brief_kpi_col2.metric(
+        "建議延續數", f"{brief['continue_count']:,}"
+    )
+    brief_kpi_col3.metric(
+        "高風險活動數", f"{brief['risk_count']:,}"
+    )
+    brief_kpi_col4.metric(
+        "待確認活動數", f"{brief['unclear_count']:,}"
+    )
+
+    render_ai_insight_card(
+        finding=brief["insight_finding"],
+        reason=brief["insight_reason"],
+        action=brief["insight_action"],
+        confidence=brief["insight_confidence"],
+    )
+
+    st.divider()
 
 
 # =========================================================
@@ -393,27 +437,11 @@ if (
 
 
 # =========================================================
-# 新引擎補充KPI（活動單位分析）
-# =========================================================
-
-if new_engine_ready:
-    engine_kpi_col1, engine_kpi_col2 = st.columns(2)
-
-    engine_kpi_col1.metric(
-        "淨增益GMV合計",
-        f"{unit_overview['net_revenue_effect_total'].sum():,.0f}",
-        help="所有活動單位相對於同月安靜期基準的淨營收效應加總。",
-    )
-
-    engine_kpi_col2.metric(
-        "風險檔數",
-        f"{int(unit_risk_mask.sum()):,}",
-        help="降價效應大於量增效應，屬於毛利侵蝕風險的活動單位數。",
-    )
-
-
-# =========================================================
 # 每日銷量趨勢
+#
+# 「淨增益GMV合計」「風險檔數」原本在此處另有一組補充 KPI，
+# 已併入上方「本期摘要」區塊（風險檔數＝高風險活動數），
+# 避免同一頁面出現兩組意義重疊的 KPI。
 # =========================================================
 
 st.divider()
