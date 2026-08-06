@@ -94,6 +94,13 @@ SESSION_DEFAULTS = {
     # 情境模擬・已採用方案
     # -----------------------------
     "adopted_whatif_scenarios": [],
+
+    # -----------------------------
+    # 介面主題
+    # -----------------------------
+    "dark_mode": False,
+    "landing_page_dismissed": False,
+    "sidebar_icon_only": False,
 }
 
 

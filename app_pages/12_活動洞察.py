@@ -15,11 +15,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from src.chart_theme import apply_chart_theme, get_category_color_map
 from src.column_labels import default_column_config
 from src.insight_cards import render_ai_insight_card
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
-    CATEGORY_COLOR_MAP,
     compute_confidence_label,
     compute_risk_mask,
     prepare_unit_overview_for_display,
@@ -31,6 +31,9 @@ from src.unit_overview_helpers import (
 # =========================================================
 
 initialize_session_state()
+
+dark_mode = bool(st.session_state.get("dark_mode", False))
+CATEGORY_COLOR_MAP = get_category_color_map(dark_mode)
 
 MINIMUM_DAYS_FOR_CONFIDENCE = 2
 
@@ -661,9 +664,7 @@ with product_view_tag_col:
     st.markdown(
         """
         <div style="text-align:right;">
-            <span style="background:#eef0ff; color:#4E56A6;
-                         border-radius:999px; padding:0.3rem 0.8rem;
-                         font-size:0.82rem; font-weight:600;">
+            <span class="sheet-source-tag">
                 工作表5・活動單位總覽(vs基準)
             </span>
         </div>
@@ -742,6 +743,7 @@ with product_chart_col:
         margin={"l": 10, "r": 10, "t": 10, "b": 10},
         height=ranking_height,
     )
+    apply_chart_theme(ranking_figure, dark_mode)
 
     with st.container(height=PRODUCT_VIEW_CHART_HEIGHT):
         st.plotly_chart(
@@ -783,6 +785,7 @@ with product_chart_col:
             margin={"l": 10, "r": 10, "t": 10, "b": 10},
             height=PRODUCT_VIEW_CHART_HEIGHT,
         )
+        apply_chart_theme(scatter_figure, dark_mode)
 
         with st.container(height=PRODUCT_VIEW_CHART_HEIGHT):
             st.plotly_chart(
@@ -1074,6 +1077,7 @@ with activity_chart_col1:
             margin={"l": 10, "r": 10, "t": 10, "b": 10},
             height=summary_height,
         )
+        apply_chart_theme(summary_figure, dark_mode)
 
         with st.container(height=CHART_MAX_HEIGHT):
             st.plotly_chart(

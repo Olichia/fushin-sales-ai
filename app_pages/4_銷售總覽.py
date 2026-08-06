@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from src.chart_theme import apply_chart_theme
 from src.session_helpers import initialize_session_state
 
 
@@ -24,6 +25,8 @@ from src.session_helpers import initialize_session_state
 # =========================================================
 
 initialize_session_state()
+
+dark_mode = bool(st.session_state.get("dark_mode", False))
 
 st.title("銷售總覽")
 
@@ -415,6 +418,7 @@ else:
         yaxis_title="銷量",
         hovermode="x unified",
     )
+    apply_chart_theme(daily_figure, dark_mode)
 
     st.plotly_chart(
         daily_figure,
@@ -516,6 +520,7 @@ ranking_figure.update_layout(
     xaxis_title="總銷量",
     yaxis_title="商品",
 )
+apply_chart_theme(ranking_figure, dark_mode)
 
 
 st.plotly_chart(
@@ -568,6 +573,7 @@ else:
         xaxis_title="月份",
         yaxis_title="總銷量",
     )
+    apply_chart_theme(monthly_figure, dark_mode)
 
     st.plotly_chart(
         monthly_figure,
@@ -631,6 +637,7 @@ else:
         yaxis_title="銷量",
         hovermode="x unified",
     )
+    apply_chart_theme(product_trend_figure, dark_mode)
 
     st.plotly_chart(
         product_trend_figure,

@@ -1,0 +1,506 @@
+<style>
+/*
+Hero 區塊顏色全部走 apply_product_styles() 已注入的共用
+變數（--surface、--text-primary、--brand-orange……），
+跟著系統亮／暗模式一起切換，不寫死深色。深色模式的變數
+本身就是深藍＋橘藍光暈的科技感配色（見 src/ui_style.py
+的 _DARK_OVERRIDE_STYLE），切成深色模式時效果會自然接近
+截圖的暗色版本，亮色模式則沿用跟其他頁面一致的亮色卡片。
+*/
+
+/*
+拿掉卡片邊框／陰影／獨立底色（原本用 var(--surface) 跟
+頁面本身的 var(--app-bg) 不同色，會有一圈「卡片邊界」），
+改成直接沿用頁面背景色，讓內容像參考截圖一樣直接鋪在頁面
+底色上，沒有卡片邊界。裝飾用的圓形光暈仍保留。
+*/
+.hero-shell {
+    position: relative;
+    overflow: hidden;
+
+    margin: -1.2rem -0.2rem 1.6rem;
+    padding: 3.6rem 3.4rem;
+
+    background:
+        radial-gradient(
+            circle at 85% 10%,
+            var(--brand-orange-soft),
+            transparent 45%
+        ),
+        radial-gradient(
+            circle at 8% 95%,
+            var(--ai-accent-soft),
+            transparent 42%
+        ),
+        var(--app-bg);
+}
+
+/*
+電路線裝飾：純 SVG 線條＋節點小圓點，襯在內容後方
+（z-index 0），內容本身墊高到 z-index 1。用 var() 讀取跟
+其他元件一樣的品牌色，亮／暗模式會自動換色，透明度壓低
+避免蓋過文字。
+*/
+.hero-circuit-lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.hero-grid {
+    position: relative;
+    z-index: 1;
+
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: 2.5rem;
+    align-items: center;
+}
+
+.hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    margin-bottom: 1.1rem;
+    padding: 0.4rem 1rem;
+
+    border-radius: 999px;
+    background: var(--brand-orange-soft);
+    border: 1px solid var(--brand-orange-border);
+
+    color: var(--brand-orange-dark);
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+/*
+這裡全部補上 !important：基礎樣式（ui_style.py）裡有一條
+寫死的「h1 { font-size: 22px !important; ... }」規則，
+!important 一定贏過沒有 !important 的宣告，不管 class
+選擇器特異度再高都沒用，這是先前字級調再大都沒有視覺變化
+的真正原因。
+*/
+.hero-title {
+    margin: 0 0 0.9rem !important;
+
+    color: var(--text-primary) !important;
+    font-size: 3.6rem !important;
+    font-weight: 900 !important;
+    line-height: 1.15 !important;
+    letter-spacing: -0.02em !important;
+    white-space: nowrap !important;
+}
+
+.hero-title-accent {
+    background:
+        linear-gradient(
+            100deg,
+            var(--brand-orange) 0%,
+            var(--brand-magenta) 55%,
+            var(--brand-blue) 100%
+        );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hero-subtitle {
+    margin-bottom: 1.2rem;
+
+    color: var(--text-primary);
+    font-size: 1.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.hero-description {
+    max-width: 640px;
+    margin-bottom: 2rem;
+
+    color: var(--text-secondary);
+    font-size: 1.15rem;
+    font-weight: 500;
+    line-height: 1.75;
+}
+
+.hero-feature-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.2rem;
+}
+
+.hero-feature-card {
+    padding: 1.2rem 1rem;
+
+    background: var(--surface-soft);
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+}
+
+/*
+圖示改用跟側邊欄同一套 Material Symbols 連字型圖示
+（data-testid="stIconMaterial"，字型 Material Symbols
+Rounded），四色徽章底色／邊框色用 color-mix() 從既有的
+純色 token（--brand-orange / --ai-accent / --brand-magenta
+/ --brand-green）動態算出淺色調，不用另外在 ui_style.py
+新增 soft/border token。FILL 0 讓圖示維持外框樣式、
+不填滿色，跟側邊欄圖示一致。
+*/
+.hero-feature-icon-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 56px;
+    height: 56px;
+    margin-bottom: 0.6rem;
+
+    border-radius: 14px;
+    border: 1.5px solid;
+}
+
+.hero-feature-icon-glyph {
+    font-size: 30px;
+    line-height: 1;
+
+    font-variation-settings:
+        "FILL" 0,
+        "wght" 400,
+        "GRAD" 0,
+        "opsz" 24;
+}
+
+.hero-feature-icon-orange {
+    background: color-mix(in srgb, var(--brand-orange) 14%, transparent);
+    border-color: color-mix(in srgb, var(--brand-orange) 45%, transparent);
+}
+
+.hero-feature-icon-orange .hero-feature-icon-glyph {
+    color: var(--brand-orange);
+}
+
+.hero-feature-icon-blue {
+    background: color-mix(in srgb, var(--ai-accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--ai-accent) 45%, transparent);
+}
+
+.hero-feature-icon-blue .hero-feature-icon-glyph {
+    color: var(--ai-accent);
+}
+
+.hero-feature-icon-magenta {
+    background: color-mix(in srgb, var(--brand-magenta) 14%, transparent);
+    border-color: color-mix(in srgb, var(--brand-magenta) 45%, transparent);
+}
+
+.hero-feature-icon-magenta .hero-feature-icon-glyph {
+    color: var(--brand-magenta);
+}
+
+.hero-feature-icon-green {
+    background: color-mix(in srgb, var(--brand-green) 14%, transparent);
+    border-color: color-mix(in srgb, var(--brand-green) 45%, transparent);
+}
+
+.hero-feature-icon-green .hero-feature-icon-glyph {
+    color: var(--brand-green);
+}
+
+.hero-feature-title {
+    margin-bottom: 0.3rem;
+
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.hero-feature-description {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.hero-orb-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-height: 380px;
+}
+
+.hero-orb-glow {
+    position: absolute;
+    width: 420px;
+    height: 420px;
+
+    border-radius: 50%;
+    background:
+        radial-gradient(
+            circle,
+            var(--brand-orange-soft) 0%,
+            transparent 68%
+        );
+
+    filter: blur(6px);
+}
+
+/*
+用 conic-gradient 畫出橘藍交替的分段圓，再用 mask 挖空
+中心只留一圈細線（mask 不支援時退回 background 全圓也
+不影響版面，只是失去挖空效果，屬於可接受的漸進降級）。
+外圈 5 段（橘藍橘藍橘，每段 72°），內圈 3 段（橘藍橘，
+每段 120°），內圈段數比外圈少。顏色深淺跟旁邊的電路線
+對調：環線改淡（opacity 0.45），電路線改成飽和實色。
+*/
+.hero-orb-ring {
+    position: absolute;
+    width: 360px;
+    height: 360px;
+    opacity: 0.45;
+
+    border-radius: 50%;
+    background:
+        conic-gradient(
+            var(--brand-orange) 0deg 72deg,
+            var(--ai-accent) 72deg 144deg,
+            var(--brand-orange) 144deg 216deg,
+            var(--ai-accent) 216deg 288deg,
+            var(--brand-orange) 288deg 360deg
+        );
+
+    -webkit-mask:
+        radial-gradient(
+            farthest-side,
+            transparent calc(100% - 3px),
+            #000 calc(100% - 3px)
+        );
+    mask:
+        radial-gradient(
+            farthest-side,
+            transparent calc(100% - 3px),
+            #000 calc(100% - 3px)
+        );
+
+    animation: hero-orb-spin 34s linear infinite;
+}
+
+.hero-orb-ring-inner {
+    position: absolute;
+    width: 270px;
+    height: 270px;
+    opacity: 0.45;
+
+    border-radius: 50%;
+    background:
+        conic-gradient(
+            var(--brand-orange) 0deg 120deg,
+            var(--ai-accent) 120deg 240deg,
+            var(--brand-orange) 240deg 360deg
+        );
+
+    -webkit-mask:
+        radial-gradient(
+            farthest-side,
+            transparent calc(100% - 3px),
+            #000 calc(100% - 3px)
+        );
+    mask:
+        radial-gradient(
+            farthest-side,
+            transparent calc(100% - 3px),
+            #000 calc(100% - 3px)
+        );
+
+    animation: hero-orb-spin 24s linear infinite reverse;
+}
+
+@keyframes hero-orb-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.hero-orb-logo {
+    position: relative;
+    width: 220px;
+    height: 220px;
+
+    object-fit: contain;
+    filter: drop-shadow(0 16px 34px rgba(244, 91, 27, 0.3));
+}
+
+.hero-stats-row {
+    position: relative;
+    z-index: 1;
+
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+
+    margin-top: 2.6rem;
+    padding-top: 2rem;
+
+    border-top: 1px solid var(--border-soft);
+}
+
+.hero-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+/*
+使用者明確要求統計列不加任何背景外框（icon 本身也不要），
+只把 icon 字級放大到原本的 1.5 倍（1.5rem → 2.25rem）。
+數字顏色比照功能卡的四色（橘/藍/紫紅/綠），跟參考截圖一樣
+每個統計數字用不同顏色。
+*/
+.hero-stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 2.25rem;
+    line-height: 1;
+}
+
+.hero-stat-value {
+    font-size: 1.45rem;
+    font-weight: 850;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.hero-stat-value-orange {
+    color: var(--brand-orange);
+}
+
+.hero-stat-value-blue {
+    color: var(--ai-accent);
+}
+
+.hero-stat-value-magenta {
+    color: var(--brand-magenta);
+}
+
+.hero-stat-value-green {
+    color: var(--brand-green);
+}
+
+.hero-stat-label {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/*
+字級跟功能卡標題（.hero-feature-title，1.1rem）一致，
+外框改窄一些（280px→220px），長寬比不要那麼扁長。
+*/
+.st-key-hero_cta_button .stButton > button {
+    max-width: 220px;
+    font-size: 1.1rem !important;
+}
+
+@media (max-width: 1100px) {
+    .hero-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-orb-wrap {
+        order: -1;
+        min-height: 260px;
+        margin-bottom: 1rem;
+    }
+
+    .hero-orb-logo {
+        width: 150px;
+        height: 150px;
+    }
+
+    .hero-orb-glow {
+        width: 260px;
+        height: 260px;
+    }
+
+    .hero-orb-ring {
+        width: 220px;
+        height: 220px;
+    }
+
+    .hero-orb-ring-inner {
+        width: 160px;
+        height: 160px;
+    }
+}
+
+@media (max-width: 900px) {
+    .hero-shell {
+        padding: 2rem 1.4rem;
+    }
+
+    .hero-title {
+        font-size: 2.3rem;
+        white-space: normal;
+    }
+
+    .hero-feature-grid,
+    .hero-stats-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+</style>
+
+<div class="hero-shell">
+    <svg class="hero-circuit-lines" viewBox="0 0 1400 620" preserveAspectRatio="none" aria-hidden="true">
+        <g fill="none" stroke-width="1.5" opacity="1">
+            <path stroke="var(--brand-orange)" d="M1080 30 L1080 100 L1200 100 L1200 190" />
+            <path stroke="var(--ai-accent)" d="M1300 50 L1240 50 L1240 150 L1160 150" />
+            <path stroke="var(--brand-orange)" d="M1340 260 L1260 260 L1260 340 L1330 340" />
+            <path stroke="var(--ai-accent)" d="M960 30 L960 90 L1030 90" />
+            <path stroke="var(--ai-accent)" d="M1330 440 L1250 440 L1250 380" />
+        </g>
+        <g>
+            <circle cx="1200" cy="190" r="4" fill="var(--brand-orange)" opacity="1" />
+            <circle cx="1160" cy="150" r="3" fill="var(--ai-accent)" opacity="1" />
+            <circle cx="1330" cy="340" r="4" fill="var(--brand-orange)" opacity="1" />
+            <circle cx="1030" cy="90" r="3" fill="var(--ai-accent)" opacity="1" />
+            <circle cx="1250" cy="380" r="3" fill="var(--ai-accent)" opacity="1" />
+        </g>
+    </svg>
+    <div class="hero-grid">
+        <div>
+            <div class="hero-eyebrow">
+                富信新零售 × 台灣大哥大・AI 電商活動策略決策助手
+            </div>
+            <h1 class="hero-title">
+                智慧零售
+                <span class="hero-title-accent">決策引擎</span>
+            </h1>
+            <div class="hero-subtitle">
+                AI 驅動數據洞察，找出活動策略最佳解
+            </div>
+            <div class="hero-description">
+                整合銷量與活動資料，用 AI 洞察與情境模擬，
+                協助你更快找到下一檔活動的最佳策略。
+            </div>
+            <div class="hero-feature-grid">{{FEATURE_CARDS_HTML}}</div>
+        </div>
+        <div class="hero-orb-wrap">
+            <div class="hero-orb-glow"></div>
+            <div class="hero-orb-ring"></div>
+            <div class="hero-orb-ring-inner"></div>
+            {{ORB_HTML}}
+        </div>
+    </div>
+    <div class="hero-stats-row">{{STAT_ITEMS_HTML}}</div>
+</div>

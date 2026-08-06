@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from src.chart_theme import apply_chart_theme
 from src.session_helpers import initialize_session_state
 
 
@@ -24,6 +25,8 @@ from src.session_helpers import initialize_session_state
 # =========================================================
 
 initialize_session_state()
+
+dark_mode = bool(st.session_state.get("dark_mode", False))
 
 st.title("活動成效分析")
 
@@ -996,6 +999,7 @@ with tab1:
             xaxis_title="活動提升率（%）",
             yaxis_title="商品活動",
         )
+        apply_chart_theme(ranking_figure, dark_mode)
 
         st.plotly_chart(
             ranking_figure,
@@ -1286,6 +1290,7 @@ with tab2:
         xaxis_title="日期",
         yaxis_title="銷量",
     )
+    apply_chart_theme(trend_figure, dark_mode)
 
     st.plotly_chart(
         trend_figure,

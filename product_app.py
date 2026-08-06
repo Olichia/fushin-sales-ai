@@ -6,7 +6,12 @@ import streamlit as st
 
 from src.floating_chatbot import render_floating_chatbot
 from src.session_helpers import initialize_session_state
-from src.ui_style import apply_product_styles
+from src.ui_style import (
+    apply_product_styles,
+    apply_sidebar_icon_only_style,
+    render_sidebar_icon_only_toggle,
+    render_theme_toggle,
+)
 
 
 # =========================================================
@@ -32,18 +37,27 @@ PAGES_DIR = PROJECT_ROOT / "app_pages"
 ASSETS_DIR = PROJECT_ROOT / "assets"
 BRAND_LOGO_PATH = ASSETS_DIR / "logo-white.png"
 
-apply_product_styles()
+dark_mode = bool(st.session_state.get("dark_mode", False))
+
+apply_product_styles(dark_mode=dark_mode)
+render_theme_toggle()
 
 
 # =========================================================
 # 頁面定義
 # =========================================================
 
+landing_page = st.Page(
+    PAGES_DIR / "0_首頁.py",
+    title="首頁",
+    icon=":material/home:",
+    default=True,
+)
+
 data_management_page = st.Page(
     PAGES_DIR / "15_資料管理中心.py",
     title="開始使用",
-    icon=":material/home:",
-    default=True,
+    icon=":material/rocket_launch:",
 )
 
 sales_processing_page = st.Page(
@@ -148,6 +162,9 @@ with st.sidebar:
 
 navigation = st.navigation(
     {
+        "首頁": [
+            landing_page,
+        ],
         "開始使用": [
             data_management_page,
         ],
@@ -170,6 +187,24 @@ navigation = st.navigation(
     position="sidebar",
     expanded=True,
 )
+
+
+# =========================================================
+# 側邊欄兩級收合
+#
+# 第一級「精簡為 icon」：側邊欄仍是完整導覽，只是視覺上縮成
+# icon 列（使用者可自行切換）；第二級是 Streamlit 原生的
+# 「收合」按鈕，直接把側邊欄寬度歸零、整個隱藏。首頁本身一律
+# 是 icon-only（有自己獨立的樣板，不受這個切換鈕影響）。
+# =========================================================
+
+if navigation.title != "首頁":
+    sidebar_icon_only = bool(
+        st.session_state.get("sidebar_icon_only", False)
+    )
+
+    if sidebar_icon_only:
+        apply_sidebar_icon_only_style()
 
 
 # =========================================================
@@ -229,16 +264,23 @@ completed_count = sum(
     ]
 )
 
-with st.sidebar:
-    st.divider()
-    st.caption("資料進度")
-    st.progress(
-        completed_count / 3,
-        text=f"已完成 {completed_count}／3",
-    )
-    st.caption(
-        "Fushin Sales AI · Product MVP 1.0"
-    )
+if navigation.title != "首頁":
+    with st.sidebar:
+        st.divider()
+        render_sidebar_icon_only_toggle()
+
+        # icon-only 模式下側邊欄只有 96px 寬，進度區塊的文字
+        # 塞不下，比照首頁的做法直接不顯示，避免版面擠壓。
+        if not sidebar_icon_only:
+            st.divider()
+            st.caption("資料進度")
+            st.progress(
+                completed_count / 3,
+                text=f"已完成 {completed_count}／3",
+            )
+            st.caption(
+                "Fushin Sales AI · Product MVP 1.0"
+            )
 
 
 # =========================================================
