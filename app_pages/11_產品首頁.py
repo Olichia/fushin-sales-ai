@@ -22,6 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.chart_theme import apply_chart_theme, get_category_color_map
 from src.executive_summary import build_executive_brief_summary
 from src.insight_cards import render_ai_insight_card
+from src.persistence import load_state
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
     compute_actual_revenue_total,
@@ -457,12 +458,27 @@ chart_col1, chart_col2 = st.columns(
 with chart_col1:
     st.subheader("每日銷量趨勢")
 
+    chart_sales_dataframe = sales_dataframe
+    using_last_known_sales_data = False
+
+    if chart_sales_dataframe is None or chart_sales_dataframe.empty:
+        persisted_sales_dataframe = load_state(
+            "standardized_dataframe"
+        )
+
+        if (
+            isinstance(persisted_sales_dataframe, pd.DataFrame)
+            and not persisted_sales_dataframe.empty
+        ):
+            chart_sales_dataframe = persisted_sales_dataframe
+            using_last_known_sales_data = True
+
     if (
-        sales_dataframe is None
+        chart_sales_dataframe is None
         or "sale_date"
-        not in sales_dataframe.columns
+        not in chart_sales_dataframe.columns
         or "quantity"
-        not in sales_dataframe.columns
+        not in chart_sales_dataframe.columns
     ):
         st.info(
             "完成銷量資料標準化後，"
@@ -470,8 +486,14 @@ with chart_col1:
         )
 
     else:
+        if using_last_known_sales_data:
+            st.caption(
+                "⏳ 顯示上次已確認的銷量資料，"
+                "尚未有本次新資料。"
+            )
+
         daily_sales = (
-            sales_dataframe.copy()
+            chart_sales_dataframe.copy()
         )
 
         daily_sales["sale_date"] = (

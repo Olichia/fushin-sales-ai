@@ -427,3 +427,35 @@ def estimate_baseline_price_from_history(
         return None
 
     return float(prices.median())
+
+
+def build_scenario_identity(
+    product_id: str,
+    label: str,
+    scenario_input: WhatIfScenarioInput,
+) -> str:
+    """
+    依商品＋方案格＋這次試算實際用的設定值組出識別碼。
+
+    設定值完全相同時識別碼也相同，用來讓「重複按同一顆採用
+    按鈕」去重成一筆；只要有任何一個設定不同（換方案、換商品、
+    或改了輸入後重新模擬採用），識別碼就會不同，各自成為報告
+    上獨立的一筆，彼此並存不覆蓋。
+
+    情境模擬頁（採用按鈕）與行動生成頁（比對已採用方案）共用
+    這份邏輯，確保兩邊算出來的識別碼一致。
+    """
+
+    fields = (
+        str(product_id),
+        label,
+        round(scenario_input.baseline_price, 2),
+        round(scenario_input.activity_price, 2),
+        int(scenario_input.days),
+        round(scenario_input.estimated_daily_sales, 2),
+        bool(scenario_input.has_gift),
+        round(scenario_input.gift_cost_per_unit, 2),
+        bool(scenario_input.platform_overlap),
+    )
+
+    return "|".join(str(field) for field in fields)

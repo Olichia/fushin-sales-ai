@@ -557,7 +557,7 @@ def apply_product_styles(dark_mode: bool = False) -> None:
             padding-right: 2.6rem;
 
             color: var(--text-secondary);
-            font-size: 0.78rem;
+            font-size: 1.04rem;
             font-weight: 650;
         }
 
@@ -904,14 +904,18 @@ def apply_product_styles(dark_mode: bool = False) -> None:
         變動），讓它在兩種模式下都跟亮色模式一樣「看起來有灰底
         可以看見」。
         */
-        [data-testid="stSidebarCollapseButton"] button {
+        [data-testid="stSidebarCollapseButton"] button,
+        [data-testid="stExpandSidebarButton"] {
             background: #E7EBF0 !important;
             border-radius: 8px !important;
         }
 
         [data-testid="stSidebarCollapseButton"] svg,
         [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"],
-        [data-testid="stSidebarCollapseButton"] * {
+        [data-testid="stSidebarCollapseButton"] *,
+        [data-testid="stExpandSidebarButton"] svg,
+        [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"],
+        [data-testid="stExpandSidebarButton"] * {
             color: #344054 !important;
             fill: #344054 !important;
         }
@@ -1923,7 +1927,7 @@ def apply_product_styles(dark_mode: bool = False) -> None:
             color:
                 var(--reference-text) !important;
 
-            font-size: 22px !important;
+            font-size: 33px !important;
             font-weight: 800 !important;
             line-height: 1.35 !important;
             letter-spacing: -0.01em !important;
@@ -1931,12 +1935,14 @@ def apply_product_styles(dark_mode: bool = False) -> None:
 
         .product-page-title h3 {
             margin: 0 !important;
+            font-size: 19px !important;
+            line-height: 1 !important;
         }
 
         .product-page-title-bar {
-            width: 5px !important;
-            height: 20px !important;
-            flex: 0 0 5px !important;
+            width: 8px !important;
+            height: 30px !important;
+            flex: 0 0 8px !important;
 
             border-radius: 3px !important;
         }
@@ -1978,7 +1984,9 @@ def apply_product_styles(dark_mode: bool = False) -> None:
             display: none !important;
         }
 
-        h3 {
+        h3,
+        h5,
+        h6 {
             color:
                 var(--reference-text) !important;
 
