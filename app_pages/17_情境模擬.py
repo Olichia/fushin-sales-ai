@@ -250,6 +250,18 @@ with output_col:
         )
         best_scenario = select_best_scenario(scenario_results)
 
+        # 暫存最近一次試算結果，供「行動生成」頁引用，
+        # 不需要使用者重新輸入一次條件。
+        st.session_state["whatif_last_scenario_results"] = (
+            scenario_results
+        )
+        st.session_state["whatif_last_product_id"] = (
+            selected_product_id
+        )
+        st.session_state["whatif_last_product_name"] = (
+            selected_product_label.split("（")[0]
+        )
+
         st.caption(
             "方案 A／C 由方案 B 的條件自動衍生：A 拿掉贈品、"
             "C 在活動價基礎上再降 10% 且不含贈品，"
@@ -341,6 +353,12 @@ with output_col:
             "⚠ 此為情境試算，不是因果預測；銷量假設來自歷史相似活動"
             "中位數或您輸入的數值。簡化後淨效益 ＝ 淨營收增益－贈品成本，"
             "未納入實際成本、退貨與平台抽成，不能直接視為毛利或淨利潤。"
+        )
+
+        st.info(
+            "已保存本次試算結果，"
+            "可前往「行動生成」頁選擇其中一個方案，"
+            "改寫成電話話術、LINE/簡訊、Email 或拜訪提綱。"
         )
 
 
