@@ -89,6 +89,11 @@ SESSION_DEFAULTS = {
     # -----------------------------
     "ai_chat_messages": [],
     "ai_last_context": None,
+
+    # -----------------------------
+    # 情境模擬・已採用方案
+    # -----------------------------
+    "adopted_whatif_scenarios": [],
 }
 
 

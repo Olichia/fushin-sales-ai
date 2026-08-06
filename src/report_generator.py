@@ -1076,6 +1076,87 @@ def build_risk_table(
     return table
 
 
+def build_scenario_metrics_table(
+    rows: list[tuple[str, str]],
+    styles: dict[str, ParagraphStyle],
+) -> Table:
+    """
+    情境模擬單一方案的指標明細（標籤／數值兩欄）。
+
+    不套用 default_data_table_style()：該樣式假設第一列是
+    深色表頭，這裡每一列都是一般資料（標籤：數值），套用會讓
+    第一列變成深底深字看不清楚。
+    """
+
+    table_data = [
+        [
+            Paragraph(str(label), styles["table_body"]),
+            Paragraph(str(value), styles["table_body"]),
+        ]
+        for label, value in rows
+    ]
+
+    table = Table(
+        table_data,
+        colWidths=[70 * mm, 60 * mm],
+    )
+
+    table.setStyle(
+        TableStyle(
+            [
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.4,
+                    colors.HexColor("#DDE4EE"),
+                ),
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "TOP",
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    5,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    5,
+                ),
+                (
+                    "LEFTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    5,
+                ),
+                (
+                    "RIGHTPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    5,
+                ),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 0),
+                    (-1, -1),
+                    [
+                        colors.white,
+                        colors.HexColor("#F8FAFC"),
+                    ],
+                ),
+            ]
+        )
+    )
+
+    return table
+
+
 # =========================================================
 # PDF 主函式
 # =========================================================
@@ -1695,6 +1776,7 @@ def generate_management_pdf(
 def generate_activity_unit_management_pdf(
     unit_overview_dataframe: pd.DataFrame,
     waterfall_summary_dataframe: pd.DataFrame,
+    adopted_scenarios: list[dict] | None = None,
 ) -> bytes:
     """
     產生主管活動分析 PDF（活動單位分析新方法論版）。
@@ -1702,6 +1784,11 @@ def generate_activity_unit_management_pdf(
     取代 generate_management_pdf() 的舊版活動前後比較內容，
     改用同月安靜期基準、量增/降價效應拆解與瀑布法配對結果。
     僅使用既有分析結果，不重新計算活動成效。
+
+    adopted_scenarios 為「情境模擬」頁面主管按下「採用此方案」
+    後累積的方案清單（見 src/session_helpers.py 的
+    adopted_whatif_scenarios），每筆包含方案指標與對應 AI 洞察
+    摘要，未提供或為空清單時該段落只會顯示「尚無已採用方案」。
     """
 
     register_pdf_fonts()
@@ -2055,6 +2142,101 @@ def generate_activity_unit_management_pdf(
             story.append(
                 Paragraph(line, styles["body"])
             )
+
+    # -----------------------------------------------------
+    # 六、情境模擬採用方案
+    # -----------------------------------------------------
+
+    story.append(PageBreak())
+
+    story.append(
+        Paragraph("六、情境模擬採用方案", styles["heading1"])
+    )
+
+    if not adopted_scenarios:
+        story.append(
+            Paragraph(
+                "目前沒有已採用的情境模擬方案。"
+                "可於「情境模擬」頁面按下方案卡片下方的"
+                "「採用此方案」後再重新產生報告。",
+                styles["body"],
+            )
+        )
+
+    else:
+        story.append(
+            Paragraph(
+                "以下為主管於「情境模擬」頁面標記採用的促銷方案，"
+                "含其試算數據與對應 AI 洞察摘要，"
+                "作為後續執行追蹤的依據。",
+                styles["body"],
+            )
+        )
+
+        story.append(Spacer(1, 10))
+
+        for index, scenario_entry in enumerate(
+            adopted_scenarios, start=1
+        ):
+            product_name = clean_text(
+                scenario_entry.get("product_name")
+            )
+            product_id = clean_text(
+                scenario_entry.get("product_id")
+            )
+            title = clean_text(scenario_entry.get("title"))
+            badge_text = clean_text(
+                scenario_entry.get("badge_text")
+            )
+            adopted_at = clean_text(
+                scenario_entry.get("adopted_at")
+            )
+
+            story.append(
+                Paragraph(
+                    f"{index}. {product_name}（{product_id}）"
+                    f"－{title}・{badge_text}",
+                    styles["heading2"],
+                )
+            )
+
+            story.append(
+                Paragraph(
+                    f"採用時間：{adopted_at}",
+                    styles["small"],
+                )
+            )
+
+            story.append(Spacer(1, 4))
+
+            scenario_rows = scenario_entry.get("rows") or []
+
+            if scenario_rows:
+                story.append(
+                    build_scenario_metrics_table(
+                        scenario_rows, styles
+                    )
+                )
+                story.append(Spacer(1, 6))
+
+            ai_summary = scenario_entry.get("ai_summary") or {}
+
+            for field_label, field_key in (
+                ("AI 發現", "finding"),
+                ("AI 原因", "reason"),
+                ("AI 建議", "action"),
+            ):
+                field_value = ai_summary.get(field_key)
+
+                if field_value:
+                    story.append(
+                        Paragraph(
+                            f"【{field_label}】{field_value}",
+                            styles["body"],
+                        )
+                    )
+
+            story.append(Spacer(1, 14))
 
     # -----------------------------------------------------
     # 文件聲明

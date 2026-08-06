@@ -2148,6 +2148,14 @@ def apply_product_styles() -> None:
                 var(--shadow-sm);
         }
 
+        .scenario-card-adopted {
+            border-color: var(--brand-orange);
+
+            box-shadow:
+                0 0 0 2px rgba(244, 91, 27, 0.18),
+                var(--shadow-sm);
+        }
+
         .scenario-card-title-row {
             display: flex;
             align-items: center;
@@ -2160,6 +2168,19 @@ def apply_product_styles() -> None:
             font-size: 0.92rem;
             font-weight: 800;
             color: var(--text-primary);
+        }
+
+        .scenario-card-badges {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .badge-adopted {
+            background: var(--brand-orange);
+            color: #FFFFFF;
+            border: 1px solid var(--brand-orange-dark);
         }
 
         .scenario-row {

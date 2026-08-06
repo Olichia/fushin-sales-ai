@@ -38,6 +38,14 @@ CHART_MAX_HEIGHT = 460
 CHART_ROW_HEIGHT = 22
 CHART_MIN_HEIGHT = 280
 
+# 商品視角：兩張圖表縱向靠左排列，各自限高縮短為 CHART_MAX_HEIGHT
+# 的 3/4，右側 AI 洞察欄位高度則抓兩張圖表疊加後的高度，
+# 內容超出時交由 st.container 內建的縱向捲軸處理。
+PRODUCT_VIEW_CHART_HEIGHT = round(CHART_MAX_HEIGHT * 0.75)
+PRODUCT_VIEW_INSIGHT_PANEL_HEIGHT = (
+    PRODUCT_VIEW_CHART_HEIGHT * 2 + 130
+)
+
 
 def resolve_bar_chart_sizing(
     row_count: int,
@@ -663,9 +671,11 @@ with product_view_tag_col:
         unsafe_allow_html=True,
     )
 
-product_chart_col1, product_chart_col2 = st.columns(2)
+product_chart_col, product_insight_col = st.columns(
+    [3, 2], gap="large"
+)
 
-with product_chart_col1:
+with product_chart_col:
     st.markdown("###### 活動單位淨增益排行")
     st.caption("顏色＝分類")
 
@@ -707,8 +717,8 @@ with product_chart_col1:
     # 二選一分支」（筆數一多就強制捲動）。使用者希望不論資料
     # 筆數多寡，都盡量在不捲動縱向捲軸的情況下看到「至少一半
     # 以上」的資料列，效果比照「活動類型淨增益彙總」——固定
-    # 撐滿 CHART_MAX_HEIGHT，柱寬交給 Plotly 用 bargap 自動
-    # 壓縮（不寫死），資料越多柱子越細但仍等比例撐滿同一個
+    # 撐滿 PRODUCT_VIEW_CHART_HEIGHT，柱寬交給 Plotly 用 bargap
+    # 自動壓縮（不寫死），資料越多柱子越細但仍等比例撐滿同一個
     # 高度。只有筆數多到每格會薄於 MINIMUM_ROW_SLOT_PX（幾乎
     # 看不出長條）時，才退回「自然高度＋外層捲動＋固定半寬」，
     # 避免資料極端多時整張圖糊成一條色塊。
@@ -716,10 +726,10 @@ with product_chart_col1:
 
     if (
         ranking_row_count > 0
-        and CHART_MAX_HEIGHT / ranking_row_count
+        and PRODUCT_VIEW_CHART_HEIGHT / ranking_row_count
         >= MINIMUM_ROW_SLOT_PX
     ):
-        ranking_height = CHART_MAX_HEIGHT
+        ranking_height = PRODUCT_VIEW_CHART_HEIGHT
         ranking_bar_width = None
     else:
         ranking_height, ranking_bar_width = resolve_bar_chart_sizing(
@@ -733,13 +743,12 @@ with product_chart_col1:
         height=ranking_height,
     )
 
-    with st.container(height=CHART_MAX_HEIGHT):
+    with st.container(height=PRODUCT_VIEW_CHART_HEIGHT):
         st.plotly_chart(
             ranking_figure,
             use_container_width=True,
         )
 
-with product_chart_col2:
     st.markdown("###### 折扣與增益散佈矩陣")
     st.caption("X：折扣率　Y：淨營收效應/日　氣泡：活動天數")
 
@@ -772,158 +781,162 @@ with product_chart_col2:
         scatter_figure.update_layout(
             xaxis_tickformat=".0%",
             margin={"l": 10, "r": 10, "t": 10, "b": 10},
-            height=CHART_MAX_HEIGHT,
+            height=PRODUCT_VIEW_CHART_HEIGHT,
         )
 
-        with st.container(height=CHART_MAX_HEIGHT):
+        with st.container(height=PRODUCT_VIEW_CHART_HEIGHT):
             st.plotly_chart(
                 scatter_figure, use_container_width=True
             )
 
-st.markdown("##### 🤖 AI 洞察")
+with product_insight_col:
+    st.markdown("##### 🤖 AI 洞察")
 
-if selected_sku_ids:
-    st.caption("依目前篩選的商品逐一列出最佳與較差的活動組合。")
+    with st.container(
+        height=PRODUCT_VIEW_INSIGHT_PANEL_HEIGHT
+    ):
+        if selected_sku_ids:
+            st.caption("依目前篩選的商品逐一列出最佳與較差的活動組合。")
 
-    for sku_index, sku_id in enumerate(selected_sku_ids):
-        product_rows = filtered_unit_overview[
-            filtered_unit_overview["product_id"] == sku_id
-        ]
+            for sku_index, sku_id in enumerate(selected_sku_ids):
+                product_rows = filtered_unit_overview[
+                    filtered_unit_overview["product_id"] == sku_id
+                ]
 
-        if product_rows.empty:
-            continue
+                if product_rows.empty:
+                    continue
 
-        product_name = product_rows.iloc[0]["product_name"]
+                product_name = product_rows.iloc[0]["product_name"]
 
-        if sku_index > 0:
-            st.divider()
+                if sku_index > 0:
+                    st.divider()
 
-        st.markdown(f"**{product_name}（{sku_id}）**")
+                st.markdown(f"**{product_name}（{sku_id}）**")
 
-        best_row = product_rows.sort_values(
-            "net_revenue_effect_per_day", ascending=False
-        ).iloc[0]
+                best_row = product_rows.sort_values(
+                    "net_revenue_effect_per_day", ascending=False
+                ).iloc[0]
 
-        best_gift_text = lookup_gift_text(
-            sku_id, best_row["unit_code"]
-        )
-
-        render_ai_insight_card(
-            finding=(
-                f"表現最佳：活動單位 {best_row['unit_code']}"
-                f"（{best_row['corresponding_activities_label']}）"
-                + (
-                    f"，搭配「{best_gift_text}」"
-                    if best_gift_text
-                    else ""
+                best_gift_text = lookup_gift_text(
+                    sku_id, best_row["unit_code"]
                 )
-                + "，淨增益達 "
-                f"+${best_row['net_revenue_effect_per_day']:,.0f}/日。"
-            ),
-            reason="依此商品目前篩選範圍內淨增益由高到低排序取得最高者。",
-            action="可考慮延續此組合，並測試擴大曝光或延伸至相似商品。",
-            confidence=filtered_confidence_label.loc[best_row.name],
-        )
 
-        worst_row = product_rows.sort_values(
-            "net_revenue_effect_per_day", ascending=True
-        ).iloc[0]
-
-        worst_is_risky = (
-            pd.notna(worst_row["price_effect_per_day"])
-            and worst_row["price_effect_per_day"] < 0
-            and abs(worst_row["price_effect_per_day"])
-            > abs(worst_row["volume_effect_per_day"])
-        )
-
-        render_ai_insight_card(
-            finding=(
-                f"表現較差：活動單位 {worst_row['unit_code']}"
-                f"（{worst_row['corresponding_activities_label']}），"
-                f"淨增益 ${worst_row['net_revenue_effect_per_day']:,.0f}/日"
-                + (
-                    "，存量降價效應大於量增效應，屬於毛利侵蝕風險。"
-                    if worst_is_risky
-                    else "。"
+                render_ai_insight_card(
+                    finding=(
+                        f"表現最佳：活動單位 {best_row['unit_code']}"
+                        f"（{best_row['corresponding_activities_label']}）"
+                        + (
+                            f"，搭配「{best_gift_text}」"
+                            if best_gift_text
+                            else ""
+                        )
+                        + "，淨增益達 "
+                        f"+${best_row['net_revenue_effect_per_day']:,.0f}/日。"
+                    ),
+                    reason="依此商品目前篩選範圍內淨增益由高到低排序取得最高者。",
+                    action="可考慮延續此組合，並測試擴大曝光或延伸至相似商品。",
+                    confidence=filtered_confidence_label.loc[best_row.name],
                 )
-            ),
-            reason=(
-                "存量降價效應（絕對值）大於量增效應（絕對值），"
-                "屬於毛利侵蝕風險。"
-                if worst_is_risky
-                else "此商品目前篩選範圍內淨增益最低的組合。"
-            ),
-            action=(
-                "建議下檔縮減折幅，改以贈品吸引轉換。"
-                if worst_is_risky
-                else "建議檢視活動設計、曝光或改以其他機制測試。"
-            ),
-            confidence=filtered_confidence_label.loc[worst_row.name],
-        )
 
-        st.markdown("**📊 折扣率洞察**")
-        render_discount_rate_insight(
-            product_rows, show_product_name=False
-        )
+                worst_row = product_rows.sort_values(
+                    "net_revenue_effect_per_day", ascending=True
+                ).iloc[0]
 
-else:
-    discount_candidates = filtered_unit_overview[
-        filtered_unit_overview["net_revenue_effect_per_day"] > 0
-    ].sort_values("net_revenue_effect_per_day", ascending=False)
+                worst_is_risky = (
+                    pd.notna(worst_row["price_effect_per_day"])
+                    and worst_row["price_effect_per_day"] < 0
+                    and abs(worst_row["price_effect_per_day"])
+                    > abs(worst_row["volume_effect_per_day"])
+                )
 
-    if discount_candidates.empty:
-        st.caption("目前篩選範圍內沒有淨增益為正的活動單位。")
-    else:
-        best_row = discount_candidates.iloc[0]
-        discount_text = (
-            f"{best_row['discount_rate']:.0%}折"
-            if pd.notna(best_row["discount_rate"])
-            else "折扣率不明"
-        )
+                render_ai_insight_card(
+                    finding=(
+                        f"表現較差：活動單位 {worst_row['unit_code']}"
+                        f"（{worst_row['corresponding_activities_label']}），"
+                        f"淨增益 ${worst_row['net_revenue_effect_per_day']:,.0f}/日"
+                        + (
+                            "，存量降價效應大於量增效應，屬於毛利侵蝕風險。"
+                            if worst_is_risky
+                            else "。"
+                        )
+                    ),
+                    reason=(
+                        "存量降價效應（絕對值）大於量增效應（絕對值），"
+                        "屬於毛利侵蝕風險。"
+                        if worst_is_risky
+                        else "此商品目前篩選範圍內淨增益最低的組合。"
+                    ),
+                    action=(
+                        "建議下檔縮減折幅，改以贈品吸引轉換。"
+                        if worst_is_risky
+                        else "建議檢視活動設計、曝光或改以其他機制測試。"
+                    ),
+                    confidence=filtered_confidence_label.loc[worst_row.name],
+                )
 
-        render_ai_insight_card(
-            finding=(
-                f"【{best_row['product_name']}】活動單位 "
-                f"{best_row['unit_code']}：{discount_text}"
-                f"（${best_row['unit_avg_price']:,.0f}），"
-                "淨增益達 "
-                f"+${best_row['net_revenue_effect_per_day']:,.0f}/日，"
-                "是目前篩選範圍內表現最佳的組合。"
-            ),
-            reason="依目前篩選範圍內淨增益由高到低排序取得最高者。",
-            action="可考慮延續此折扣深度，並測試擴大曝光。",
-            confidence=filtered_confidence_label.loc[best_row.name],
-        )
+                st.markdown("**📊 折扣率洞察**")
+                render_discount_rate_insight(
+                    product_rows, show_product_name=False
+                )
 
-    risk_rows = filtered_unit_overview[risk_mask].sort_values(
-        "net_revenue_effect_per_day"
-    )
+        else:
+            discount_candidates = filtered_unit_overview[
+                filtered_unit_overview["net_revenue_effect_per_day"] > 0
+            ].sort_values("net_revenue_effect_per_day", ascending=False)
 
-    if risk_rows.empty:
-        st.success("目前篩選範圍內未發現明顯的毛利侵蝕風險。")
-    else:
-        worst_risk = risk_rows.iloc[0]
+            if discount_candidates.empty:
+                st.caption("目前篩選範圍內沒有淨增益為正的活動單位。")
+            else:
+                best_row = discount_candidates.iloc[0]
+                discount_text = (
+                    f"{best_row['discount_rate']:.0%}折"
+                    if pd.notna(best_row["discount_rate"])
+                    else "折扣率不明"
+                )
 
-        render_ai_insight_card(
-            finding=(
-                f"{worst_risk['unit_code']}"
-                f"（{worst_risk['product_name']}）"
-                f"售價降至 ${worst_risk['unit_avg_price']:,.0f}，"
-                "銷量未相應提升，淨營收虧損 "
-                f"${worst_risk['net_revenue_effect_per_day']:,.0f}/日。"
-            ),
-            reason=(
-                "存量降價效應（絕對值）大於量增效應（絕對值），"
-                "屬於毛利侵蝕風險。"
-            ),
-            action="建議下檔縮減折幅，改以贈品吸引轉換。",
-            confidence=filtered_confidence_label.loc[worst_risk.name],
-        )
+                render_ai_insight_card(
+                    finding=(
+                        f"【{best_row['product_name']}】活動單位 "
+                        f"{best_row['unit_code']}：{discount_text}"
+                        f"（${best_row['unit_avg_price']:,.0f}），"
+                        "淨增益達 "
+                        f"+${best_row['net_revenue_effect_per_day']:,.0f}/日，"
+                        "是目前篩選範圍內表現最佳的組合。"
+                    ),
+                    reason="依目前篩選範圍內淨增益由高到低排序取得最高者。",
+                    action="可考慮延續此折扣深度，並測試擴大曝光。",
+                    confidence=filtered_confidence_label.loc[best_row.name],
+                )
 
-    st.markdown("**📊 折扣率洞察**")
-    render_discount_rate_insight(
-        filtered_unit_overview, show_product_name=True
-    )
+            risk_rows = filtered_unit_overview[risk_mask].sort_values(
+                "net_revenue_effect_per_day"
+            )
+
+            if risk_rows.empty:
+                st.success("目前篩選範圍內未發現明顯的毛利侵蝕風險。")
+            else:
+                worst_risk = risk_rows.iloc[0]
+
+                render_ai_insight_card(
+                    finding=(
+                        f"{worst_risk['unit_code']}"
+                        f"（{worst_risk['product_name']}）"
+                        f"售價降至 ${worst_risk['unit_avg_price']:,.0f}，"
+                        "銷量未相應提升，淨營收虧損 "
+                        f"${worst_risk['net_revenue_effect_per_day']:,.0f}/日。"
+                    ),
+                    reason=(
+                        "存量降價效應（絕對值）大於量增效應（絕對值），"
+                        "屬於毛利侵蝕風險。"
+                    ),
+                    action="建議下檔縮減折幅，改以贈品吸引轉換。",
+                    confidence=filtered_confidence_label.loc[worst_risk.name],
+                )
+
+            st.markdown("**📊 折扣率洞察**")
+            render_discount_rate_insight(
+                filtered_unit_overview, show_product_name=True
+            )
 
 
 with st.expander("活動單位總覽明細", expanded=False):
