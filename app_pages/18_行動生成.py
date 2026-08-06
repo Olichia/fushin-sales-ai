@@ -32,17 +32,221 @@ from src.unit_overview_helpers import (
 
 initialize_session_state()
 
+# =========================================================
+# Page-only UI styling
+# =========================================================
+# 只調整本頁視覺，不改動資料來源、生成函式、session state 或採用紀錄邏輯。
 st.markdown(
     """
-    <div class="step-label">ACTION GENERATOR</div>
-    <div class="product-page-title">
-        <div class="product-page-title-bar"></div>
-        <h1>行動生成</h1>
+    <style>
+    .action-page-shell {
+        margin-bottom: 1rem;
+    }
+
+    .action-kicker {
+        color: #B75D20;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        margin-bottom: 0.35rem;
+    }
+
+    .action-title-row {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .action-title-mark {
+        width: 6px;
+        height: 31px;
+        border-radius: 4px;
+        background: linear-gradient(
+            180deg,
+            #F97316 0%,
+            #F04C64 52%,
+            #6D4BD1 100%
+        );
+        flex: 0 0 auto;
+    }
+
+    .action-title-row h1 {
+        color: #202124;
+        font-size: 2rem;
+        line-height: 1.2;
+        margin: 0;
+        font-weight: 750;
+        letter-spacing: -0.02em;
+    }
+
+    .action-lead {
+        color: #667085;
+        font-size: 0.98rem;
+        line-height: 1.7;
+        max-width: 850px;
+        margin: 0.2rem 0 0;
+    }
+
+    .action-section-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 0 0 0.65rem;
+    }
+
+    .action-section-heading h2 {
+        color: #292624;
+        font-size: 1.05rem;
+        margin: 0;
+        font-weight: 720;
+    }
+
+    .action-section-heading span {
+        color: #8A8580;
+        font-size: 0.78rem;
+    }
+
+    .action-summary-card {
+        border: 1px solid #E7E2DC;
+        border-left: 4px solid #E87524;
+        background: #FFFFFF;
+        border-radius: 10px;
+        padding: 0.95rem 1.05rem;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 2px rgba(32, 33, 36, 0.04);
+    }
+
+    .action-summary-eyebrow {
+        color: #8B817A;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.22rem;
+    }
+
+    .action-summary-title {
+        color: #272321;
+        font-size: 1rem;
+        font-weight: 720;
+        margin-bottom: 0.25rem;
+    }
+
+    .action-summary-meta {
+        color: #6F6A66;
+        font-size: 0.83rem;
+        line-height: 1.55;
+    }
+
+    .action-panel-label {
+        color: #3F3A36;
+        font-size: 0.9rem;
+        font-weight: 720;
+        margin-bottom: 0.2rem;
+    }
+
+    .action-panel-note {
+        color: #87817C;
+        font-size: 0.78rem;
+        line-height: 1.55;
+        margin-bottom: 0.8rem;
+    }
+
+    .action-preview-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        border-bottom: 1px solid #EEE9E4;
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.7rem;
+    }
+
+    .action-preview-title {
+        color: #292522;
+        font-size: 1.03rem;
+        font-weight: 730;
+    }
+
+    .action-preview-meta {
+        color: #7D7772;
+        font-size: 0.78rem;
+        margin-top: 0.18rem;
+    }
+
+    .action-status-pill {
+        display: inline-block;
+        border: 1px solid #E8DED5;
+        border-radius: 999px;
+        padding: 0.24rem 0.58rem;
+        color: #8E4A1D;
+        background: #FFF8F3;
+        font-size: 0.72rem;
+        white-space: nowrap;
+    }
+
+    .action-empty-preview {
+        border: 1px dashed #D9D3CD;
+        border-radius: 10px;
+        background: #FBFAF8;
+        color: #7B7671;
+        min-height: 290px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 2rem;
+        line-height: 1.7;
+        margin-bottom: 0.75rem;
+    }
+
+    .action-record-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin: 0.25rem 0 0.8rem;
+    }
+
+    .action-record-chip {
+        border: 1px solid #E7E2DC;
+        border-radius: 999px;
+        padding: 0.3rem 0.65rem;
+        color: #66615D;
+        background: #FFFFFF;
+        font-size: 0.76rem;
+    }
+
+    /* 保留 Streamlit 元件本身，僅做輕量一致化。 */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: #E7E2DC;
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgba(32, 33, 36, 0.035);
+    }
+
+    div[data-testid="stSegmentedControl"] button {
+        border-radius: 7px !important;
+    }
+
+    div[data-testid="stTextArea"] textarea,
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stNumberInput"] input {
+        border-radius: 7px;
+    }
+
+    </style>
+
+    <div class="action-page-shell">
+        <div class="action-kicker">ACTION WORKSPACE</div>
+        <div class="action-title-row">
+            <div class="action-title-mark"></div>
+            <h1>行動生成</h1>
+        </div>
+        <p class="action-lead">
+            將活動洞察或情境試算轉成可直接使用的溝通內容。
+            B2C 僅採用可公開優惠資訊；B2B 才會引用完整試算與內部證據。
+        </p>
     </div>
-    <p class="product-page-description">
-        同一份策略洞察可切換成 B2C 消費者行銷或 B2B 商務溝通。
-        B2C 只使用可公開的商品優惠；B2B 才能引用完整試算與內部證據。
-    </p>
     """,
     unsafe_allow_html=True,
 )
@@ -67,7 +271,16 @@ if not unit_source_ready and not whatif_source_ready:
     )
     st.stop()
 
-st.subheader("選擇生成依據")
+st.markdown(
+    """
+    <div class="action-section-heading">
+        <h2>選擇生成依據</h2>
+        <span>先決定這次內容要引用哪一筆分析</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 source_options = []
 if unit_source_ready:
     source_options.append("已完成活動（活動單位分析）")
@@ -104,24 +317,47 @@ if selected_source == "已完成活動（活動單位分析）":
     activity_calendar_dataframe = st.session_state.get("activity_calendar_dataframe")
 
     pairing_columns = [
-        "activity_type", "product_id", "target_unit", "split_status",
-        "candidate_units", "net_gain_per_day", "net_gain_total",
-        "target_unit_days", "remainder_corresponding_activities",
+        "activity_type",
+        "product_id",
+        "target_unit",
+        "split_status",
+        "candidate_units",
+        "net_gain_per_day",
+        "net_gain_total",
+        "target_unit_days",
+        "remainder_corresponding_activities",
     ]
-    pairing_table = pairing_raw.copy() if dataframe_ready(pairing_raw) else pd.DataFrame(columns=pairing_columns)
+    pairing_table = (
+        pairing_raw.copy()
+        if dataframe_ready(pairing_raw)
+        else pd.DataFrame(columns=pairing_columns)
+    )
     if not pairing_table.empty:
-        pairing_table["product_id"] = pairing_table["product_id"].astype(str).str.strip()
+        pairing_table["product_id"] = (
+            pairing_table["product_id"].astype(str).str.strip()
+        )
 
     if dataframe_ready(unit_price_raw):
         unit_price_table = unit_price_raw.copy()
-        unit_price_table["product_id"] = unit_price_table["product_id"].astype(str).str.strip()
+        unit_price_table["product_id"] = (
+            unit_price_table["product_id"].astype(str).str.strip()
+        )
     else:
-        unit_price_table = pd.DataFrame(columns=["unit_code", "product_id", "activity_tag", "gift", "bonus_campaign_text"])
+        unit_price_table = pd.DataFrame(
+            columns=[
+                "unit_code",
+                "product_id",
+                "activity_tag",
+                "gift",
+                "bonus_campaign_text",
+            ]
+        )
 
     mechanism_text_lookup = {}
     for row in unit_price_table.itertuples():
         text_parts = [
-            str(part) for part in [
+            str(part)
+            for part in [
                 getattr(row, "activity_tag", None),
                 getattr(row, "gift", None),
                 getattr(row, "bonus_campaign_text", None),
@@ -129,7 +365,9 @@ if selected_source == "已完成活動（活動單位分析）":
             if part and pd.notna(part) and str(part).strip()
         ]
         if text_parts:
-            mechanism_text_lookup[(row.product_id, row.unit_code)] = "、".join(dict.fromkeys(text_parts))
+            mechanism_text_lookup[(row.product_id, row.unit_code)] = "、".join(
+                dict.fromkeys(text_parts)
+            )
 
     unit_pairing_rows = pairing_table[
         (pairing_table["product_id"] == selected_unit_row["product_id"])
@@ -151,7 +389,9 @@ if selected_source == "已完成活動（活動單位分析）":
 
 else:
     product_name = st.session_state.get("whatif_last_product_name") or "此商品"
-    scenario_label_map = {result.label: result for result in whatif_scenario_results}
+    scenario_label_map = {
+        result.label: result for result in whatif_scenario_results
+    }
     selected_scenario_label = st.selectbox(
         "選擇情境模擬方案",
         options=list(scenario_label_map.keys()),
@@ -170,91 +410,142 @@ else:
     )
 
 if evidence is not None:
-    st.divider()
-    st.subheader("本次生成依據")
-    with st.container(border=True):
-        render_evidence_sections(evidence["sections"])
-
-    st.divider()
-    st.subheader("生成設定")
-
-    selected_audience = st.segmented_control(
-        "溝通對象",
-        options=AUDIENCE_OPTIONS,
-        default=AUDIENCE_OPTIONS[0],
-        help=(
-            "B2C 只會使用可公開商品優惠；B2B 可引用完整試算、成本與限制。"
-        ),
+    st.markdown(
+        f"""
+        <div class="action-summary-card">
+            <div class="action-summary-eyebrow">CURRENT SOURCE</div>
+            <div class="action-summary-title">{evidence['source_label']}</div>
+            <div class="action-summary-meta">
+                來源類型：{evidence['source_type']}　｜　完整資料證據可於下方展開查看
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    public_offer = dict(evidence.get("public_offer") or {})
+    with st.expander("查看完整判斷依據", expanded=False):
+        render_evidence_sections(evidence["sections"])
 
-    if selected_audience == "B2C 消費者行銷":
-        st.info(
-            "請確認下列資訊會公開給消費者。沒有提供的內容，AI 不會自行補充。"
-        )
-        c1, c2 = st.columns(2)
-        with c1:
-            public_offer["product_name"] = st.text_input(
-                "商品名稱＊",
-                value=str(public_offer.get("product_name") or ""),
-            )
-            public_offer["original_price"] = st.number_input(
-                "原價（選填）",
-                min_value=0.0,
-                value=float(public_offer.get("original_price") or 0.0),
-                step=10.0,
-            )
-            public_offer["activity_price"] = st.number_input(
-                "活動價（選填）",
-                min_value=0.0,
-                value=float(public_offer.get("activity_price") or 0.0),
-                step=10.0,
-            )
-            public_offer["gift_name"] = st.text_input(
-                "商品贈品（選填）",
-                value=str(public_offer.get("gift_name") or ""),
-                placeholder="例如：雙耳湯鍋",
-            )
-        with c2:
-            public_offer["activity_period"] = st.text_input(
-                "活動期間（選填）",
-                value=str(public_offer.get("activity_period") or ""),
-                placeholder="例如：3/7–3/12",
-            )
-            public_offer["selling_point"] = st.text_area(
-                "商品賣點（建議填寫）",
-                value=str(public_offer.get("selling_point") or ""),
-                placeholder="例如：8 人份容量、IH 加熱、操作簡單",
-                height=90,
-            )
-            public_offer["platform_offer"] = st.text_input(
-                "已確認平台優惠（選填）",
-                value=str(public_offer.get("platform_offer") or ""),
-                placeholder="僅填已確認規則，不推估效益",
-            )
-            public_offer["cta"] = st.text_input(
-                "行動呼籲",
-                value=str(public_offer.get("cta") or "立即查看活動詳情"),
+    st.markdown("<div style='height:0.45rem'></div>", unsafe_allow_html=True)
+
+    settings_column, preview_column = st.columns([0.39, 0.61], gap="large")
+
+    with settings_column:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div class="action-panel-label">生成設定</div>
+                <div class="action-panel-note">
+                    先設定溝通對象，再選擇管道、語氣與內容長度。
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
-        st.caption(
-            "B2C 最終文案不會出現預估營收、淨效益、贈品成本、平台抽成或內部試算限制。"
-        )
+            selected_audience = st.segmented_control(
+                "溝通對象",
+                options=AUDIENCE_OPTIONS,
+                default=AUDIENCE_OPTIONS[0],
+                help=(
+                    "B2C 只會使用可公開商品優惠；"
+                    "B2B 可引用完整試算、成本與限制。"
+                ),
+            )
 
-    setting_col1, setting_col2, setting_col3 = st.columns(3)
-    with setting_col1:
-        selected_channel = st.segmented_control("管道", CHANNEL_OPTIONS, default=CHANNEL_OPTIONS[0])
-    with setting_col2:
-        selected_tone = st.segmented_control("語氣", TONE_OPTIONS, default=TONE_OPTIONS[0])
-    with setting_col3:
-        selected_length = st.segmented_control("長度", LENGTH_OPTIONS, default=LENGTH_OPTIONS[1])
+            public_offer = dict(evidence.get("public_offer") or {})
 
-    disabled = not (selected_audience and selected_channel and selected_tone and selected_length)
-    if selected_audience == "B2C 消費者行銷" and not str(public_offer.get("product_name") or "").strip():
-        disabled = True
+            if selected_audience == "B2C 消費者行銷":
+                st.caption(
+                    "僅下列欄位會公開給消費者；未提供的資訊不會由 AI 自行補充。"
+                )
 
-    if st.button("生成行動內容", type="primary", use_container_width=True, disabled=disabled):
+                public_offer["product_name"] = st.text_input(
+                    "商品名稱＊",
+                    value=str(public_offer.get("product_name") or ""),
+                )
+
+                price_col1, price_col2 = st.columns(2)
+                with price_col1:
+                    public_offer["original_price"] = st.number_input(
+                        "原價",
+                        min_value=0.0,
+                        value=float(public_offer.get("original_price") or 0.0),
+                        step=10.0,
+                    )
+                with price_col2:
+                    public_offer["activity_price"] = st.number_input(
+                        "活動價",
+                        min_value=0.0,
+                        value=float(public_offer.get("activity_price") or 0.0),
+                        step=10.0,
+                    )
+
+                public_offer["gift_name"] = st.text_input(
+                    "商品贈品",
+                    value=str(public_offer.get("gift_name") or ""),
+                    placeholder="例如：雙耳湯鍋",
+                )
+                public_offer["activity_period"] = st.text_input(
+                    "活動期間",
+                    value=str(public_offer.get("activity_period") or ""),
+                    placeholder="例如：3/7–3/12",
+                )
+                public_offer["selling_point"] = st.text_area(
+                    "商品賣點",
+                    value=str(public_offer.get("selling_point") or ""),
+                    placeholder="例如：8 人份容量、IH 加熱、操作簡單",
+                    height=86,
+                )
+                public_offer["platform_offer"] = st.text_input(
+                    "已確認平台優惠",
+                    value=str(public_offer.get("platform_offer") or ""),
+                    placeholder="僅填已確認規則，不推估效益",
+                )
+                public_offer["cta"] = st.text_input(
+                    "行動呼籲",
+                    value=str(public_offer.get("cta") or "立即查看活動詳情"),
+                )
+
+                st.caption(
+                    "B2C 不會揭露預估營收、淨效益、贈品成本、平台抽成或內部試算限制。"
+                )
+
+            selected_channel = st.segmented_control(
+                "管道",
+                CHANNEL_OPTIONS,
+                default=CHANNEL_OPTIONS[0],
+            )
+            selected_tone = st.segmented_control(
+                "語氣",
+                TONE_OPTIONS,
+                default=TONE_OPTIONS[0],
+            )
+            selected_length = st.segmented_control(
+                "長度",
+                LENGTH_OPTIONS,
+                default=LENGTH_OPTIONS[1],
+            )
+
+            disabled = not (
+                selected_audience
+                and selected_channel
+                and selected_tone
+                and selected_length
+            )
+            if (
+                selected_audience == "B2C 消費者行銷"
+                and not str(public_offer.get("product_name") or "").strip()
+            ):
+                disabled = True
+
+            generate_clicked = st.button(
+                "生成行動內容",
+                type="primary",
+                use_container_width=True,
+                disabled=disabled,
+            )
+
+    if generate_clicked:
         with st.spinner("正在生成內容……"):
             content, is_fallback = generate_action_content(
                 evidence_text=evidence["evidence_text"],
@@ -278,79 +569,181 @@ if evidence is not None:
         }
 
     last_result = st.session_state.get("action_generation_last_result")
-    if last_result and last_result.get("source_label") == evidence["source_label"]:
-        st.divider()
-        st.subheader("生成內容")
-        st.caption("⚙ 示範備援內容" if last_result.get("is_fallback") else "✨ AI 生成內容")
 
-        edited_content = st.text_area(
-            "可直接修改後再採用",
-            value=last_result["content"],
-            height=280,
-            key=f"action_content_editor_{last_result['source_label']}_{last_result.get('audience_type')}_{last_result.get('channel')}",
-        )
+    with preview_column:
+        with st.container(border=True):
+            if (
+                last_result
+                and last_result.get("source_label") == evidence["source_label"]
+            ):
+                result_type_text = (
+                    "規則式備援"
+                    if last_result.get("is_fallback")
+                    else "AI 生成"
+                )
+                st.markdown(
+                    f"""
+                    <div class="action-preview-header">
+                        <div>
+                            <div class="action-preview-title">{last_result['channel']} 預覽</div>
+                            <div class="action-preview-meta">
+                                {last_result.get('audience_type', '')}｜
+                                {last_result.get('tone', '')}｜
+                                {last_result.get('length', '')}
+                            </div>
+                        </div>
+                        <div class="action-status-pill">{result_type_text}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-        st.code(edited_content, language=None, wrap_lines=True)
-        st.caption("可使用上方文字框編輯；下方程式框右上角可快速複製。")
+                edited_content = st.text_area(
+                    "內容編輯區",
+                    value=last_result["content"],
+                    height=330,
+                    key=(
+                        "action_content_editor_"
+                        f"{last_result['source_label']}_"
+                        f"{last_result.get('audience_type')}_"
+                        f"{last_result.get('channel')}"
+                    ),
+                    help="可直接修改內容，再選擇採用或修改後採用。",
+                )
 
-        f1, f2, f3 = st.columns(3)
-        outcome_clicked = None
-        with f1:
-            if st.button("採用", use_container_width=True):
-                outcome_clicked = "採用"
-        with f2:
-            if st.button("修改後採用", use_container_width=True):
-                outcome_clicked = "修改後採用"
-        with f3:
-            if st.button("不採用", use_container_width=True):
-                outcome_clicked = "不採用"
+                st.code(edited_content, language=None, wrap_lines=True)
+                st.caption("程式框右上角可快速複製；正式發送前請再次確認優惠條件。")
 
-        if outcome_clicked:
-            record_action_feedback({
-                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "source_type": last_result["source_type"],
-                "source_label": last_result["source_label"],
-                "audience_type": last_result.get("audience_type", ""),
-                "channel": last_result["channel"],
-                "tone": last_result["tone"],
-                "length": last_result.get("length", ""),
-                "original_content": last_result["content"],
-                "content": edited_content,
-                "is_fallback": last_result["is_fallback"],
-                "outcome": outcome_clicked,
-            })
-            st.success(f"已記錄：{outcome_clicked}")
+                feedback_col1, feedback_col2, feedback_col3 = st.columns(3)
+                outcome_clicked = None
+                with feedback_col1:
+                    if st.button("採用", use_container_width=True):
+                        outcome_clicked = "採用"
+                with feedback_col2:
+                    if st.button("修改後採用", use_container_width=True):
+                        outcome_clicked = "修改後採用"
+                with feedback_col3:
+                    if st.button("不採用", use_container_width=True):
+                        outcome_clicked = "不採用"
 
-st.divider()
-st.subheader("生成紀錄")
+                if outcome_clicked:
+                    record_action_feedback(
+                        {
+                            "generated_at": datetime.now().strftime(
+                                "%Y-%m-%d %H:%M"
+                            ),
+                            "source_type": last_result["source_type"],
+                            "source_label": last_result["source_label"],
+                            "audience_type": last_result.get(
+                                "audience_type", ""
+                            ),
+                            "channel": last_result["channel"],
+                            "tone": last_result["tone"],
+                            "length": last_result.get("length", ""),
+                            "original_content": last_result["content"],
+                            "content": edited_content,
+                            "is_fallback": last_result["is_fallback"],
+                            "outcome": outcome_clicked,
+                        }
+                    )
+                    st.success(f"已記錄：{outcome_clicked}")
+            else:
+                st.markdown(
+                    """
+                    <div class="action-preview-header">
+                        <div>
+                            <div class="action-preview-title">內容預覽</div>
+                            <div class="action-preview-meta">完成左側設定後即可生成</div>
+                        </div>
+                        <div class="action-status-pill">尚未生成</div>
+                    </div>
+                    <div class="action-empty-preview">
+                        生成結果會顯示在這裡。<br>
+                        內容可直接編輯、複製，並紀錄採用結果。
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+st.markdown("<div style='height:0.65rem'></div>", unsafe_allow_html=True)
+st.markdown(
+    """
+    <div class="action-section-heading">
+        <h2>生成紀錄</h2>
+        <span>保留使用者採用、修改或不採用的結果</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 history = get_action_generation_history()
 
 if not history:
     st.info("尚無生成紀錄。")
 else:
     history_dataframe = pd.DataFrame(history)
-    display_columns = [
-        col for col in [
-            "generated_at", "source_type", "source_label", "audience_type",
-            "channel", "tone", "outcome", "is_fallback",
-        ] if col in history_dataframe.columns
-    ]
-    st.dataframe(
-        history_dataframe[display_columns].rename(columns={
-            "generated_at": "時間",
-            "source_type": "來源類型",
-            "source_label": "來源",
-            "audience_type": "溝通對象",
-            "channel": "管道",
-            "tone": "語氣",
-            "outcome": "採用結果",
-            "is_fallback": "為備援內容",
-        }),
-        use_container_width=True,
-        hide_index=True,
+
+    outcome_count = (
+        history_dataframe["outcome"].value_counts()
+        if "outcome" in history_dataframe.columns
+        else pd.Series(dtype=int)
+    )
+    fallback_count = (
+        int(history_dataframe["is_fallback"].fillna(False).sum())
+        if "is_fallback" in history_dataframe.columns
+        else 0
     )
 
-    history_csv = history_dataframe.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+    st.markdown(
+        f"""
+        <div class="action-record-summary">
+            <div class="action-record-chip">共 {len(history_dataframe)} 筆</div>
+            <div class="action-record-chip">採用 {int(outcome_count.get('採用', 0))} 筆</div>
+            <div class="action-record-chip">修改後採用 {int(outcome_count.get('修改後採用', 0))} 筆</div>
+            <div class="action-record-chip">不採用 {int(outcome_count.get('不採用', 0))} 筆</div>
+            <div class="action-record-chip">備援內容 {fallback_count} 筆</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    display_columns = [
+        col
+        for col in [
+            "generated_at",
+            "source_type",
+            "source_label",
+            "audience_type",
+            "channel",
+            "tone",
+            "outcome",
+            "is_fallback",
+        ]
+        if col in history_dataframe.columns
+    ]
+
+    with st.expander("查看完整生成紀錄", expanded=False):
+        st.dataframe(
+            history_dataframe[display_columns].rename(
+                columns={
+                    "generated_at": "時間",
+                    "source_type": "來源類型",
+                    "source_label": "來源",
+                    "audience_type": "溝通對象",
+                    "channel": "管道",
+                    "tone": "語氣",
+                    "outcome": "採用結果",
+                    "is_fallback": "為備援內容",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    history_csv = history_dataframe.to_csv(
+        index=False,
+        encoding="utf-8-sig",
+    ).encode("utf-8-sig")
     st.download_button(
         "下載生成紀錄",
         data=history_csv,
@@ -359,4 +752,6 @@ else:
         use_container_width=True,
     )
 
-st.caption("生成內容屬於決策輔助；實際發送前仍須人工確認價格、活動期間與優惠規則。")
+st.caption(
+    "生成內容屬於決策輔助；實際發送前仍須人工確認價格、活動期間與優惠規則。"
+)
