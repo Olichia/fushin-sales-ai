@@ -111,6 +111,30 @@ SESSION_DEFAULTS = {
     "dark_mode": False,
     "landing_page_dismissed": False,
     "sidebar_icon_only": False,
+
+    # -----------------------------
+    # 情境模擬（供行動生成頁引用最近一次試算結果）
+    # -----------------------------
+    "whatif_last_scenario_results": None,
+    "whatif_last_product_id": None,
+    "whatif_last_product_name": None,
+
+    # -----------------------------
+    # 行動生成（下一步行動內容）
+    #
+    # 每筆紀錄格式：
+    # {
+    #     "generated_at": "2026-08-06 12:00",
+    #     "source_type": "活動單位分析" | "情境模擬",
+    #     "source_label": "商品名稱｜unit_code（對應活動）",
+    #     "channel": "電話話術" | "LINE/簡訊" | "Email" | "拜訪提綱",
+    #     "tone": "專業" | "關係維護" | "促成交易",
+    #     "content": "...",
+    #     "is_fallback": False,
+    #     "outcome": "採用" | "修改後採用" | "不採用",
+    # }
+    # -----------------------------
+    "action_generation_history": [],
 }
 
 
@@ -199,6 +223,10 @@ def clear_downstream_analysis() -> None:
         "integration_completed",
         "performance_analysis_completed",
         "strategy_report_completed",
+        "whatif_last_scenario_results",
+        "whatif_last_product_id",
+        "whatif_last_product_name",
+        "action_generation_history",
     ]
 
     reset_session_keys(
@@ -716,5 +744,45 @@ def clear_activity_data() -> None:
     reset_session_keys(
         activity_keys
     )
+
+
+# =========================================================
+# 行動生成紀錄
+# =========================================================
+
+def record_action_feedback(
+    record: dict,
+) -> None:
+    """
+    將一筆行動生成紀錄（來源、管道、語氣、內容、採用結果）
+    加進 session state 的歷史清單。
+
+    只負責寫入，不做欄位驗證；呼叫端（行動生成頁）
+    需自行組好完整欄位再傳入。
+    """
+
+    history = list(
+        st.session_state.get(
+            "action_generation_history",
+            [],
+        )
+    )
+
+    history.append(record)
+
+    st.session_state.action_generation_history = (
+        history
+    )
+
+
+def get_action_generation_history() -> list[dict]:
+    """取得目前所有行動生成紀錄（複製一份，避免外部直接修改）。"""
+
+    history = st.session_state.get(
+        "action_generation_history",
+        [],
+    )
+
+    return list(history)
 
     clear_downstream_analysis()

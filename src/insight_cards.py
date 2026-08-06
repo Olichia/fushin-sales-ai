@@ -139,6 +139,40 @@ def render_ai_insight_card(
     st.markdown(card_html, unsafe_allow_html=True)
 
 
+def render_evidence_sections(
+    sections: list[tuple[str, str]],
+) -> None:
+    """
+    以 hanging indent 版面呈現一組「標籤／內容」證據段落。
+
+    跟策略中心頁面內的個別化建議排版邏輯相同（標籤後方內容
+    靠左對齊，換行時對齊內容起始位置），抽成共用函式，
+    讓行動生成頁等其他頁面也能用同一種排版顯示證據鏈。
+
+    全部組成單行字串再丟給 st.markdown：CommonMark 解析器只要
+    在內嵌 HTML 中間看到空白行，就會提早結束「原始 HTML 區塊」，
+    多行縮排寫法很容易踩到這個雷。
+    """
+
+    blocks = []
+
+    for label, text in sections:
+        indent = len(label)
+
+        blocks.append(
+            '<div style="padding-left:{indent}em;'
+            "text-indent:-{indent}em;"
+            'margin:0 0 0.85em;line-height:1.7;">'
+            "<strong>{label}</strong>{text}</div>".format(
+                indent=indent,
+                label=html.escape(label),
+                text=html.escape(str(text)),
+            )
+        )
+
+    st.markdown("".join(blocks), unsafe_allow_html=True)
+
+
 def render_scenario_card(
     title: str,
     badge_text: str,

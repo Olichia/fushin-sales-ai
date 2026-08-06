@@ -351,6 +351,23 @@ with output_col:
         )
         best_scenario = select_best_scenario(scenario_results)
 
+        # 暫存最近一次試算結果，供「行動生成」頁引用，
+        # 不需要使用者重新輸入一次條件。
+        st.session_state["whatif_last_scenario_results"] = (
+            scenario_results
+        )
+        # 同時保存原始方案輸入，讓行動生成頁可帶入活動價、基準價等
+        # 可公開欄位；不再只剩內部營收試算數字。
+        st.session_state["whatif_last_scenario_inputs"] = (
+            scenario_inputs
+        )
+        st.session_state["whatif_last_product_id"] = (
+            selected_product_id
+        )
+        st.session_state["whatif_last_product_name"] = (
+            selected_product_label.split("（")[0]
+        )
+
         summary_insight = build_whatif_summary_insight(
             scenario_results
         )
@@ -569,6 +586,12 @@ with output_col:
             "⚠ 此為情境試算，不是因果預測，非對這檔活動的預測；"
             "簡化後淨效益未納入實際成本、退貨與平台抽成，"
             "不能直接視為毛利或淨利潤。"
+        )
+
+        st.info(
+            "已保存本次試算結果，"
+            "可前往「行動生成」頁選擇其中一個方案，"
+            "改寫成電話話術、LINE/簡訊、Email 或拜訪提綱。"
         )
 
 
