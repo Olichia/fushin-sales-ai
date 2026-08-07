@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from src.chart_theme import apply_chart_theme
 from src.executive_summary import build_activity_unit_strategy_text
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
@@ -77,6 +78,8 @@ def dataframe_ready(dataframe) -> bool:
 # =========================================================
 
 initialize_session_state()
+
+dark_mode = bool(st.session_state.get("dark_mode", False))
 
 st.markdown(
     """
@@ -814,6 +817,7 @@ else:
             },
             height=max(280, 60 * len(product_mom_chart_data)),
         )
+        apply_chart_theme(mom_bar_figure, dark_mode)
 
         st.plotly_chart(
             mom_bar_figure,
@@ -907,6 +911,7 @@ elif primary_metric_is_percent:
             "b": 10,
         },
     )
+    apply_chart_theme(strategy_scatter_figure, dark_mode)
 
     st.plotly_chart(
         strategy_scatter_figure,
@@ -968,6 +973,7 @@ else:
             "b": 10,
         },
     )
+    apply_chart_theme(strategy_scatter_figure, dark_mode)
 
     st.plotly_chart(
         strategy_scatter_figure,

@@ -1,15 +1,21 @@
 import streamlit as st
 
 
-def apply_product_styles() -> None:
+def apply_product_styles(dark_mode: bool = False) -> None:
     """
     套用產品版共用視覺樣式。
 
     僅調整外觀，不修改任何資料處理、分析或 Session State 邏輯。
+    dark_mode=True 時，會在既有（亮色）樣式後方再疊加一份深色
+    模式覆寫樣式（只新增規則、不修改既有規則），對應側邊欄／
+    首頁的亮／暗模式切換鈕。因為 CSS 自訂變數可以重複宣告、
+    後宣告者覆蓋前者，深色覆寫只要重新宣告 :root 的顏色變數，
+    絕大部分沿用變數的既有規則就會自動換色；只有少數直接寫死
+    色碼（例如白色漸層終點、徽章底色）的規則需要額外針對同一個
+    選擇器補一條深色版本。
     """
 
-    st.markdown(
-        """
+    base_style = """
         <style>
         /* ==================================================
            品牌與介面變數
@@ -783,6 +789,42 @@ def apply_product_styles() -> None:
             visibility: hidden;
         }
 
+        /*
+        原生頂部工具列（stHeader）預設是不透明淺色，之前完全
+        沒有樣式碰過，在深色模式或深色 hero 版面上方會露出一條
+        突兀的白條。改成透明，讓底下當下主題的頁面背景透出來，
+        亮／暗模式都適用，不需要另外在深色覆寫區塊重複一份。
+        */
+        [data-testid="stHeader"] {
+            background: transparent !important;
+        }
+
+        /* 原生「Deploy」按鈕，這是本機/內部工具不需要的功能 */
+        [data-testid="stAppDeployButton"] {
+            display: none !important;
+        }
+
+        /*
+        側邊欄收合／展開按鈕是 Streamlit 原生元件，本身背景其實
+        是透明的：亮色模式下之所以看起來「有灰底」，只是因為
+        透出來的頁面背景本來就偏亮，深色模式時透出來的是深色
+        頁面背景，深色圖示疊上去就看不見。這裡不再依賴透出來的
+        頁面背景，直接給按鈕一個固定的淺灰底（不隨 dark_mode
+        變動），讓它在兩種模式下都跟亮色模式一樣「看起來有灰底
+        可以看見」。
+        */
+        [data-testid="stSidebarCollapseButton"] button {
+            background: #E7EBF0 !important;
+            border-radius: 8px !important;
+        }
+
+        [data-testid="stSidebarCollapseButton"] svg,
+        [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"],
+        [data-testid="stSidebarCollapseButton"] * {
+            color: #344054 !important;
+            fill: #344054 !important;
+        }
+
 
         /* ==================================================
            手機與窄螢幕
@@ -1405,6 +1447,10 @@ def apply_product_styles() -> None:
             max-width: 252px !important;
             flex: 0 0 252px !important;
 
+            /* 保險措施：就算樣式不是一次性插入，寬度變化也不會
+               有動畫過渡，不會被使用者看到「彈出又收回」的過程 */
+            transition: none !important;
+
             background:
                 linear-gradient(
                     180deg,
@@ -1426,11 +1472,22 @@ def apply_product_styles() -> None:
             height: 4px !important;
         }
 
+        /*
+        找到真正的根因了：這條規則把收合狀態的側邊欄寬度歸零，
+        但從來沒有搭配 overflow:hidden。子元素（品牌文字、導覽
+        圖示、收合鈕本身）原本的寬度不會因為外層變 0 就自動消失，
+        沒有 overflow:hidden 的話會直接溢出到寬度 0 的容器外面，
+        變成畫面上看到的「破損窄條、文字被裁一半、兩顆按鈕疊在
+        一起」。這是原本程式碼裡就存在的規則（這次對話開始前就
+        有），只是先前測試都停留在首頁自訂的 96px 收合列，一直
+        沒有人實際點原生收合鈕觸發到這條規則，才沒被發現。
+        */
         section[data-testid="stSidebar"][aria-expanded="false"] {
             width: 0 !important;
             min-width: 0 !important;
             max-width: 0 !important;
             flex-basis: 0 !important;
+            overflow: hidden !important;
         }
 
         /*
@@ -1446,6 +1503,13 @@ def apply_product_styles() -> None:
             background: transparent !important;
         }
 
+        /*
+        上一版用 aria-expanded 條件式定位造成側邊欄本身版面
+        跑掉（收合時整個側邊欄卡在一個破損的窄條狀態，且不會
+        自己恢復），已還原成單一固定定位，不再依展開/收合狀態
+        切換 CSS 規則，避免同樣的問題再發生。按鈕在側邊欄外側
+        的精確定位之後再處理。
+        */
         [data-testid="stSidebarCollapseButton"] {
             position: absolute !important;
             top: 8px !important;
@@ -1622,10 +1686,26 @@ def apply_product_styles() -> None:
             transform: none !important;
         }
 
-        [data-testid="stSidebarNav"] a svg {
-            width: 18px !important;
-            height: 18px !important;
-            flex: 0 0 18px !important;
+        /*
+        :material/xxx: 圖示實際上是連字型渲染的
+        <span data-testid="stIconMaterial">，不是 <svg>，
+        圖示大小要用 font-size 控制。字型是 Google 的
+        Material Symbols Rounded 可變字型，預設沒有指定
+        FILL 軸，瀏覽器會落在字型原始預設值（偏向實心），
+        這裡明確指定 FILL 0，改成只有外框線條、內部不填滿色。
+        */
+        [data-testid="stSidebarNav"] a [data-testid="stIconMaterial"] {
+            font-size: 21px !important;
+            width: 21px !important;
+            height: 21px !important;
+            line-height: 1 !important;
+            text-align: center !important;
+
+            font-variation-settings:
+                "FILL" 0,
+                "wght" 400,
+                "GRAD" 0,
+                "opsz" 24 !important;
         }
 
         [data-testid="stSidebarNav"] a:hover {
@@ -2148,6 +2228,14 @@ def apply_product_styles() -> None:
                 var(--shadow-sm);
         }
 
+        .scenario-card-adopted {
+            border-color: var(--brand-orange);
+
+            box-shadow:
+                0 0 0 2px rgba(244, 91, 27, 0.18),
+                var(--shadow-sm);
+        }
+
         .scenario-card-title-row {
             display: flex;
             align-items: center;
@@ -2160,6 +2248,19 @@ def apply_product_styles() -> None:
             font-size: 0.92rem;
             font-weight: 800;
             color: var(--text-primary);
+        }
+
+        .scenario-card-badges {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .badge-adopted {
+            background: var(--brand-orange);
+            color: #FFFFFF;
+            border: 1px solid var(--brand-orange-dark);
         }
 
         .scenario-row {
@@ -2267,7 +2368,455 @@ def apply_product_styles() -> None:
             line-height: 1.6;
         }
 
+
+        /* ==================================================
+           工作表來源標籤（沿用共用變數，取代頁面內聯色碼）
+        ================================================== */
+
+        .sheet-source-tag {
+            display: inline-block;
+
+            background: var(--ai-accent-soft);
+            color: var(--ai-accent-deep);
+
+            border-radius: 999px;
+            padding: 0.3rem 0.8rem;
+
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+
+        /* ==================================================
+           訊息框背景（沿用共用卡片變數，亮／暗模式皆適用）
+        ================================================== */
+
+        [data-testid="stAlert"] {
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+
+
+        /* ==================================================
+           亮／暗模式切換鈕：固定在畫面右上角
+        ================================================== */
+
+        .st-key-theme_toggle_root {
+            position: fixed !important;
+            top: 14px !important;
+            right: 22px !important;
+            left: auto !important;
+            bottom: auto !important;
+            width: fit-content !important;
+            max-width: fit-content !important;
+            z-index: 2147483647 !important;
+        }
+
+        .st-key-theme_toggle_root .stButton > button {
+            min-height: 2.2rem !important;
+            padding: 0.3rem 0.85rem !important;
+            border-radius: 999px !important;
+
+            background: var(--surface) !important;
+            color: var(--text-secondary) !important;
+            border: 1px solid var(--border) !important;
+
+            font-size: 0.82rem !important;
+            font-weight: 700 !important;
+
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        .st-key-theme_toggle_root .stButton > button:hover {
+            border-color: var(--brand-orange-border) !important;
+            color: var(--brand-orange-dark) !important;
+            transform: none !important;
+        }
+
+        @media (max-width: 900px) {
+            .st-key-theme_toggle_root {
+                top: 10px !important;
+                right: 12px !important;
+            }
+        }
+
         </style>
-        """,
-        unsafe_allow_html=True,
+        """
+
+    # 亮／暗模式切換時（尤其是切成深色）觀察到側邊欄會短暫
+    # 「彈出又收回」一下：原因是亮色樣式跟深色覆寫樣式分兩次
+    # st.markdown() 呼叫、分兩次插入 DOM，瀏覽器可能先畫出
+    # 亮色版側邊欄寬度，深色覆寫才接著套用，中間那一瞬間就是
+    # 使用者看到的閃爍。改成組成同一個字串、一次性插入，讓
+    # 瀏覽器一次拿到最終樣式，不會有中間態可以畫出來。
+    combined_style = (
+        base_style + _DARK_OVERRIDE_STYLE
+        if dark_mode
+        else base_style
     )
+
+    st.markdown(combined_style, unsafe_allow_html=True)
+
+
+def render_theme_toggle() -> None:
+    """
+    在畫面右上角顯示固定位置的亮／暗模式切換鈕。
+
+    切換鈕本身的樣式已隨 apply_product_styles() 一起注入
+    （.st-key-theme_toggle_root），這裡只負責渲染按鈕與寫回
+    Session State；實際的顏色變換交由 apply_product_styles()
+    的 dark_mode 參數處理。
+    """
+
+    dark_mode = bool(st.session_state.get("dark_mode", False))
+
+    with st.container(key="theme_toggle_root"):
+        toggle_label = "☀️ 亮色模式" if dark_mode else "🌙 深色模式"
+
+        if st.button(toggle_label, key="theme_toggle_button"):
+            st.session_state["dark_mode"] = not dark_mode
+            st.rerun()
+
+
+# =========================================================
+# 側邊欄：icon-only 精簡模式
+#
+# 跟首頁（0_首頁.py）收合列用的是同一套視覺（寬度 96px、
+# 只顯示圖示、隱藏文字標籤），這裡另外提供一份給「其他頁面」
+# 依使用者切換自由套用，形成兩級收合：
+# 1. 「精簡為 icon」（這裡）：仍是完整的 Streamlit 導覽，
+#    只是視覺上縮成 icon 列，隨時可以點連結切頁。
+# 2. 原生「收合」按鈕：側邊欄寬度直接歸零、整個隱藏。
+# 首頁本身的收合列已經有自己獨立的樣板檔案（一直運作穩定，
+# 這裡不去動它），這份是特地給「其他頁面」用的等效版本。
+# =========================================================
+
+_SIDEBAR_ICON_ONLY_STYLE = """
+<style>
+section[data-testid="stSidebar"],
+[data-testid="stSidebar"] {
+    width: 96px !important;
+    min-width: 96px !important;
+    max-width: 96px !important;
+    flex: 0 0 96px !important;
+}
+
+[data-testid="stSidebarContent"] {
+    width: 96px !important;
+    min-width: 96px !important;
+    max-width: 96px !important;
+}
+
+.reference-brand-copy {
+    display: none !important;
+}
+
+.reference-brand-wrap {
+    justify-content: center !important;
+}
+
+[data-testid="stSidebarNav"] a {
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 0 !important;
+}
+
+[data-testid="stSidebarNav"] a p {
+    display: none !important;
+}
+
+[data-testid="stSidebarNav"] [data-testid="stNavSectionHeader"] {
+    display: none !important;
+}
+</style>
+"""
+
+
+def apply_sidebar_icon_only_style() -> None:
+    """套用側邊欄「只顯示 icon」精簡樣式（給首頁以外的頁面用）。"""
+
+    st.markdown(_SIDEBAR_ICON_ONLY_STYLE, unsafe_allow_html=True)
+
+
+def render_sidebar_icon_only_toggle() -> None:
+    """側邊欄「精簡為 icon」／「顯示完整選單」切換鈕。"""
+
+    icon_only = bool(st.session_state.get("sidebar_icon_only", False))
+
+    # icon-only 模式下側邊欄只有 96px 寬，按鈕文字要夠短才不會
+    # 擠壓變形，完整說明改放到 help 提示文字裡。
+    toggle_label = "展開" if icon_only else "精簡"
+
+    if st.button(
+        toggle_label,
+        key="sidebar_icon_only_toggle",
+        use_container_width=True,
+        help=(
+            "顯示完整選單（含文字標籤）"
+            if icon_only
+            else "精簡側邊欄為只顯示 icon"
+        ),
+    ):
+        st.session_state["sidebar_icon_only"] = not icon_only
+        st.rerun()
+
+
+# =========================================================
+# 深色模式覆寫樣式
+#
+# 只新增規則、不修改亮色版任何一行：
+# 1. 重新宣告 :root 的顏色變數（兩組：品牌變數＋參考網站
+#    變數），沿用變數的規則會自動換色。
+# 2. 針對少數直接寫死色碼、沒有走變數的規則（白色漸層終點、
+#    上傳框、停用按鈕、徽章、標籤晶片……等），逐一補上深色
+#    版本，選擇器與亮色版完全一致，靠後宣告 + !important
+#    取得優先權。
+# =========================================================
+
+_DARK_OVERRIDE_STYLE = """
+<style>
+:root {
+    --app-bg: #0A0F1E;
+    --surface: #131A2C;
+    --surface-soft: #1B2338;
+    --surface-warm: #1F2A3D;
+
+    --text-primary: #EDF1F7;
+    --text-secondary: #AEB9CC;
+    --text-muted: #8590A6;
+
+    --border: #2A3448;
+    --border-soft: #232C3E;
+
+    --brand-orange: #FF7A3D;
+    --brand-orange-dark: #FFAB7A;
+    --brand-orange-soft: rgba(255, 122, 61, 0.26);
+    --brand-orange-border: rgba(255, 122, 61, 0.5);
+
+    --brand-magenta: #E8629E;
+    --brand-blue: #8891E0;
+    --brand-green: #35D0A0;
+
+    --success: #34D399;
+    --warning: #FBBF24;
+    --danger: #F87171;
+
+    --ai-accent: #7FC4FF;
+    --ai-accent-deep: #B8E0FF;
+    --ai-accent-soft: rgba(127, 196, 255, 0.24);
+    --ai-accent-border: rgba(127, 196, 255, 0.42);
+
+    --shadow-sm:
+        0 1px 2px rgba(0, 0, 0, 0.4),
+        0 3px 10px rgba(0, 0, 0, 0.35);
+
+    --shadow-md:
+        0 10px 26px rgba(0, 0, 0, 0.5);
+
+    --reference-bg: #0A0F1E;
+    --reference-panel: #131A2C;
+    --reference-panel-raised: #1B2338;
+    --reference-border: #2A3448;
+    --reference-border-soft: #232C3E;
+    --reference-text: #EDF1F7;
+    --reference-text-secondary: #AEB9CC;
+    --reference-text-faint: #7C87A0;
+    --reference-orange: #FF7A3D;
+    --reference-orange-soft: rgba(255, 122, 61, 0.26);
+    --reference-orange-line: rgba(255, 122, 61, 0.45);
+    --reference-orange-deep: #FFC29E;
+    --reference-sidebar-bg: #0E1526;
+    --reference-sidebar-raised: #1E2A46;
+    --reference-sidebar-line: #2B3855;
+    --reference-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.35),
+        0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 側邊欄漸層終點原本寫死白色 */
+section[data-testid="stSidebar"],
+[data-testid="stSidebar"] {
+    background:
+        linear-gradient(
+            180deg,
+            var(--reference-sidebar-bg) 0%,
+            #0A0F1E 100%
+        ) !important;
+
+    box-shadow:
+        2px 0 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+.reference-brand-name {
+    color: #F5EDE4 !important;
+}
+
+.reference-brand-sub {
+    color: #C9B7A4 !important;
+}
+
+/* 上傳框 */
+[data-testid="stFileUploaderDropzone"] {
+    background: #1B2338 !important;
+    border-color: #34405A !important;
+}
+
+[data-testid="stFileUploaderDropzone"] p,
+[data-testid="stFileUploaderDropzone"] small,
+[data-testid="stFileUploaderDropzone"] span {
+    color: #AEB9CC !important;
+}
+
+/* 停用按鈕 */
+.stButton > button:disabled {
+    background: #1B2338 !important;
+    color: #667085 !important;
+    border-color: #2A3448 !important;
+}
+
+/* 聊天訊息文字（比對話泡泡更高特異性的既有規則寫死了顏色） */
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] li {
+    color: #EDF1F7 !important;
+}
+
+/*
+訊息框（st.info/warning/success/error）文字：亮色版寫死
+#344054（深灰藍），背景已經改用 var(--surface) 跟著變深，
+文字沒有對應深色覆寫的話，就會在深色背景上出現幾乎看不清的
+深色文字，這裡補上淺色文字。
+*/
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] li,
+[data-testid="stAlert"] span {
+    color: #EDF1F7 !important;
+}
+
+/* 分頁標籤文字（st.tabs()）同樣沒有深色覆寫，寫死的中灰色
+   在深色背景上會很難辨識 */
+[data-baseweb="tab"] {
+    color: #AEB9CC !important;
+}
+
+/* 多選標籤晶片 */
+[data-baseweb="tag"] {
+    background: rgba(127, 196, 255, 0.26) !important;
+    border: 1px solid rgba(127, 196, 255, 0.4) !important;
+}
+
+[data-baseweb="tag"],
+[data-baseweb="tag"] *,
+[data-baseweb="tag"] span,
+[data-baseweb="tag"] p,
+[data-baseweb="tag"] div {
+    color: #D7EBFF !important;
+}
+
+[data-baseweb="tag"] svg,
+[data-baseweb="tag"] button,
+[data-baseweb="tag"] button *,
+[data-baseweb="tag"] [role="button"],
+[data-baseweb="tag"] [role="button"] * {
+    color: #D7EBFF !important;
+    fill: #D7EBFF !important;
+}
+
+[data-baseweb="tag"]:hover {
+    background: rgba(127, 196, 255, 0.26) !important;
+    border-color: rgba(127, 196, 255, 0.6) !important;
+}
+
+[data-testid="stMultiSelect"] input,
+[data-testid="stSelectbox"] input {
+    color: #EDF1F7 !important;
+}
+
+[data-testid="stMultiSelect"] input::placeholder,
+[data-testid="stSelectbox"] input::placeholder {
+    color: #8590A6 !important;
+}
+
+/* 主管報表：最佳／較差活動色條 */
+.management-activity-best {
+    border-top-color: #34D399 !important;
+}
+
+.management-activity-worst {
+    border-top-color: #F87171 !important;
+}
+
+/* 流程徽章 */
+.workflow-badge-completed {
+    background: rgba(52, 211, 153, 0.26) !important;
+    color: #6EE7B7 !important;
+    border-color: rgba(52, 211, 153, 0.35) !important;
+}
+
+.workflow-badge-pending {
+    background: rgba(251, 191, 36, 0.26) !important;
+    color: #FCD34D !important;
+    border-color: rgba(251, 191, 36, 0.35) !important;
+}
+
+/* 下一步提示卡漸層終點原本寫死白色 */
+.next-step-panel {
+    background:
+        linear-gradient(
+            135deg,
+            rgba(255, 122, 61, 0.2) 0%,
+            var(--surface) 100%
+        ) !important;
+}
+
+/* AI 策略顧問捷徑提示 */
+.advisor-shortcut-note {
+    background: rgba(255, 122, 61, 0.2) !important;
+}
+
+[data-testid="stChatMessage"] {
+    background: var(--surface) !important;
+}
+
+/* AI 洞察卡漸層終點原本寫死白色 */
+.advisor-card {
+    background:
+        linear-gradient(
+            135deg,
+            var(--ai-accent-soft) 0%,
+            var(--surface) 55%
+        ) !important;
+}
+
+.advisor-tag-fallback {
+    background: rgba(231, 235, 240, 0.24) !important;
+    color: #C3CBDA !important;
+    border-color: rgba(183, 192, 206, 0.4) !important;
+}
+
+/* 信心／情境徽章 */
+.badge-confidence-high {
+    background: rgba(52, 211, 153, 0.26) !important;
+    color: #6EE7B7 !important;
+    border-color: rgba(52, 211, 153, 0.4) !important;
+}
+
+.badge-confidence-mid {
+    background: rgba(251, 191, 36, 0.26) !important;
+    color: #FCD34D !important;
+    border-color: rgba(251, 191, 36, 0.4) !important;
+}
+
+.badge-confidence-low {
+    background: rgba(248, 113, 113, 0.26) !important;
+    color: #FCA5A5 !important;
+    border-color: rgba(248, 113, 113, 0.4) !important;
+}
+
+.badge-neutral {
+    background: rgba(174, 185, 204, 0.26) !important;
+    color: #C7D0E0 !important;
+    border-color: rgba(174, 185, 204, 0.35) !important;
+}
+</style>
+"""

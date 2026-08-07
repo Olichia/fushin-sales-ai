@@ -447,8 +447,8 @@ with st.container(border=True):
                     </div>
                     <div class="report-content-description">
                         分析概況、商品表現排行、活動單位成效重點、
-                        折扣率洞察、疊加活動組合分析、風險提醒，
-                        以及主管策略摘要。
+                        折扣率洞察、疊加活動組合分析、風險提醒、
+                        主管策略摘要，以及情境模擬採用方案。
                     </div>
                 </div>
             </div>
@@ -775,6 +775,12 @@ if generate_button:
                         ),
                         waterfall_summary_dataframe=(
                             waterfall_summary_raw
+                        ),
+                        adopted_scenarios=(
+                            st.session_state.get(
+                                "adopted_whatif_scenarios",
+                                [],
+                            )
                         ),
                     )
                 )

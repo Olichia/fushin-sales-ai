@@ -179,6 +179,7 @@ def render_scenario_card(
     badge_tone: str,
     rows: list[tuple[str, str]],
     is_best: bool = False,
+    is_adopted: bool = False,
 ) -> None:
     """
     以「標籤＋換行陳列的欄位」呈現單一情境模擬方案卡片，
@@ -189,18 +190,20 @@ def render_scenario_card(
     "neutral"（無贈品／基準）、"good"（贈品組合）、
     "risk"（深折扣，提醒沒有實證支持的降價不代表更划算）。
     is_best=True 時卡片外框改用成功色，標出目前簡化後淨效益
-    最高的方案。
+    最高的方案。is_adopted=True 時額外標示「📌 已採用」徽章，
+    並改用強調色外框，跟使用者在頁面上按下「採用」的方案對應。
     """
 
     badge_class = _SCENARIO_BADGE_CLASS.get(
         badge_tone, "badge-neutral"
     )
 
-    card_class = (
-        "scenario-card scenario-card-best"
-        if is_best
-        else "scenario-card"
-    )
+    card_class = "scenario-card"
+
+    if is_adopted:
+        card_class += " scenario-card-adopted"
+    elif is_best:
+        card_class += " scenario-card-best"
 
     title_text = f"✅ {title}" if is_best else title
 
@@ -212,11 +215,20 @@ def render_scenario_card(
         for label, value in rows
     )
 
+    adopted_badge_html = (
+        '<span class="badge badge-adopted">📌 已採用</span>'
+        if is_adopted
+        else ""
+    )
+
     card_html = (
         f'<div class="{card_class}">'
         '<div class="scenario-card-title-row">'
         f'<span class="scenario-card-title">{html.escape(title_text)}</span>'
+        '<span class="scenario-card-badges">'
         f'<span class="badge {badge_class}">{html.escape(badge_text)}</span>'
+        f"{adopted_badge_html}"
+        "</span>"
         "</div>"
         f"{row_html}"
         "</div>"

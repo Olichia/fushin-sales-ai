@@ -19,11 +19,11 @@ if str(PROJECT_ROOT) not in sys.path:
     )
 
 
+from src.chart_theme import apply_chart_theme, get_category_color_map
 from src.executive_summary import build_executive_brief_summary
 from src.insight_cards import render_ai_insight_card
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
-    CATEGORY_COLOR_MAP,
     compute_actual_revenue_total,
     compute_risk_mask,
     prepare_unit_overview_for_display,
@@ -35,6 +35,9 @@ from src.unit_overview_helpers import (
 # =========================================================
 
 initialize_session_state()
+
+dark_mode = bool(st.session_state.get("dark_mode", False))
+CATEGORY_COLOR_MAP = get_category_color_map(dark_mode)
 
 
 def dataframe_ready(dataframe) -> bool:
@@ -531,6 +534,7 @@ with chart_col1:
                     "b": 10,
                 },
             )
+            apply_chart_theme(sales_trend_figure, dark_mode)
 
             st.plotly_chart(
                 sales_trend_figure,
@@ -577,6 +581,7 @@ with chart_col2:
                 "b": 10,
             },
         )
+        apply_chart_theme(distribution_figure, dark_mode)
 
         st.plotly_chart(
             distribution_figure,
@@ -680,6 +685,7 @@ with chart_col2:
                 "b": 10,
             },
         )
+        apply_chart_theme(distribution_figure, dark_mode)
 
         st.plotly_chart(
             distribution_figure,
