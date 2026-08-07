@@ -107,6 +107,36 @@ dark_mode = bool(st.session_state.get("dark_mode", False))
 st.markdown(
     """
     <style>
+    [data-testid="stMainBlockContainer"] h3 {
+        font-size: 1.55rem;
+    }
+
+    [data-testid="stMainBlockContainer"] h4 {
+        font-size: 1.22rem;
+    }
+
+    [data-testid="stMainBlockContainer"] [data-testid="stCaptionContainer"] p {
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    [data-testid="stMainBlockContainer"] button p,
+    [data-testid="stMainBlockContainer"] [data-baseweb="tab"] p {
+        font-size: 0.94rem;
+    }
+
+    [data-testid="stMainBlockContainer"] .advisor-row-label,
+    [data-testid="stMainBlockContainer"] .advisor-row-text {
+        font-size: 0.94rem;
+        line-height: 1.65;
+    }
+
+    [data-testid="stMainBlockContainer"] .advisor-tag,
+    [data-testid="stMainBlockContainer"] .advisor-tag-fallback,
+    [data-testid="stMainBlockContainer"] .badge {
+        font-size: 0.8rem;
+    }
+
     .ai-center-hero {
         position: relative;
         overflow: hidden;
@@ -137,7 +167,7 @@ st.markdown(
         gap: 0.45rem;
         margin-bottom: 0.55rem;
         color: var(--ai-accent-deep);
-        font-size: 0.78rem;
+        font-size: 0.86rem;
         font-weight: 900;
         letter-spacing: 0.12em;
     }
@@ -162,7 +192,7 @@ st.markdown(
         max-width: 920px;
         margin: 0;
         color: var(--text-secondary);
-        font-size: 0.98rem;
+        font-size: 1.08rem;
         font-weight: 540;
         line-height: 1.75;
     }
@@ -180,7 +210,7 @@ st.markdown(
         color: var(--text-secondary);
         border: 1px solid var(--border);
         border-radius: 999px;
-        font-size: 0.72rem;
+        font-size: 0.82rem;
         font-weight: 750;
     }
 
@@ -206,7 +236,7 @@ st.markdown(
 
     .ai-kpi-label {
         color: var(--text-muted);
-        font-size: 0.73rem;
+        font-size: 0.82rem;
         font-weight: 800;
         letter-spacing: 0.04em;
     }
@@ -221,7 +251,7 @@ st.markdown(
 
     .ai-kpi-note {
         color: var(--text-secondary);
-        font-size: 0.72rem;
+        font-size: 0.82rem;
         line-height: 1.45;
     }
 
@@ -256,7 +286,7 @@ st.markdown(
 
     .ai-brief-tag {
         color: var(--ai-accent-deep);
-        font-size: 0.76rem;
+        font-size: 0.86rem;
         font-weight: 900;
         letter-spacing: 0.06em;
     }
@@ -264,7 +294,7 @@ st.markdown(
     .ai-confidence {
         padding: 0.2rem 0.55rem;
         border-radius: 999px;
-        font-size: 0.7rem;
+        font-size: 0.8rem;
         font-weight: 850;
     }
 
@@ -283,7 +313,7 @@ st.markdown(
     .ai-brief-finding {
         margin-bottom: 0.7rem;
         color: var(--text-primary);
-        font-size: 1.08rem;
+        font-size: 1.16rem;
         font-weight: 850;
         line-height: 1.55;
     }
@@ -294,7 +324,7 @@ st.markdown(
         gap: 0.5rem;
         padding: 0.28rem 0;
         color: var(--text-secondary);
-        font-size: 0.84rem;
+        font-size: 0.94rem;
         line-height: 1.55;
     }
 
@@ -311,20 +341,20 @@ st.markdown(
         background: var(--ai-accent-soft);
         border: 1px solid var(--ai-accent-border);
         border-radius: 999px;
-        font-size: 0.68rem;
+        font-size: 0.78rem;
         font-weight: 850;
     }
 
     .decision-title {
         color: var(--text-primary);
-        font-size: 0.98rem;
+        font-size: 1.08rem;
         font-weight: 850;
     }
 
     .decision-action {
         margin-top: 0.35rem;
         color: var(--text-secondary);
-        font-size: 0.8rem;
+        font-size: 0.92rem;
         line-height: 1.55;
     }
 
@@ -333,8 +363,89 @@ st.markdown(
         padding-top: 0.48rem;
         color: var(--text-muted);
         border-top: 1px dashed var(--border-soft);
-        font-size: 0.72rem;
+        font-size: 0.84rem;
         line-height: 1.5;
+    }
+
+    .queue-method {
+        margin: 0.35rem 0 0.85rem;
+        padding: 0.9rem 1rem;
+        color: var(--text-secondary);
+        background: var(--ai-accent-soft);
+        border: 1px solid var(--ai-accent-border);
+        border-radius: 13px;
+        font-size: 0.96rem;
+        line-height: 1.65;
+    }
+
+    .queue-method strong {
+        color: var(--text-primary);
+    }
+
+    .queue-balance-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.7rem;
+        margin-bottom: 1.05rem;
+    }
+
+    .queue-balance-card {
+        padding: 0.75rem 0.85rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .queue-balance-count {
+        display: inline-block;
+        margin-right: 0.35rem;
+        color: var(--ai-accent-deep);
+        font-size: 1.18rem;
+        font-weight: 900;
+    }
+
+    .queue-balance-label {
+        color: var(--text-primary);
+        font-size: 0.96rem;
+        font-weight: 850;
+    }
+
+    .queue-balance-note {
+        margin-top: 0.25rem;
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        line-height: 1.45;
+    }
+
+    .queue-group-heading {
+        margin: 1rem 0 0.55rem;
+        padding: 0.7rem 0.85rem;
+        color: var(--text-secondary);
+        background: var(--surface-soft);
+        border-left: 4px solid var(--ai-accent);
+        border-radius: 0 10px 10px 0;
+        font-size: 0.9rem;
+        line-height: 1.55;
+    }
+
+    .queue-group-heading strong {
+        display: block;
+        margin-bottom: 0.1rem;
+        color: var(--text-primary);
+        font-size: 1.05rem;
+    }
+
+    .queue-group-risk {
+        border-left-color: var(--danger);
+    }
+
+    .queue-group-opportunity {
+        border-left-color: var(--success);
+    }
+
+    .queue-group-observe {
+        border-left-color: var(--warning);
     }
 
     .plan-card {
@@ -348,7 +459,7 @@ st.markdown(
 
     .plan-step {
         color: var(--brand-orange);
-        font-size: 0.72rem;
+        font-size: 0.8rem;
         font-weight: 900;
         letter-spacing: 0.1em;
     }
@@ -356,14 +467,14 @@ st.markdown(
     .plan-title {
         margin: 0.35rem 0 0.5rem;
         color: var(--text-primary);
-        font-size: 0.96rem;
+        font-size: 1.06rem;
         font-weight: 850;
     }
 
     .plan-description,
     .plan-evidence {
         color: var(--text-secondary);
-        font-size: 0.78rem;
+        font-size: 0.9rem;
         line-height: 1.55;
     }
 
@@ -375,6 +486,10 @@ st.markdown(
     @media (max-width: 900px) {
         .ai-kpi-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .queue-balance-grid {
+            grid-template-columns: 1fr;
         }
     }
 
@@ -402,7 +517,7 @@ st.markdown(
         </div>
         <h1 class="ai-center-title">AI 策略中心</h1>
         <p class="ai-center-subtitle">
-            將策略摘要、決策佇列與 AI 對話整合在同一頁。
+            將策略摘要、優先檢視活動與 AI 對話整合在同一頁。
             系統先從既有活動單位分析找出機會與風險，再提供可執行、
             可驗證且附資料佐證的下一期規劃。
         </p>
@@ -450,7 +565,7 @@ analysis_ready = (
 if not analysis_ready:
     st.warning(
         "AI 策略中心正在等待分析資料。請先完成「03 執行完整分析」，"
-        "系統就會自動產生決策摘要、Decision Queue 與 AI 對話背景。"
+        "系統就會自動產生決策摘要、優先檢視活動與 AI 對話背景。"
     )
     st.stop()
 
@@ -579,54 +694,139 @@ if (
 
 
 st.divider()
-st.subheader("Decision Queue")
-st.caption(
-    "依負向風險、正向機會與待補樣本訊號排序；每張卡片都可直接交給 AI 深入解讀。"
+st.subheader("優先檢視活動")
+st.markdown(
+    f"""
+    <div class="queue-method">
+        <strong>這是系統規則選取，不是 Gemini 排名。</strong>
+        系統從全部 {total_units:,} 個活動單位中，最多挑選
+        2 個負向風險、2 個正向機會與 1 個待補資料案例，
+        作為先閱讀的五筆代表項目。其他活動仍保留在下方原始策略分析與完整下載資料中。
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
+queue_group_specs = [
+    (
+        "risk",
+        "風險優先",
+        "符合建議檢討或降價侵蝕風險，淨增益／日最低者優先。",
+    ),
+    (
+        "opportunity",
+        "成長機會",
+        "策略分類為建議延續，淨增益／日最高者優先。",
+    ),
+    (
+        "observe",
+        "待補資料",
+        "策略分類為持續觀察，優先顯示資料信心較低者。",
+    ),
+    (
+        "other",
+        "其他高影響",
+        "前三類數量不足時，依淨增益影響的絕對值補足。",
+    ),
+]
 
-for queue_index, decision in enumerate(decision_queue, start=1):
-    with st.container(border=True):
-        content_column, metric_column, action_column = st.columns(
-            [3.4, 1.1, 1.15],
-            gap="medium",
-        )
+queue_group_counts = {
+    group: sum(
+        decision["selection_group"] == group
+        for decision in decision_queue
+    )
+    for group, _, _ in queue_group_specs
+}
 
-        with content_column:
-            st.markdown(
-                f"""
-                <span class="decision-status">{safe_html(decision['status'])}</span>
-                <div class="decision-title">{queue_index:02d} · {safe_html(decision['title'])}</div>
-                <div class="decision-action">{safe_html(decision['action'])}</div>
-                <div class="decision-evidence">資料佐證：{safe_html(decision['evidence'])}</div>
-                """,
-                unsafe_allow_html=True,
+st.markdown(
+    f"""
+    <div class="queue-balance-grid">
+        <div class="queue-balance-card">
+            <span class="queue-balance-count">{queue_group_counts['risk']}</span>
+            <span class="queue-balance-label">風險優先</span>
+            <div class="queue-balance-note">從最需要停止、拆分或重新驗證的活動開始。</div>
+        </div>
+        <div class="queue-balance-card">
+            <span class="queue-balance-count">{queue_group_counts['opportunity']}</span>
+            <span class="queue-balance-label">成長機會</span>
+            <div class="queue-balance-note">找出值得延續，但仍需小規模驗證的正向案例。</div>
+        </div>
+        <div class="queue-balance-card">
+            <span class="queue-balance-count">{queue_group_counts['observe']}</span>
+            <span class="queue-balance-label">待補資料</span>
+            <div class="queue-balance-note">保留一筆目前不能直接下結論的觀察案例。</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+queue_index = 0
+
+for group, group_label, group_reason in queue_group_specs:
+    group_decisions = [
+        decision
+        for decision in decision_queue
+        if decision["selection_group"] == group
+    ]
+
+    if not group_decisions:
+        continue
+
+    st.markdown(
+        f"""
+        <div class="queue-group-heading queue-group-{safe_html(group)}">
+            <strong>{safe_html(group_label)} · {len(group_decisions)} 筆</strong>
+            {safe_html(group_reason)}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    for decision in group_decisions:
+        queue_index += 1
+
+        with st.container(border=True):
+            content_column, metric_column, action_column = st.columns(
+                [3.4, 1.1, 1.15],
+                gap="medium",
             )
 
-        with metric_column:
-            st.metric(
-                "淨增益／日",
-                format_money(
-                    decision["net_effect_per_day"],
-                    signed=True,
-                ),
-            )
-            st.caption(f"資料信心：{decision['confidence']}")
+            with content_column:
+                st.markdown(
+                    f"""
+                    <span class="decision-status">{safe_html(decision['status'])}</span>
+                    <div class="decision-title">{queue_index:02d} · {safe_html(decision['title'])}</div>
+                    <div class="decision-action">{safe_html(decision['action'])}</div>
+                    <div class="decision-evidence">資料佐證：{safe_html(decision['evidence'])}</div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-        with action_column:
-            if st.button(
-                "交給 AI 解讀",
-                width="stretch",
-                key=f"ai_center_queue_{queue_index}",
-            ):
-                shortcut_question = decision["prompt"]
-                question_source_label = decision["title"]
+            with metric_column:
+                st.metric(
+                    "淨增益／日",
+                    format_money(
+                        decision["net_effect_per_day"],
+                        signed=True,
+                    ),
+                )
+                st.caption(f"資料信心：{decision['confidence']}")
 
-    if (
-        isinstance(latest_answer, dict)
-        and latest_answer.get("source") == decision["title"]
-    ):
-        render_latest_ai_answer(latest_answer)
+            with action_column:
+                if st.button(
+                    "交給 AI 解讀",
+                    width="stretch",
+                    key=f"ai_center_queue_{queue_index}",
+                ):
+                    shortcut_question = decision["prompt"]
+                    question_source_label = decision["title"]
+
+        if (
+            isinstance(latest_answer, dict)
+            and latest_answer.get("source") == decision["title"]
+        ):
+            render_latest_ai_answer(latest_answer)
 
 
 queue_sources = {

@@ -109,7 +109,12 @@ def _recommendation_for_row(row: pd.Series) -> tuple[str, str]:
     )
 
 
-def _queue_record(row: pd.Series) -> dict[str, Any]:
+def _queue_record(
+    row: pd.Series,
+    selection_group: str,
+    selection_label: str,
+    selection_reason: str,
+) -> dict[str, Any]:
     status, action = _recommendation_for_row(row)
     product_name = _clean_text(row.get("product_name"))
     product_id = _clean_text(row.get("product_id"), "-")
@@ -122,6 +127,9 @@ def _queue_record(row: pd.Series) -> dict[str, Any]:
         "unit_code": unit_code,
         "title": f"{product_name}｜{unit_code}",
         "status": status,
+        "selection_group": selection_group,
+        "selection_label": selection_label,
+        "selection_reason": selection_reason,
         "strategy_category": _clean_text(
             row.get("strategy_category"), "持續觀察"
         ),
@@ -150,11 +158,30 @@ def build_decision_queue(
         return []
 
     selected_indices: list[Any] = []
+    selection_metadata: dict[Any, tuple[str, str, str]] = {}
 
-    def append_indices(indices: list[Any]) -> None:
+    def append_group(
+        indices: list[Any],
+        quota: int,
+        group: str,
+        label: str,
+        reason: str,
+    ) -> None:
+        added_count = 0
+
         for index in indices:
             if index not in selected_indices:
                 selected_indices.append(index)
+                selection_metadata[index] = (
+                    group,
+                    label,
+                    reason,
+                )
+                added_count += 1
+
+            if added_count >= quota:
+                return
+
             if len(selected_indices) >= limit:
                 return
 
@@ -166,7 +193,16 @@ def build_decision_queue(
         ascending=True,
         na_position="last",
     )
-    append_indices(risk_rows.index.tolist()[:2])
+    append_group(
+        risk_rows.index.tolist(),
+        quota=min(2, limit),
+        group="risk",
+        label="風險優先",
+        reason=(
+            "符合「建議檢討」或降價侵蝕風險，"
+            "依淨增益／日由低到高選取。"
+        ),
+    )
 
     opportunity_rows = strategy_dataframe[
         strategy_dataframe["strategy_category"] == "建議延續"
@@ -175,7 +211,16 @@ def build_decision_queue(
         ascending=False,
         na_position="last",
     )
-    append_indices(opportunity_rows.index.tolist()[:2])
+    append_group(
+        opportunity_rows.index.tolist(),
+        quota=min(2, max(limit - len(selected_indices), 0)),
+        group="opportunity",
+        label="成長機會",
+        reason=(
+            "策略分類為「建議延續」，"
+            "依淨增益／日由高到低選取。"
+        ),
+    )
 
     observe_rows = strategy_dataframe[
         strategy_dataframe["strategy_category"] == "持續觀察"
@@ -184,17 +229,38 @@ def build_decision_queue(
         ascending=[True, False],
         na_position="last",
     )
-    append_indices(observe_rows.index.tolist())
+    append_group(
+        observe_rows.index.tolist(),
+        quota=min(1, max(limit - len(selected_indices), 0)),
+        group="observe",
+        label="待補資料",
+        reason=(
+            "策略分類為「持續觀察」，"
+            "優先顯示資料信心較低者。"
+        ),
+    )
 
     remaining = strategy_dataframe.assign(
         _impact=strategy_dataframe[
             "net_revenue_effect_per_day"
         ].abs()
     ).sort_values("_impact", ascending=False)
-    append_indices(remaining.index.tolist())
+    append_group(
+        remaining.index.tolist(),
+        quota=max(limit - len(selected_indices), 0),
+        group="other",
+        label="其他高影響",
+        reason=(
+            "前述類別數量不足時，"
+            "依淨增益影響的絕對值補足。"
+        ),
+    )
 
     return [
-        _queue_record(strategy_dataframe.loc[index])
+        _queue_record(
+            strategy_dataframe.loc[index],
+            *selection_metadata[index],
+        )
         for index in selected_indices[:limit]
     ]
 

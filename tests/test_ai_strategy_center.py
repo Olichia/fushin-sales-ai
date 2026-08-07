@@ -60,6 +60,11 @@ class AiStrategyCenterTests(unittest.TestCase):
 
         self.assertEqual(len(queue), 4)
         self.assertEqual(queue[0]["product_name"], "風險品")
+        self.assertEqual(
+            [item["selection_group"] for item in queue],
+            ["risk", "opportunity", "opportunity", "observe"],
+        )
+        self.assertIn("由低到高", queue[0]["selection_reason"])
         self.assertIn("淨增益/日 -100", queue[0]["evidence"])
         self.assertIn("商品編號 A", queue[0]["prompt"])
 
