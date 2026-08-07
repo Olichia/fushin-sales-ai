@@ -97,8 +97,8 @@ activity_insight_page = st.Page(
 
 strategy_center_page = st.Page(
     PAGES_DIR / "13_策略中心.py",
-    title="策略中心",
-    icon=":material/assignment:",
+    title="AI 策略中心",
+    icon=":material/smart_toy:",
 )
 
 whatif_simulation_page = st.Page(
@@ -118,13 +118,6 @@ management_report_page = st.Page(
     title="主管報表中心",
     icon=":material/picture_as_pdf:",
 )
-
-ai_advisor_page = st.Page(
-    PAGES_DIR / "14_AI顧問.py",
-    title="AI 策略顧問",
-    icon=":material/smart_toy:",
-)
-
 
 # =========================================================
 # 品牌區
@@ -193,7 +186,6 @@ navigation = st.navigation(
             whatif_simulation_page,
             action_generation_page,
             management_report_page,
-            ai_advisor_page,
         ],
     },
     position="sidebar",
@@ -309,7 +301,8 @@ if navigation.title != "首頁":
 # 浮動 AI 顧問
 # =========================================================
 
-render_floating_chatbot()
+if navigation.title != "AI 策略中心":
+    render_floating_chatbot()
 
 
 # =========================================================
