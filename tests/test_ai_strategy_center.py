@@ -2,6 +2,7 @@ import unittest
 
 import pandas as pd
 
+from src.ai_advisor import build_fallback_advisor_response
 from src.ai_strategy_center import (
     build_decision_queue,
     build_executive_brief,
@@ -75,6 +76,19 @@ class AiStrategyCenterTests(unittest.TestCase):
         self.assertEqual(len(plan), 3)
         self.assertIn("2 個", plan[0]["description"])
         self.assertIn("1 個", plan[2]["description"])
+
+    def test_ai_fallback_targets_clicked_activity_unit(self) -> None:
+        response = build_fallback_advisor_response(
+            self.raw,
+            user_question=(
+                "請解讀明星品（商品編號 D、活動單位 U4）"
+            ),
+        )
+
+        self.assertIn("明星品・U4", response.finding)
+        self.assertIn("+100", response.finding)
+        self.assertIn("品牌日", response.evidence)
+        self.assertNotIn("目前共 4 個", response.finding)
 
 
 if __name__ == "__main__":

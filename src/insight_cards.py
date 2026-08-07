@@ -48,7 +48,7 @@ def render_structured_advisor_card(
         confidence, "badge-confidence-mid"
     )
 
-    tag_text = "⚙ 示範備援" if is_fallback else "✨ AI 結構化回覆"
+    tag_text = "⚙ 規則式備援" if is_fallback else "✨ AI 結構化回覆"
     tag_class = "advisor-tag-fallback" if is_fallback else "advisor-tag"
 
     rows = [

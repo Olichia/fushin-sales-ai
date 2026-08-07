@@ -550,6 +550,7 @@ def ask_gemini_advisor_structured(
 
 def build_fallback_advisor_response(
     unit_overview_dataframe: pd.DataFrame,
+    user_question: str = "",
 ) -> AdvisorStructuredResponse:
     """
     Gemini 連續兩次呼叫都失敗時的規則式備援內容。
@@ -565,6 +566,146 @@ def build_fallback_advisor_response(
 
     strategy_category = compute_strategy_category(unit_overview)
     risk_mask = compute_risk_mask(unit_overview)
+
+    unit_overview["策略分類"] = strategy_category
+    unit_overview["is_risky"] = risk_mask
+    unit_overview["資料信心"] = compute_confidence_label(
+        unit_overview
+    )
+
+    normalized_question = str(user_question).strip()
+    matched_row = None
+
+    for _, row in unit_overview.iterrows():
+        product_id = str(row.get("product_id", "")).strip()
+        unit_code = str(row.get("unit_code", "")).strip()
+
+        if (
+            product_id
+            and unit_code
+            and product_id in normalized_question
+            and unit_code in normalized_question
+        ):
+            matched_row = row
+            break
+
+    if matched_row is not None:
+        product_name = str(
+            matched_row.get("product_name", "此商品")
+        )
+        unit_code = str(matched_row.get("unit_code", ""))
+        activities = str(
+            matched_row.get(
+                "corresponding_activities_label", "未標記活動"
+            )
+        )
+        category = str(matched_row.get("策略分類", "持續觀察"))
+        data_confidence = str(
+            matched_row.get("資料信心", "較低")
+        )
+        net_effect = pd.to_numeric(
+            matched_row.get("net_revenue_effect_per_day"),
+            errors="coerce",
+        )
+        days = pd.to_numeric(
+            matched_row.get("days"), errors="coerce"
+        )
+        discount_rate = pd.to_numeric(
+            matched_row.get("discount_rate"), errors="coerce"
+        )
+        is_risky = bool(matched_row.get("is_risky", False))
+        is_unsplittable = (
+            matched_row.get("color_category") == "不可分離"
+        )
+
+        net_effect_text = (
+            f"{float(net_effect):+,.0f} 元/日"
+            if pd.notna(net_effect)
+            else "無法計算"
+        )
+        days_text = (
+            f"{int(days)} 天" if pd.notna(days) else "天數不明"
+        )
+        discount_text = (
+            f"{float(discount_rate):.1%}"
+            if pd.notna(discount_rate)
+            else "無法計算"
+        )
+
+        if is_unsplittable:
+            reason = (
+                "此活動單位同時疊加多個活動機制，現有資料無法把"
+                "成效歸因到單一活動，因此不宜直接複製整組方案。"
+            )
+            action = (
+                "下一檔將活動機制錯開，固定商品與曝光，"
+                "一次只測試一項折扣、贈品或平台活動。"
+            )
+            alternative = (
+                "若檔期無法拆開，可先縮小活動範圍並保留同商品"
+                "同月安靜期作為對照。"
+            )
+        elif is_risky or category == "建議檢討":
+            reason = (
+                "淨營收效應為負，或降價效應高於量增效應，"
+                "代表目前方案有折扣侵蝕風險。"
+            )
+            action = (
+                "下一檔先降低折扣深度或改用贈品，"
+                "並追蹤量增是否足以抵銷價格下降。"
+            )
+            alternative = (
+                "暫停原方案，改測曝光位置或優惠門檻，"
+                "避免同時調整多個變因。"
+            )
+        elif category == "建議延續":
+            reason = (
+                "淨營收效應達目前活動單位中位數以上，"
+                "可視為值得繼續驗證的正向訊號。"
+            )
+            action = (
+                "保留主要活動機制，在相似商品進行小規模複製測試，"
+                "確認結果穩定後再擴大。"
+            )
+            alternative = (
+                "先延長同一商品的觀察天數，不立即擴大到其他商品。"
+            )
+        else:
+            reason = (
+                "目前淨營收效應為正，但尚未達整體中位數，"
+                "訊號不足以支持直接放大。"
+            )
+            action = (
+                "延長觀察並補足樣本，固定主要變因後再評估。"
+            )
+            alternative = (
+                "維持現有方案規模，只調整一項優惠門檻做對照。"
+            )
+
+        limitations = (
+            f"目前僅觀察 {days_text}，資料信心為{data_confidence}；"
+            "淨營收效應不等於實際毛利，尚未納入成本、退貨、"
+            "庫存與平台抽成。"
+        )
+
+        if is_unsplittable:
+            limitations += " 此活動組合無法拆分歸因。"
+
+        return AdvisorStructuredResponse(
+            finding=(
+                f"{product_name}・{unit_code} 的策略分類為「{category}」，"
+                f"淨營收效應約 {net_effect_text}。"
+            ),
+            reason=reason,
+            evidence=(
+                f"活動：{activities}；觀察 {days_text}；"
+                f"折扣率 {discount_text}；資料信心 {data_confidence}。"
+            ),
+            action=action,
+            alternative=alternative,
+            confidence=("中" if data_confidence == "較高" else "低"),
+            limitations=limitations,
+        )
 
     total_units = len(unit_overview)
     continue_count = int((strategy_category == "建議延續").sum())
@@ -621,7 +762,10 @@ def get_structured_advisor_answer(
             continue
 
     return (
-        build_fallback_advisor_response(unit_overview_dataframe),
+        build_fallback_advisor_response(
+            unit_overview_dataframe,
+            user_question=user_question,
+        ),
         True,
     )
 
