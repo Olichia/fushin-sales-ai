@@ -180,11 +180,13 @@ navigation = st.navigation(
         "分析流程": [
             full_analysis_page,
         ],
-        "成果與決策": [
+        "主決策引擎": [
             product_home_page,
             activity_insight_page,
             strategy_center_page,
             whatif_simulation_page,
+        ],
+        "成果匯出": [
             action_generation_page,
             management_report_page,
         ],
