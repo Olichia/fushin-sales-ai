@@ -10,7 +10,6 @@ import streamlit as st
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# 自動相容：優先搜尋 app_pages/templates，找不到則自動回退至 PROJECT_ROOT/templates
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 if not TEMPLATES_DIR.exists():
     TEMPLATES_DIR = PROJECT_ROOT / "templates"
@@ -117,7 +116,7 @@ total_recs, total_days, total_units = get_home_stats(str(_demo_path)) if _demo_p
 
 
 # =========================================================
-# 1. Hero 視覺區塊 (已更新為「精準識別高低成效與風險」)
+# 1. Hero 視覺區塊
 # =========================================================
 
 HERO_FEATURES = [
@@ -176,7 +175,7 @@ st.markdown(
 
 
 # =========================================================
-# 2. 單一按鈕區 (點擊後載入資料並跳轉至開始使用頁面)
+# 2. 單一按鈕區 (只保留「開始示範」)
 # =========================================================
 
 cta_col, _ = st.columns([1, 2])
@@ -192,7 +191,6 @@ with cta_col:
 if start_demo:
     if load_demo_data_to_session():
         st.toast("🚀 3-4 月示範數據已載入！正在前往開始使用頁面...", icon="✅")
-        # 尋找對應的「開始使用」或「資料管理中心」分頁進行跳轉
         candidate_pages = [
             "pages/15_資料管理中心.py",
             "app_pages/15_資料管理中心.py",
@@ -211,48 +209,53 @@ if start_demo:
                 continue
 
         if not switched:
-            st.error("跳轉失敗：請確認專案中是否存在對應的「開始使用」頁面檔案。")
+            st.error("跳轉失敗：請確認專案中是否存在對應的頁面檔案。")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 
 # =========================================================
-# 3. 規格書指定：三張效益卡 + 四步驟流程圖
+# 3. 規格書指定：三張效益卡 + 四步驟流程圖 (全面放大字體)
 # =========================================================
 
 st.markdown(
     """
 <style>
+    /* 全域放大文字設定 */
+    .stMarkdown, p, span, div {
+        font-size: 17px !important;
+    }
+    
     .spec-benefit-card {
         background: #FFFFFF;
         border: 1.5px solid #E2E8F0;
         border-radius: 14px;
-        padding: 20px 16px;
+        padding: 24px 18px;
         text-align: center;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
     }
-    .spec-benefit-lbl { font-size: 15px; font-weight: 700; color: #475569; margin-bottom: 6px; }
-    .spec-benefit-val { font-size: 28px; font-weight: 900; color: #EA580C; margin: 6px 0; line-height: 1.1; }
-    .spec-benefit-sub { font-size: 13px; color: #64748B; font-weight: 600; }
+    .spec-benefit-lbl { font-size: 17px !important; font-weight: 700; color: #475569; margin-bottom: 8px; }
+    .spec-benefit-val { font-size: 32px !important; font-weight: 900; color: #EA580C; margin: 8px 0; line-height: 1.1; }
+    .spec-benefit-sub { font-size: 15px !important; color: #64748B; font-weight: 600; }
 
     .spec-flow-wrapper {
         background: #EFF6FF;
         border: 1.5px solid #BFDBFE;
         border-radius: 14px;
-        padding: 18px 24px;
-        margin: 20px 0;
+        padding: 22px 26px;
+        margin: 24px 0;
         display: flex;
         align-items: center;
         justify-content: space-around;
         text-align: center;
     }
     .spec-flow-step {
-        font-size: 16px;
+        font-size: 18px !important;
         font-weight: 800;
         color: #1E40AF;
     }
     .spec-flow-arrow {
-        font-size: 22px;
+        font-size: 24px !important;
         color: #3B82F6;
         font-weight: 900;
     }
@@ -295,16 +298,16 @@ with b_col3:
         unsafe_allow_html=True,
     )
 
-# 四步驟流程圖
+# 四步驟流程圖（已移除數字編號）
 st.markdown(
     """<div class="spec-flow-wrapper">
-        <div class="spec-flow-step">📄 1. 銷量資料</div>
+        <div class="spec-flow-step">📄 銷量資料</div>
         <div class="spec-flow-arrow">➔</div>
-        <div class="spec-flow-step">🤖 2. AI 結構化洞察</div>
+        <div class="spec-flow-step">🤖 AI 結構化洞察</div>
         <div class="spec-flow-arrow">➔</div>
-        <div class="spec-flow-step">💡 3. 可執行行動建議</div>
+        <div class="spec-flow-step">💡 可執行行動建議</div>
         <div class="spec-flow-arrow">➔</div>
-        <div class="spec-flow-step">📈 4. 效益與成效追蹤</div>
+        <div class="spec-flow-step">📈 效益與成效追蹤</div>
     </div>""",
     unsafe_allow_html=True,
 )
