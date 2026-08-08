@@ -112,6 +112,7 @@
 - OpenPyXL
 - Google Gen AI SDK
 - ReportLab
+- Supabase (Postgres)
 
 ## 本機安裝
 
@@ -127,7 +128,12 @@ pip install -r requirements.txt
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
+DATABASE_URL=postgresql://postgres.xxxxxxxx:your_password@aws-0-xxxxx.pooler.supabase.com:6543/postgres
 ```
+
+`DATABASE_URL` 是 Supabase 專案的 Postgres 連線字串，用來取代原本的本機 SQLite，讓分析快照可以跨部署／重啟保存。第一次連線時程式會自動建立所需的資料表，不用手動建 schema。
+
+請用 **Transaction pooler**（Project Settings -> Database -> Connect -> Connection Method 選 "Transaction pooler"，port `6543`）的連線字串，不要用預設的 Direct connection（port `5432`）。程式每次讀寫都是開一條新連線、用完即關，符合 Transaction pooler「每次互動都短暫且獨立」的設計場景；Direct connection 是給長駐連線用的，多人同時操作時很快會撐爆 Supabase 免費方案的連線數上限。
 
 啟動產品版：
 
@@ -154,6 +160,8 @@ Main file path: product_app.py
 
 ```toml
 GEMINI_API_KEY = "your_gemini_api_key"
+DATABASE_URL = "postgresql://postgres.xxxxxxxx:your_password@aws-0-xxxxx.pooler.supabase.com:6543/postgres"
+# 連線字串請從 Connect -> Connection Method 選 "Transaction pooler" 取得
 ```
 
 `packages.txt` 用於安裝 PDF 所需的 Linux 中文字型：
@@ -186,6 +194,7 @@ fushin-sales-ai/
 - `.env`
 - `.streamlit/secrets.toml`
 - Gemini API Key
+- Supabase 連線字串（`DATABASE_URL`）
 - 客戶姓名、電話、Email 等個資
 - 公司成本、毛利與未公開營運資料
 - 真實企業原始 Excel

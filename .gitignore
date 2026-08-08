@@ -26,7 +26,7 @@ Thumbs.db
 data/raw/*.xlsx
 data/processed/*.csv
 
-# Persisted app state (local SQLite key-value store)
+# Leftover local SQLite file from before the Supabase migration
 data/*.db
 
 .venv/

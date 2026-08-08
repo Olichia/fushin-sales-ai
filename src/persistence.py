@@ -1,42 +1,92 @@
 from __future__ import annotations
 
+import os
 import pickle
-import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import psycopg2
 import streamlit as st
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 
 # =========================================================
-# SQLite 當 key-value blob store
+# Supabase (Postgres) 當 key-value blob store
 #
 # 不用關聯式 schema：每個要保存的 session_state 值直接
-# pickle 存成 BLOB，讀回來 unpickle，型別／index 100% 原樣
+# pickle 存成 BYTEA，讀回來 unpickle，型別／index 100% 原樣
 # 還原，不用管 DataFrame 裡有 datetime64／bool／混合型欄位，
 # 也不會因為以後新增分析欄位就要改資料庫 schema。符合這是
 # 小規模分析雛形、資料庫不用大也不用複雜的前提。
+#
+# 原本用本機 SQLite 檔案，改用 Supabase 是為了讓部署到
+# Streamlit Cloud 等無持久化檔案系統的環境時，重新部署／
+# 重啟後資料還在。
 # =========================================================
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "app_state.db"
 
+def _get_database_url() -> str:
+    """
+    取得 Supabase Postgres 連線字串。
 
-def _get_connection() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    優先順序：
+    1. Streamlit Cloud Secrets（DATABASE_URL）
+    2. 本機 .env 環境變數（DATABASE_URL）
+    """
 
-    connection = sqlite3.connect(DB_PATH)
+    secret_database_url = ""
 
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS app_state (
-            state_key TEXT PRIMARY KEY,
-            value_blob BLOB NOT NULL,
-            updated_at TEXT NOT NULL
+    try:
+        secret_database_url = str(
+            st.secrets.get(
+                "DATABASE_URL",
+                "",
+            )
+        ).strip()
+
+    except Exception:
+        # 本機沒有 secrets.toml 時可能會發生例外，
+        # 此時改從 .env 讀取即可。
+        secret_database_url = ""
+
+    environment_database_url = str(
+        os.getenv(
+            "DATABASE_URL",
+            "",
         )
-        """
+    ).strip()
+
+    database_url = (
+        secret_database_url
+        or environment_database_url
     )
+
+    if not database_url:
+        raise RuntimeError(
+            "找不到 DATABASE_URL，請在 Streamlit Cloud secrets 或本機 .env "
+            "設定 Supabase 的 Postgres 連線字串。"
+        )
+
+    return database_url
+
+
+def _get_connection() -> psycopg2.extensions.connection:
+    connection = psycopg2.connect(_get_database_url())
+
+    with connection, connection.cursor() as cursor:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_state (
+                state_key TEXT PRIMARY KEY,
+                value_blob BYTEA NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
 
     return connection
 
@@ -47,42 +97,58 @@ def save_state(key: str, value: Any) -> None:
     value_blob = pickle.dumps(value)
     updated_at = datetime.now(timezone.utc).isoformat()
 
-    with _get_connection() as connection:
-        connection.execute(
-            """
-            INSERT INTO app_state (state_key, value_blob, updated_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(state_key) DO UPDATE SET
-                value_blob = excluded.value_blob,
-                updated_at = excluded.updated_at
-            """,
-            (key, value_blob, updated_at),
-        )
+    connection = _get_connection()
+
+    try:
+        with connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO app_state (state_key, value_blob, updated_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (state_key) DO UPDATE SET
+                    value_blob = EXCLUDED.value_blob,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (key, psycopg2.Binary(value_blob), updated_at),
+            )
+    finally:
+        connection.close()
 
 
 def load_state(key: str) -> Any | None:
     """讀回單一 key 的值；資料庫裡沒有就回傳 None。"""
 
-    with _get_connection() as connection:
-        row = connection.execute(
-            "SELECT value_blob FROM app_state WHERE state_key = ?",
-            (key,),
-        ).fetchone()
+    connection = _get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT value_blob FROM app_state WHERE state_key = %s",
+                (key,),
+            )
+            row = cursor.fetchone()
+    finally:
+        connection.close()
 
     if row is None:
         return None
 
-    return pickle.loads(row[0])
+    return pickle.loads(bytes(row[0]))
 
 
 def delete_state(key: str) -> None:
     """刪除資料庫裡的單一 key（目前沒有任何流程會呼叫，保留給未來用）。"""
 
-    with _get_connection() as connection:
-        connection.execute(
-            "DELETE FROM app_state WHERE state_key = ?",
-            (key,),
-        )
+    connection = _get_connection()
+
+    try:
+        with connection, connection.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM app_state WHERE state_key = %s",
+                (key,),
+            )
+    finally:
+        connection.close()
 
 
 # =========================================================
