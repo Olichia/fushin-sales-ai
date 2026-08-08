@@ -89,10 +89,9 @@ def load_demo_data_to_session():
 
 
 # =========================================================
-# 1. Hero 視覺區塊 (完全還原截圖內容與四指標)
+# 1. Hero 視覺區塊
 # =========================================================
 
-# 對照截圖 2：四卡片標題與副標題
 HERO_FEATURES = [
     ("search", "orange", "AI 主動洞察", "揪出高低成效風險"),
     ("show_chart", "blue", "情境模擬", "方案比較找出最佳解"),
@@ -100,7 +99,6 @@ HERO_FEATURES = [
     ("picture_as_pdf", "green", "主管報表", "一鍵匯出 PDF 報告"),
 ]
 
-# 對照截圖 1：Hero 統計數據
 HERO_STATS = [
     ("📊", "orange", "20+", "活動單位拆解案例"),
     ("🧮", "blue", "1,000+", "SKU規模"),
@@ -152,28 +150,68 @@ st.markdown(
 )
 
 # =========================================================
-# 2. CTA 按鈕區 (對照截圖 1：橘色單顆按鈕「開始探索 →」)
+# 2. CTA 雙按鈕區 (具備自動多重路徑相容之跳轉邏輯)
 # =========================================================
 
-cta_col, _ = st.columns([1, 2])
+cta_col1, cta_col2 = st.columns([1, 1])
 
-with cta_col:
-    start_exploring = st.button(
-        "開始探索 →",
+with cta_col1:
+    start_demo = st.button(
+        "🚀 開始示範",
         type="primary",
         use_container_width=True,
+        help="【Demo 極速通道】背景預載 3-4 月示範數據，直達 AI 活動洞察。"
     )
 
-if start_exploring:
-    load_demo_data_to_session()
-    st.toast("🚀 數據已就緒！正在前往銷量資料處理...", icon="✅")
-    try:
-        st.switch_page("app_pages/01_銷量資料處理.py")
-    except Exception:
+with cta_col2:
+    goto_data_upload = st.button(
+        "🔍 查看 AI 如何判斷",
+        type="secondary",
+        use_container_width=True,
+        help="【合規檢查】跳轉至銷量資料處理，查看雙模式切換與欄位檢核。"
+    )
+
+# 按鈕 1：直達「12_活動洞察」
+if start_demo:
+    if load_demo_data_to_session():
+        st.toast("🚀 3-4 月示範數據已載入！正在進入 AI 活動洞察...", icon="✅")
+        candidate_insight_pages = [
+            "pages/12_活動洞察.py",
+            "app_pages/12_活動洞察.py",
+            "12_活動洞察.py",
+            "pages/活動洞察.py",
+            "app_pages/活動洞察.py",
+        ]
+        switched = False
+        for page_path in candidate_insight_pages:
+            try:
+                st.switch_page(page_path)
+                switched = True
+                break
+            except Exception:
+                continue
+        if not switched:
+            st.error("跳轉失敗：請確認專案中是否存在 `12_活動洞察.py` 檔案。")
+
+# 按鈕 2：跳轉至「01_銷量資料處理」
+if goto_data_upload:
+    st.toast("🔍 前往銷量資料處理頁面...", icon="ℹ️")
+    candidate_sales_pages = [
+        "pages/01_銷量資料處理.py",
+        "app_pages/01_銷量資料處理.py",
+        "pages/1_銷量資料處理.py",
+        "01_銷量資料處理.py",
+    ]
+    switched = False
+    for page_path in candidate_sales_pages:
         try:
-            st.switch_page("01_銷量資料處理.py")
-        except Exception as e:
-            st.error(f"跳轉失敗，請確認檔名是否為 01_銷量資料處理.py：{e}")
+            st.switch_page(page_path)
+            switched = True
+            break
+        except Exception:
+            continue
+    if not switched:
+        st.error("跳轉失敗：請確認專案中是否存在 `01_銷量資料處理.py` 檔案。")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -387,10 +425,13 @@ with dq2:
     if st.button("👉 Approve 採納並生成文案", key="app_1", use_container_width=True, type="primary"):
         load_demo_data_to_session()
         st.toast("已帶入補貨與折扣建議！正在跳轉至行動生成頁面...", icon="✅")
-        try:
-            st.switch_page("app_pages/18_行動生成.py")
-        except Exception:
-            pass
+        
+        for target in ["pages/18_行動生成.py", "app_pages/18_行動生成.py", "18_行動生成.py"]:
+            try:
+                st.switch_page(target)
+                break
+            except Exception:
+                continue
 
 # 決策卡 02
 dq3, dq4 = st.columns([3.2, 1.2])
@@ -409,10 +450,12 @@ with dq3:
 with dq4:
     if st.button("👉 Review 檢視數據趨勢", key="rev_1", use_container_width=True):
         load_demo_data_to_session()
-        try:
-            st.switch_page("app_pages/12_活動洞察.py")
-        except Exception:
-            pass
+        for target in ["pages/12_活動洞察.py", "app_pages/12_活動洞察.py", "12_活動洞察.py"]:
+            try:
+                st.switch_page(target)
+                break
+            except Exception:
+                continue
 
 # 決策卡 03
 dq5, dq6 = st.columns([3.2, 1.2])
@@ -431,10 +474,12 @@ with dq5:
 with dq6:
     if st.button("👉 Simulate 情境效益試算", key="sim_1", use_container_width=True):
         load_demo_data_to_session()
-        try:
-            st.switch_page("app_pages/17_情境模擬.py")
-        except Exception:
-            pass
+        for target in ["pages/17_情境模擬.py", "app_pages/17_情境模擬.py", "17_情境模擬.py"]:
+            try:
+                st.switch_page(target)
+                break
+            except Exception:
+                continue
 
 # Prompt Chips
 st.markdown("<br>", unsafe_allow_html=True)
