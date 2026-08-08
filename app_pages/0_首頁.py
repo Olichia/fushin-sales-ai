@@ -89,7 +89,7 @@ def load_demo_data_to_session():
 
 
 # =========================================================
-# 1. Hero 視覺區塊 (已還原指定原始數據敘述)
+# 1. Hero 視覺區塊
 # =========================================================
 
 HERO_FEATURES = [
@@ -150,40 +150,118 @@ st.markdown(
 )
 
 # =========================================================
-# 2. CTA 按鈕區
+# 2. 規格書指定：三張效益卡 + 四步驟流程圖 (明確出現在按鈕上方)
+# =========================================================
+
+st.markdown(
+    """
+<style>
+    .spec-benefit-card {
+        background: #F8FAFC;
+        border: 1.5px solid #CBD5E1;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    }
+    .spec-benefit-val { font-size: 26px; font-weight: 800; color: #EA580C; margin: 4px 0; }
+    .spec-benefit-lbl { font-size: 15px; font-weight: 700; color: #1E293B; }
+    .spec-benefit-sub { font-size: 12px; color: #64748B; font-weight: 600; }
+
+    .spec-flow-wrapper {
+        background: #EFF6FF;
+        border: 1.5px solid #BFDBFE;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin: 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        text-align: center;
+    }
+    .spec-flow-step { font-size: 16px; font-weight: 800; color: #1E40AF; }
+    .spec-flow-arrow { font-size: 20px; color: #3B82F6; font-weight: 900; }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+st.markdown("##### ⚡ 平台核心效益與決策閉環")
+
+# 三張效益卡 (規格書明確規定)
+ef1, ef2, spec_ef3 = st.columns(3)
+with ef1:
+    st.markdown('<div class="spec-benefit-card"><div class="spec-benefit-lbl">⏱️ 分析時間節省</div><div class="spec-benefit-val">12.4分 ➔ 4.1分</div><div class="spec-benefit-sub">效率提升 67% (n=8 實測)</div></div>', unsafe_allow_html=True)
+with ef2:
+    st.markdown('<div class="spec-benefit-card"><div class="spec-benefit-lbl">🎯 重點品項辨識</div><div class="spec-benefit-val">100%</div><div class="spec-benefit-sub">精準抓出虧損與爆款檔期</div></div>', unsafe_allow_html=True)
+with spec_ef3:
+    st.markdown('<div class="spec-benefit-card"><div class="spec-benefit-lbl">⚡ 策略建議產出</div><div class="spec-benefit-val">&lt; 3 秒</div><div class="spec-benefit-sub">一鍵自動生成執行內容</div></div>', unsafe_allow_html=True)
+
+# 四步驟流程圖 (規格書明確規定)
+st.markdown(
+    """
+<div class="spec-flow-wrapper">
+    <div class="spec-flow-step">1. 銷量資料</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">2. AI 結構化洞察</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">3. 可執行行動建議</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">4. 效益與成效追蹤</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+# =========================================================
+# 3. 首頁雙按鈕區
 # =========================================================
 
 cta_col1, cta_col2 = st.columns([1, 1])
 
 with cta_col1:
-    start_exploring = st.button(
-        "開始探索活動策略 →",
+    start_demo = st.button(
+        "🚀 開始示範",
         type="primary",
         use_container_width=True,
+        help="【Demo 極速通道】背景預載 3-4 月示範數據，直達 AI 活動洞察。"
     )
 
 with cta_col2:
-    start_demo = st.button(
-        "🚀 載入 3-4 月數據並進行活動洞察",
+    goto_data_upload = st.button(
+        "🔍 查看 AI 如何判斷",
         type="secondary",
         use_container_width=True,
+        help="【合規檢查】查看數據檢核卡片與雙模式切換。"
     )
 
-if start_demo or start_exploring:
+# 1. 主要按鈕：直達 AI 活動洞察
+if start_demo:
     if load_demo_data_to_session():
-        st.toast("🚀 3-4 月銷量活動數據已就緒！正在進入活動洞察...", icon="✅")
+        st.toast("🚀 3-4 月示範數據已載入！正在進入 AI 活動洞察...", icon="✅")
         try:
             st.switch_page("app_pages/12_活動洞察.py")
         except Exception:
             try:
-                st.switch_page("12_活動洞察.py")
+                st.switch_page("app_pages/活動洞察.py")
             except Exception as e:
-                st.error(f"跳轉失敗，請確認檔案路徑：{e}")
+                st.error(f"跳轉失敗：{e}")
+
+# 2. 次要按鈕：跳轉至資料處理與檢核頁面
+if goto_data_upload:
+    st.toast("🔍 前往資料處理與品質檢核頁面...", icon="ℹ️")
+    try:
+        st.switch_page("app_pages/01_銷量資料處理.py")
+    except Exception:
+        try:
+            st.switch_page("app_pages/15_資料管理中心.py")
+        except Exception as e:
+            st.error(f"跳轉失敗：{e}")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =========================================================
-# 3. Executive Brief (高對比大字與關鍵字高亮版)
+# 4. Executive Brief & Decision Queue
 # =========================================================
 
 st.markdown(
@@ -270,7 +348,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Executive Brief 破題標題
+# Executive Brief 標題
 st.markdown(
     """
 <div class="exec-brief-wrapper">
