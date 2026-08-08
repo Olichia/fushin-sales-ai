@@ -42,14 +42,14 @@ def _encode_logo() -> str | None:
     return base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
 
 
-# 側邊欄自動收合 (保留原架構)
+# 側邊欄自動收合
 st.markdown(
     _render_template("sidebar_collapse.html"),
     unsafe_allow_html=True,
 )
 
 # =========================================================
-# 【主題化】首頁重點功能與統計數字 (已更新 SKU 為 10,000+)
+# 首頁重點功能與統計數字 (扣緊：富信新零售 × AI活動決策)
 # =========================================================
 
 HERO_FEATURES = [
@@ -81,7 +81,7 @@ HERO_FEATURES = [
 
 HERO_STATS = [
     ("📊", "orange", "20+", "電商活動拆解案例"),
-    ("🧮", "blue", "10,000+", "活動 SKU 規模"),  # ← 已修改為 10,000+
+    ("🧮", "blue", "10,000+", "活動 SKU 規模"),
     ("🤖", "magenta", "24/7", "AI 活動洞察待命"),
     ("🏬", "green", "600+", "合作實體與線上門市"),
 ]
@@ -123,7 +123,7 @@ orb_html = (
     else ""
 )
 
-# 渲染原本的 HTML Hero 主視覺
+# 渲染 HTML Hero 主視覺
 st.markdown(
     _render_template(
         "home_hero.html",
@@ -134,7 +134,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 保留原本的 CTA 按鈕區塊 (強化 Demo 示範資料載入)
+# CTA 按鈕區塊 (一鍵 Demo 資料觸發)
 cta_col1, cta_col2 = st.columns([1, 1])
 with cta_col1:
     start_exploring = st.button(
@@ -149,15 +149,18 @@ with cta_col2:
         use_container_width=True,
     )
 
+demo_file_path = PROJECT_ROOT / "assets" / "3-4月活動成效表_v2.xlsx"
+
 if start_exploring or start_demo:
     if start_demo:
-        st.session_state["use_demo_data"] = True
+        st.session_state["is_demo_mode"] = True
+        st.session_state["demo_file_path"] = str(demo_file_path)
     st.switch_page("app_pages/15_資料管理中心.py")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =========================================================
-# 2. 融合競賽《升級建議》：富信新零售 AI 活動決策簡報 (Executive Brief)
+# 2. Executive Brief (競賽簡報核心區)
 # =========================================================
 
 st.markdown("""
@@ -284,7 +287,7 @@ with b4:
     </div>
     """, unsafe_allow_html=True)
 
-# AI 主動活動建議 (AI Recommendation)
+# AI 主動活動建議
 st.markdown("""
 <div class="ai-rec-banner">
     <div class="ai-rec-head">💡 AI 主動活動策略建議</div>
@@ -293,7 +296,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 活動決策隊列 Decision Queue
+# 活動決策隊列
 st.markdown("##### 🎯 待審核活動策略隊列 (Decision Queue)")
 
 dq1, dq2 = st.columns([3, 1])
@@ -324,7 +327,7 @@ with dq4:
     if st.button("Review 檢視洞察", key="rev_1", use_container_width=True):
         st.switch_page("app_pages/20_AI洞察與建議.py")
 
-# Prompt Chips 一鍵快捷查詢
+# Prompt Chips
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("##### 💬 一鍵 AI 活動策略查詢 (Prompt Chips)")
 p1, p2, p3, p4 = st.columns(4)
