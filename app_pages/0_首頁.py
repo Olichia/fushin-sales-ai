@@ -1,11 +1,12 @@
-import base64
 from pathlib import Path
+import base64
 import sys
 
 import streamlit as st
 
+
 # =========================================================
-# 專案路徑與初始化
+# 專案路徑
 # =========================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -16,87 +17,123 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.session_helpers import initialize_session_state
 
+
+def _render_template(filename: str, **replacements: str) -> str:
+    """
+    讀取 templates/ 下的 HTML／CSS 樣板，代入 {{PLACEHOLDER}}
+    後回傳給 st.markdown(unsafe_allow_html=True) 使用。
+
+    CommonMark 解析器只要在內嵌 HTML 中間看到空白行，就會提早
+    結束「原始 HTML 區塊」，讓後面的標籤變成純文字顯示出來
+    （見 src/insight_cards.py 的同一段說明）。樣板檔案本身可以
+    正常留空行方便閱讀，這裡讀檔時統一濾掉空白行，確保傳給
+    st.markdown 的字串裡沒有任何一行是空的，避免踩到這個雷；
+    HTML 標籤之間的換行本身不影響渲染結果（瀏覽器一律當成一個
+    空白字元），所以濾掉空行不影響版面。
+    """
+
+    content = (TEMPLATES_DIR / filename).read_text(encoding="utf-8")
+
+    for key, value in replacements.items():
+        content = content.replace("{{" + key + "}}", value)
+
+    non_blank_lines = [
+        line for line in content.splitlines() if line.strip()
+    ]
+
+    return "\n".join(non_blank_lines)
+
+
+# =========================================================
+# 頁面初始化
+# =========================================================
+
 initialize_session_state()
 
 LOGO_PATH = PROJECT_ROOT / "assets" / "logo-white.png"
 
 
-def _render_template(filename: str, **replacements: str) -> str:
-    """讀取 templates/ 下的 HTML／CSS 樣板，代入 {{PLACEHOLDER}}"""
-    template_path = TEMPLATES_DIR / filename
-    if not template_path.exists():
-        return ""
-    content = template_path.read_text(encoding="utf-8")
-
-    for key, value in replacements.items():
-        content = content.replace("{{" + key + "}}", value)
-
-    non_blank_lines = [line for line in content.splitlines() if line.strip()]
-
-    return "\n".join(non_blank_lines)
-
-
-def _encode_logo() -> str | None:
-    if not LOGO_PATH.exists():
-        return None
-    return base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
-
-
-# 側邊欄自動收合 (保留原架構)
-st.markdown(
-    _render_template("sidebar_collapse.html"),
-    unsafe_allow_html=True,
-)
-
 # =========================================================
-# 【主題化】首頁重點功能與統計數字 (扣緊：富信新零售 × AI活動決策)
+# 首頁重點功能與統計數字
+#
+# HERO_STATS 大部分仍是示意佔位數字（500+／1,000+／24/7），
+# 等使用者提供更多真實數據再替換。「合作門市」已改用富信企業
+# 介紹檔案（台灣大哥大簡介 PDF）裡的實際數字：約 600 間實體
+# 門市，不是本系統自己算出來的資料。
 # =========================================================
 
 HERO_FEATURES = [
     (
         "search",
         "orange",
-        "AI 活動洞察",
-        "揪出高低成效檔期與成效風險",
+        "AI 主動洞察",
+        "揪出高低成效與風險",
     ),
     (
         "show_chart",
         "blue",
-        "活動情境模擬",
-        "促銷方案比較預估 ROI 與營收",
+        "情境模擬",
+        "方案比較找出最佳解",
     ),
     (
         "lightbulb",
         "magenta",
-        "策略行動建議",
-        "一鍵生成 LINE/Email 促銷文案",
+        "策略建議",
+        "AI 顧問即時問答",
     ),
     (
         "picture_as_pdf",
         "green",
-        "電商主管報表",
-        "一鍵匯出 AI 策略與成效 PDF",
+        "主管報表",
+        "一鍵匯出 PDF 報告",
     ),
 ]
 
 HERO_STATS = [
-    ("📊", "orange", "20+", "電商活動拆解案例"),
-    ("🧮", "blue", "1,000+", "活動 SKU 規模"),
-    ("🤖", "magenta", "24/7", "AI 活動洞察待命"),
-    ("🏬", "green", "600+", "合作實體與線上門市"),
+    ("📊", "orange", "20+", "活動單位拆解案例"),
+    ("🧮", "blue", "1,000+", "SKU規模"),
+    ("🤖", "magenta", "24/7", "AI 洞察待命"),
+    ("🏬", "green", "600+", "合作門市"),
 ]
 
+
+def _encode_logo() -> str | None:
+    if not LOGO_PATH.exists():
+        return None
+
+    return base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
+
+
 # =========================================================
-# 1. 保留原本完整 Hero 視覺與 HTML 樣板渲染
+# 側邊欄：本頁收合成純 icon 列
+#
+# 只在首頁這支腳本執行時注入，切到其他頁面就不會套用，
+# 不需要額外的 Session State 旗標控制顯示範圍。
+# =========================================================
+
+st.markdown(
+    _render_template("sidebar_collapse.html"),
+    unsafe_allow_html=True,
+)
+
+
+# =========================================================
+# Hero 內容
+#
+# CSS 與版面結構都在 templates/home_hero.html，這裡只負責
+# 準備動態資料（圖示、統計數字）並代入樣板。
 # =========================================================
 
 encoded_logo = _encode_logo()
+
+# 這幾段清單／emoji 內容用資料驅動產生，天生就是不含換行的
+# 單行字串（見 _render_template 說明），可以安全地代入樣板。
 
 feature_cards_html = "".join(
     '<div class="hero-feature-card">'
     f'<div class="hero-feature-icon-badge hero-feature-icon-{color_key}">'
     '<span class="hero-feature-icon-glyph" data-testid="stIconMaterial" '
-    'style="font-family:\'Material Symbols Rounded\';" translate="no">'
+    "style=\"font-family:'Material Symbols Rounded';\" translate=\"no\">"
     f"{icon_name}</span>"
     "</div>"
     f'<div class="hero-feature-title">{title}</div>'
@@ -123,7 +160,6 @@ orb_html = (
     else ""
 )
 
-# 渲染原本的 HTML Hero 主視覺 (包含彩虹球 Logo、頂部 Badge 與 4 大功能卡片)
 st.markdown(
     _render_template(
         "home_hero.html",
@@ -134,209 +170,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 保留原本的 CTA 按鈕區塊 (強化 Demo 示範資料載入)
-cta_col1, cta_col2 = st.columns([1, 1])
-with cta_col1:
+with st.container(key="hero_cta_button"):
     start_exploring = st.button(
-        "開始探索活動策略 →",
+        "開始探索 →",
         type="primary",
         use_container_width=True,
     )
-with cta_col2:
-    start_demo = st.button(
-        "🚀 載入活動 Demo 示範資料",
-        type="secondary",
-        use_container_width=True,
-    )
 
-if start_exploring or start_demo:
-    if start_demo:
-        st.session_state["use_demo_data"] = True
+if start_exploring:
     st.switch_page("app_pages/15_資料管理中心.py")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# =========================================================
-# 2. 融合競賽《升級建議》：富信新零售 AI 活動決策簡報 (Executive Brief)
-# =========================================================
-
-st.markdown("""
-<style>
-    .exec-brief-wrapper {
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-        margin-bottom: 24px;
-    }
-    .brief-title {
-        font-size: 20px;
-        font-weight: 700;
-        color: #1E293B;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .kpi-mini-card {
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-    }
-    .kpi-mini-title {
-        font-size: 13px;
-        color: #64748B;
-        font-weight: 500;
-    }
-    .kpi-mini-val {
-        font-size: 26px;
-        font-weight: 800;
-        margin: 6px 0;
-    }
-    .kpi-health { color: #10B981; }
-    .kpi-risk { color: #EF4444; }
-    .kpi-pending { color: #F59E0B; }
-    .kpi-forecast { color: #3B82F6; }
-
-    .ai-rec-banner {
-        background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%);
-        border-left: 5px solid #F97316;
-        border-radius: 10px;
-        padding: 16px 20px;
-        margin: 20px 0;
-    }
-    .ai-rec-head {
-        color: #C2410C;
-        font-weight: 700;
-        font-size: 14px;
-    }
-    .ai-rec-body {
-        font-size: 15px;
-        color: #1F2937;
-        font-weight: 600;
-        margin-top: 4px;
-    }
-    .ai-rec-evidence {
-        font-size: 12px;
-        color: #6B7280;
-        margin-top: 6px;
-    }
-
-    .decision-row {
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 10px;
-        padding: 12px 16px;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<div class="exec-brief-wrapper">
-    <div class="brief-title">
-        <span>⚡ Executive Brief | 今日活動決策簡報 (AI Executive Brief)</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# 4 大活動監控指標
-b1, b2, b3, b4 = st.columns(4)
-with b1:
-    st.markdown("""
-    <div class="kpi-mini-card">
-        <div class="kpi-mini-title">活動健康度 Health</div>
-        <div class="kpi-mini-val kpi-health">92</div>
-        <div style="font-size: 11px; color: #10B981;">+4 vs. 上一檔</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with b2:
-    st.markdown("""
-    <div class="kpi-mini-card">
-        <div class="kpi-mini-title">活動風險警示 Risk</div>
-        <div class="kpi-mini-val kpi-risk">2</div>
-        <div style="font-size: 11px; color: #EF4444;">轉換率下滑/缺貨</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with b3:
-    st.markdown("""
-    <div class="kpi-mini-card">
-        <div class="kpi-mini-title">待執行策略 Decision</div>
-        <div class="kpi-mini-val kpi-pending">3</div>
-        <div style="font-size: 11px; color: #F59E0B;">今日待審核</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with b4:
-    st.markdown("""
-    <div class="kpi-mini-card">
-        <div class="kpi-mini-title">下一檔預估 Forecast</div>
-        <div class="kpi-mini-val kpi-forecast">+8.2%</div>
-        <div style="font-size: 11px; color: #3B82F6;">預估營收成長</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# AI 主動活動建議 (AI Recommendation)
-st.markdown("""
-<div class="ai-rec-banner">
-    <div class="ai-rec-head">💡 AI 主動活動策略建議</div>
-    <div class="ai-rec-body">優先處理轉換率連續下降之促銷品項，預估可改善檔期營收 6 – 9%。</div>
-    <div class="ai-rec-evidence">數據證據：本週活動行動版結帳流失率高於桌機 18%，熱銷 SKU 預估 5 天後缺貨。(AI 信心度: 91%)</div>
-</div>
-""", unsafe_allow_html=True)
-
-# 活動決策隊列 Decision Queue
-st.markdown("##### 🎯 待審核活動策略隊列 (Decision Queue)")
-
-dq1, dq2 = st.columns([3, 1])
-with dq1:
-    st.markdown("""
-    <div class="decision-row">
-        <div>
-            <span style="background:#FEE2E2; color:#DC2626; font-size:11px; font-weight:700; padding:2px 6px; border-radius:4px;">High Impact</span>
-            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">01 促銷商品補貨與加碼：高流量活動品項 5 天後缺貨</strong>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-with dq2:
-    if st.button("Approve 採納策略", key="app_1", use_container_width=True):
-        st.success("已自動帶入補貨清單並生成推播文案！")
-
-dq3, dq4 = st.columns([3, 1])
-with dq3:
-    st.markdown("""
-    <div class="decision-row">
-        <div>
-            <span style="background:#E0F2FE; color:#0369A1; font-size:11px; font-weight:700; padding:2px 6px; border-radius:4px;">Medium Impact</span>
-            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">02 活動頁面優化：行動端結帳漏鬥流失率調整</strong>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-with dq4:
-    if st.button("Review 檢視洞察", key="rev_1", use_container_width=True):
-        st.switch_page("app_pages/20_AI洞察與建議.py")
-
-# Prompt Chips 一鍵快捷查詢
-st.markdown("<br>", unsafe_allow_html=True)
-st.markdown("##### 💬 一鍵 AI 活動策略查詢 (Prompt Chips)")
-p1, p2, p3, p4 = st.columns(4)
-with p1:
-    if st.button("為什麼本檔期營收下降？", use_container_width=True):
-        st.info("🤖 **AI 原因分析**：主因非流量下滑，而是行動版付款頁面流失率上升 12%。")
-with p2:
-    if st.button("潛在最大促銷機會？", use_container_width=True):
-        st.info("🤖 **AI 機會點**：組合銷售配件套裝可提升平均客單價 15%。")
-with p3:
-    if st.button("活動庫存風險評估", use_container_width=True):
-        st.info("🤖 **AI 風險提醒**：Top 3 熱銷活動 SKU 庫存僅剩 4 天可售。")
-with p4:
-    if st.button("預估下檔活動 ROI", use_container_width=True):
-        st.info("🤖 **AI 趨勢預測**：若提高 10% 廣告預算，預估整體營收成長 +8.2%。")
