@@ -116,6 +116,63 @@ total_recs, total_days, total_units = get_home_stats(str(_demo_path)) if _demo_p
 
 
 # =========================================================
+# 精準對應截圖的字體與卡片比例 CSS
+# =========================================================
+st.markdown(
+    """
+<style>
+    /* 調整截圖中的特徵卡片標題與描述大小，使其與截圖一致 */
+    .hero-feature-title {
+        font-size: 15px !important;
+        font-weight: 700 !important;
+    }
+    .hero-feature-description {
+        font-size: 13px !important;
+        line-height: 1.4 !important;
+    }
+
+    /* 下方效益卡樣式 */
+    .spec-benefit-card {
+        background: #FFFFFF;
+        border: 1.5px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 22px 16px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+    .spec-benefit-lbl { font-size: 15px !important; font-weight: 700; color: #475569; margin-bottom: 6px; }
+    .spec-benefit-val { font-size: 28px !important; font-weight: 900; color: #EA580C; margin: 6px 0; line-height: 1.1; }
+    .spec-benefit-sub { font-size: 13px !important; color: #64748B; font-weight: 600; }
+
+    /* 四步驟流程圖樣式 */
+    .spec-flow-wrapper {
+        background: #EFF6FF;
+        border: 1.5px solid #BFDBFE;
+        border-radius: 14px;
+        padding: 18px 24px;
+        margin: 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        text-align: center;
+    }
+    .spec-flow-step {
+        font-size: 16px !important;
+        font-weight: 800;
+        color: #1E40AF;
+    }
+    .spec-flow-arrow {
+        font-size: 22px !important;
+        color: #3B82F6;
+        font-weight: 900;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+
+# =========================================================
 # 1. Hero 視覺區塊
 # =========================================================
 
@@ -175,7 +232,7 @@ st.markdown(
 
 
 # =========================================================
-# 2. 單一按鈕區 (只保留「開始示範」)
+# 2. 單一按鈕區
 # =========================================================
 
 cta_col, _ = st.columns([1, 2])
@@ -215,54 +272,8 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 
 # =========================================================
-# 3. 規格書指定：三張效益卡 + 四步驟流程圖 (全面放大字體)
+# 3. 三張效益卡 + 四步驟流程圖
 # =========================================================
-
-st.markdown(
-    """
-<style>
-    /* 全域放大文字設定 */
-    .stMarkdown, p, span, div {
-        font-size: 17px !important;
-    }
-    
-    .spec-benefit-card {
-        background: #FFFFFF;
-        border: 1.5px solid #E2E8F0;
-        border-radius: 14px;
-        padding: 24px 18px;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    }
-    .spec-benefit-lbl { font-size: 17px !important; font-weight: 700; color: #475569; margin-bottom: 8px; }
-    .spec-benefit-val { font-size: 32px !important; font-weight: 900; color: #EA580C; margin: 8px 0; line-height: 1.1; }
-    .spec-benefit-sub { font-size: 15px !important; color: #64748B; font-weight: 600; }
-
-    .spec-flow-wrapper {
-        background: #EFF6FF;
-        border: 1.5px solid #BFDBFE;
-        border-radius: 14px;
-        padding: 22px 26px;
-        margin: 24px 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-around;
-        text-align: center;
-    }
-    .spec-flow-step {
-        font-size: 18px !important;
-        font-weight: 800;
-        color: #1E40AF;
-    }
-    .spec-flow-arrow {
-        font-size: 24px !important;
-        color: #3B82F6;
-        font-weight: 900;
-    }
-</style>
-""",
-    unsafe_allow_html=True,
-)
 
 st.markdown("##### ⚡ 平台核心效益與決策閉環")
 
@@ -298,7 +309,7 @@ with b_col3:
         unsafe_allow_html=True,
     )
 
-# 四步驟流程圖（已移除數字編號）
+# 四步驟流程圖
 st.markdown(
     """<div class="spec-flow-wrapper">
         <div class="spec-flow-step">📄 銷量資料</div>
