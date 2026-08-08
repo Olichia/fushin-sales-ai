@@ -50,17 +50,24 @@ st.markdown(
 )
 
 # =========================================================
-# 數據預載邏輯函式
+# 數據預載邏輯函式 (解析 3-4 月活動成效 Excel 數據)
 # =========================================================
 
 def load_demo_data_to_session():
-    """將銷量活動數據預先讀取並存入 Streamlit Session State"""
+    """將 3-4 月銷量活動數據預先讀取並存入 Streamlit Session State"""
     st.session_state["is_demo_mode"] = True
     st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
     
-    if DEMO_FILE_PATH.exists():
+    # 優先尋找預載路徑或專案根目錄的 Excel 備援檔
+    target_path = DEMO_FILE_PATH
+    if not target_path.exists():
+        alt_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
+        if alt_path.exists():
+            target_path = alt_path
+
+    if target_path.exists():
         try:
-            xls = pd.ExcelFile(DEMO_FILE_PATH)
+            xls = pd.ExcelFile(target_path)
             if "銷量原始資料(零填補)" in xls.sheet_names:
                 st.session_state["sales_data"] = pd.read_excel(xls, sheet_name="銷量原始資料(零填補)")
             else:
@@ -69,18 +76,21 @@ def load_demo_data_to_session():
             if "活動單位清單(依時間)" in xls.sheet_names:
                 st.session_state["events_data"] = pd.read_excel(xls, sheet_name="活動單位清單(依時間)")
                 
+            if "活動單位總覽(vs基準)" in xls.sheet_names:
+                st.session_state["overview_data"] = pd.read_excel(xls, sheet_name="活動單位總覽(vs基準)")
+                
             st.session_state["data_loaded"] = True
             return True
         except Exception as e:
             st.error(f"數據讀取失敗：{e}")
             return False
     else:
-        st.error(f"找不到數據檔案，請確認 `assets/demo_sales_data.xlsx` 是否存在。")
+        st.error(f"找不到數據檔案，請確認 `assets/demo_sales_data.xlsx` 或 `3-4月活動成效表_v2.xlsx` 是否存在。")
         return False
 
 
 # =========================================================
-# 1. Hero 視覺區塊 (完全保留原版視覺與文案)
+# 1. Hero 視覺區塊 (對應 Excel 實測背景數據)
 # =========================================================
 
 HERO_FEATURES = [
@@ -91,9 +101,9 @@ HERO_FEATURES = [
 ]
 
 HERO_STATS = [
-    ("📊", "orange", "20+", "電商活動拆解案例"),
-    ("🧮", "blue", "10,000+", "活動 SKU 規模"),
-    ("🤖", "magenta", "24/7", "AI 活動洞察待命"),
+    ("📊", "orange", "28 檔", "3-4月活動單位拆解"),
+    ("🧮", "blue", "305 筆", "每日銷量追蹤規模"),
+    ("🤖", "magenta", "2,093 萬", "NT$ 累積淨營收增益"),
     ("🏬", "green", "600+", "合作實體與線上門市"),
 ]
 
@@ -141,7 +151,7 @@ st.markdown(
 )
 
 # =========================================================
-# 2. CTA 按鈕區 (正名為：載入 3-4 月數據並進行活動洞察)
+# 2. CTA 按鈕區 (預載 3-4 月數據並連動跳轉)
 # =========================================================
 
 cta_col1, cta_col2 = st.columns([1, 1])
@@ -162,7 +172,7 @@ with cta_col2:
 
 if start_demo or start_exploring:
     if load_demo_data_to_session():
-        st.toast("🚀 銷量活動數據已就緒！正在進入活動洞察...", icon="✅")
+        st.toast("🚀 3-4 月銷量活動數據已就緒！正在進入活動洞察...", icon="✅")
         try:
             st.switch_page("app_pages/12_活動洞察.py")
         except Exception:
@@ -174,7 +184,7 @@ if start_demo or start_exploring:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =========================================================
-# 3. Executive Brief (今日決策簡報與 Decision Queue)
+# 3. Executive Brief (基於 3-4 月 Excel 實測之今日決策簡報)
 # =========================================================
 
 st.markdown(
@@ -254,30 +264,30 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 4 大活動監控指標
+# 4 大活動監控指標 (緊扣 Excel 的 28 檔與 140 個單位分析)
 b1, b2, b3, b4 = st.columns(4)
 with b1:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動健康度 Health</div><div class="kpi-mini-val kpi-health">92</div><div style="font-size: 11px; color: #10B981;">+4 vs. 上一檔</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動健康度 Health</div><div class="kpi-mini-val kpi-health">88</div><div style="font-size: 11px; color: #10B981;">81/140 正向增益檔期</div></div>', unsafe_allow_html=True)
 with b2:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動風險警示 Risk</div><div class="kpi-mini-val kpi-risk">2</div><div style="font-size: 11px; color: #EF4444;">轉換率下滑/缺貨</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動風險警示 Risk</div><div class="kpi-mini-val kpi-risk">7</div><div style="font-size: 11px; color: #EF4444;">調理機鋪底虧損檔期</div></div>', unsafe_allow_html=True)
 with b3:
     st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">待執行策略 Decision</div><div class="kpi-mini-val kpi-pending">3</div><div style="font-size: 11px; color: #F59E0B;">今日待審核</div></div>', unsafe_allow_html=True)
 with b4:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">下一檔預估 Forecast</div><div class="kpi-mini-val kpi-forecast">+8.2%</div><div style="font-size: 11px; color: #3B82F6;">預估營收成長</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">下一檔預估 Forecast</div><div class="kpi-mini-val kpi-forecast">+15.2%</div><div style="font-size: 11px; color: #3B82F6;">預估品牌日營收增益</div></div>', unsafe_allow_html=True)
 
 # AI 主動建議 Banner
 st.markdown(
     """
 <div class="ai-rec-banner">
     <div class="ai-rec-head">💡 AI 主動活動策略建議</div>
-    <div class="ai-rec-body">優先處理轉換率連續下降之促銷品項，預估可改善檔期營收 6 – 9%。</div>
-    <div class="ai-rec-evidence">數據證據：本週活動行動版結帳流失率高於桌機 18%，熱銷 SKU 預估 5 天後缺貨。(AI 信心度: 91%)</div>
+    <div class="ai-rec-body">優先調整【品牌】高速調理機之原價鋪底策略，改採品牌日專屬促銷價 ($7,999)，預估可轉負為正改善營收 +167.8 萬元。</div>
+    <div class="ai-rec-evidence">數據證據：Excel 顯示調理機在 M2/M7 原價 ($8,990) 淨增益為 -$14.38 萬，但在 A10 降至 $7,999 帶動單檔 +$167.8 萬增益。(AI 信心度: 92%)</div>
 </div>
 """,
     unsafe_allow_html=True,
 )
 
-# 🎯 Decision Queue
+# 🎯 Decision Queue (緊扣 3-4月活動成效表數據)
 st.markdown("##### 🎯 待審核活動策略隊列 (Decision Queue)")
 
 dq1, dq2 = st.columns([3.5, 1])
@@ -286,15 +296,15 @@ with dq1:
     <div class="decision-row">
         <div>
             <span class="badge-impact-high">Impact: High</span>
-            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 91%</span>
-            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">01 促銷商品補貨：高流量活動品項預估 5 天後缺貨</strong>
+            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 92%</span>
+            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">01 促銷折扣修正：高速調理機原價鋪底虧損，建議調降至促銷價 $7,999</strong>
         </div>
     </div>
     """, unsafe_allow_html=True)
 with dq2:
     if st.button("Approve 採納策略", key="app_1", use_container_width=True):
         load_demo_data_to_session()
-        st.toast("已帶入補貨建議！正在跳轉至行動生成頁面...", icon="✅")
+        st.toast("已帶入補貨與折扣建議！正在跳轉至行動生成頁面...", icon="✅")
         try:
             st.switch_page("app_pages/18_行動生成.py")
         except Exception:
@@ -306,8 +316,8 @@ with dq3:
     <div class="decision-row">
         <div>
             <span class="badge-impact-med">Impact: Medium</span>
-            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 86%</span>
-            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">02 流量漏鬥優化：行動端結帳流失率高於桌機 18%</strong>
+            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 90%</span>
+            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">02 熱銷品項備貨：5L氣炸鍋 A10 檔期淨增益高達 +$132.3 萬，預估 5 天內補貨</strong>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -325,8 +335,8 @@ with dq5:
     <div class="decision-row">
         <div>
             <span class="badge-impact-high">Impact: High</span>
-            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 89%</span>
-            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">03 促銷折扣調整：預估提高 10% 預算可提升營收 8.2%</strong>
+            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 87%</span>
+            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">03 組合促銷模擬：IH 電子鍋搭配廚電日夜貓加碼，預估提高 10% 廣告可提升營收 12.5%</strong>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -338,19 +348,19 @@ with dq6:
         except Exception:
             pass
 
-# Prompt Chips
+# Prompt Chips (緊扣 3-4 月真實數據問答)
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("##### 💬 一鍵 AI 活動策略查詢 (Prompt Chips)")
 p1, p2, p3, p4 = st.columns(4)
 with p1:
-    if st.button("為什麼本檔期營收下降？", use_container_width=True):
-        st.info("🤖 **AI 原因分析**：主因非流量下滑，而是行動版付款頁面流失率上升 12%。\n\n📌 **數據證據**：行動端付款完成率僅 3.2% (桌機版為 5.1%)。")
+    if st.button("為什麼高速調理機在 3 月初營收下滑？", use_container_width=True):
+        st.info("🤖 **AI 原因分析**：主因 M2/M7 檔期維護代理牌價 $8,990 缺乏促銷誘因，每日淨營收效應為 -NT$14.38 萬。\n\n📌 **數據證據**：銷量原始資料顯示無活動折扣時每日銷量為 0，降價至 $7,999 後銷量提升至每日 8~10 台。")
 with p2:
-    if st.button("潛在最大促銷機會？", use_container_width=True):
-        st.info("🤖 **AI 機會點**：組合銷售配件套裝可提升平均客單價 15%。\n\n📌 **數據證據**：過往 3 月檔期配件加購率達 42%。")
+    if st.button("3-4 月成效最高的活動是哪一檔？", use_container_width=True):
+        st.info("🤖 **AI 機會點**：A10 品牌日（含夜貓加碼與平台折價券）為成效冠軍。\n\n📌 **數據證據**：單檔帶動高速調理機 +NT$167.8 萬增益、氣炸鍋 +NT$132.3 萬增益。")
 with p3:
-    if st.button("活動庫存風險評估", use_container_width=True):
-        st.info("🤖 **AI 風險提醒**：Top 3 熱銷活動 SKU 庫存僅剩 4 天可售。\n\n📌 **數據證據**：每日平均銷量 150 件，目前庫存僅餘 580 件。")
+    if st.button("哪些品項最值得在下一檔加碼？", use_container_width=True):
+        st.info("🤖 **AI 風險與加碼提醒**：【品牌】5L氣炸鍋 與 IH8人份電子鍋為營收雙核心。\n\n📌 **數據證據**：歷史累積淨營收增益分別高達 +NT$689.8 萬與 +NT$401.9 萬。")
 with p4:
-    if st.button("預估下檔活動 ROI", use_container_width=True):
-        st.info("🤖 **AI 趨勢預測**：若提高 10% 廣告預算，預估整體營收成長 +8.2%。\n\n📌 **數據證據**：模擬模型信心度 89% (Expected Margin +3.1%)。")
+    if st.button("預估下檔品牌日 ROI", use_container_width=True):
+        st.info("🤖 **AI 趨勢預測**：若在品牌日追加 10% 廣告行銷預算，預估整體營收成長 +15.2%。\n\n📌 **數據證據**：情境模擬模型信心度 89% (預期淨邊際收益 +5.4%)。")
