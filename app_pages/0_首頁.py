@@ -80,7 +80,7 @@ def load_demo_data_to_session():
 
 
 # =========================================================
-# 1. Hero 視覺區塊 (完全保留原版 HTML 視覺)
+# 1. Hero 視覺區塊 (完全保留原版視覺與文案)
 # =========================================================
 
 HERO_FEATURES = [
@@ -141,7 +141,7 @@ st.markdown(
 )
 
 # =========================================================
-# 2. CTA 按鈕區 (精簡無矛盾流線設計)
+# 2. CTA 按鈕區 (正名為：載入 3-4 月數據並進行活動洞察)
 # =========================================================
 
 cta_col1, cta_col2 = st.columns([1, 1])
@@ -155,14 +155,14 @@ with cta_col1:
 
 with cta_col2:
     start_demo = st.button(
-        "🚀 帶入 3-4 月示範數據並分析",
+        "🚀 載入 3-4 月數據並進行活動洞察",
         type="secondary",
         use_container_width=True,
     )
 
 if start_demo or start_exploring:
     if load_demo_data_to_session():
-        st.toast("🚀 數據載入成功！正在進入 AI 活動洞察...", icon="✅")
+        st.toast("🚀 銷量活動數據已就緒！正在進入活動洞察...", icon="✅")
         try:
             st.switch_page("app_pages/12_活動洞察.py")
         except Exception:
