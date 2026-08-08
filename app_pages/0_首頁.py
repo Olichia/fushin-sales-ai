@@ -84,12 +84,12 @@ def load_demo_data_to_session():
             st.error(f"數據讀取失敗：{e}")
             return False
     else:
-        st.error(f"找不到數據檔案，請確認 `assets/demo_sales_data.xlsx` 或 `3-4月活動成效表_v2.xlsx` 是否存在。")
+        st.error("找不到數據檔案，請確認 assets/demo_sales_data.xlsx 或 3-4月活動成效表_v2.xlsx 是否存在。")
         return False
 
 
 # =========================================================
-# 1. Hero 視覺區塊
+# 1. Hero 視覺區塊 (保持原本的主標題「智慧零售 決策引擎」)
 # =========================================================
 
 HERO_FEATURES = [
@@ -109,32 +109,29 @@ HERO_STATS = [
 encoded_logo = _encode_logo()
 
 feature_cards_html = "".join(
-    '<div class="hero-feature-card">'
+    f'<div class="hero-feature-card">'
     f'<div class="hero-feature-icon-badge hero-feature-icon-{color_key}">'
-    '<span class="hero-feature-icon-glyph" data-testid="stIconMaterial" '
-    "style=\"font-family:'Material Symbols Rounded';\" translate=\"no\">"
-    f"{icon_name}</span>"
-    "</div>"
+    f'<span class="hero-feature-icon-glyph" data-testid="stIconMaterial" style="font-family:\'Material Symbols Rounded\';" translate="no">{icon_name}</span>'
+    f'</div>'
     f'<div class="hero-feature-title">{title}</div>'
     f'<div class="hero-feature-description">{description}</div>'
-    "</div>"
+    f'</div>'
     for icon_name, color_key, title, description in HERO_FEATURES
 )
 
 stat_items_html = "".join(
-    '<div class="hero-stat-item">'
+    f'<div class="hero-stat-item">'
     f'<div class="hero-stat-icon">{icon}</div>'
-    "<div>"
+    f'<div>'
     f'<div class="hero-stat-value hero-stat-value-{color_key}">{value}</div>'
     f'<div class="hero-stat-label">{label}</div>'
-    "</div>"
-    "</div>"
+    f'</div>'
+    f'</div>'
     for icon, color_key, value, label in HERO_STATS
 )
 
 orb_html = (
-    '<img class="hero-orb-logo" '
-    f'src="data:image/png;base64,{encoded_logo}" alt="富信新零售 Logo">'
+    f'<img class="hero-orb-logo" src="data:image/png;base64,{encoded_logo}" alt="富信新零售 Logo">'
     if encoded_logo
     else ""
 )
@@ -149,8 +146,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
 # =========================================================
-# 2. CTA 雙按鈕區 (具備自動多重路徑相容之跳轉邏輯)
+# 2. 首頁雙 CTA 按鈕區 (主要：開始示範 | 次要：查看 AI 如何判斷)
 # =========================================================
 
 cta_col1, cta_col2 = st.columns([1, 1])
@@ -160,7 +158,7 @@ with cta_col1:
         "🚀 開始示範",
         type="primary",
         use_container_width=True,
-        help="【Demo 極速通道】背景預載 3-4 月示範數據，直達 AI 活動洞察。"
+        help="【主要按鈕】預載示範數據，直達 AI 活動洞察。"
     )
 
 with cta_col2:
@@ -168,10 +166,10 @@ with cta_col2:
         "🔍 查看 AI 如何判斷",
         type="secondary",
         use_container_width=True,
-        help="【合規檢查】跳轉至銷量資料處理，查看雙模式切換與欄位檢核。"
+        help="【次要按鈕】跳轉至 01 銷量資料處理，查看雙模式切換與欄位檢核。"
     )
 
-# 按鈕 1：直達「12_活動洞察」
+# 主要按鈕：跳轉至「12_活動洞察.py」
 if start_demo:
     if load_demo_data_to_session():
         st.toast("🚀 3-4 月示範數據已載入！正在進入 AI 活動洞察...", icon="✅")
@@ -193,7 +191,7 @@ if start_demo:
         if not switched:
             st.error("跳轉失敗：請確認專案中是否存在 `12_活動洞察.py` 檔案。")
 
-# 按鈕 2：跳轉至「01_銷量資料處理」
+# 次要按鈕：跳轉至「01_銷量資料處理.py」
 if goto_data_upload:
     st.toast("🔍 前往銷量資料處理頁面...", icon="ℹ️")
     candidate_sales_pages = [
@@ -215,6 +213,7 @@ if goto_data_upload:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+
 # =========================================================
 # 3. 規格書指定：三張效益卡 + 四步驟流程圖
 # =========================================================
@@ -223,30 +222,38 @@ st.markdown(
     """
 <style>
     .spec-benefit-card {
-        background: #F8FAFC;
-        border: 1.5px solid #CBD5E1;
-        border-radius: 12px;
-        padding: 16px;
+        background: #FFFFFF;
+        border: 1.5px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 20px 16px;
         text-align: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
     }
-    .spec-benefit-val { font-size: 26px; font-weight: 800; color: #EA580C; margin: 4px 0; }
-    .spec-benefit-lbl { font-size: 15px; font-weight: 700; color: #1E293B; }
-    .spec-benefit-sub { font-size: 12px; color: #64748B; font-weight: 600; }
+    .spec-benefit-lbl { font-size: 15px; font-weight: 700; color: #475569; margin-bottom: 6px; }
+    .spec-benefit-val { font-size: 28px; font-weight: 900; color: #EA580C; margin: 6px 0; line-height: 1.1; }
+    .spec-benefit-sub { font-size: 13px; color: #64748B; font-weight: 600; }
 
     .spec-flow-wrapper {
         background: #EFF6FF;
         border: 1.5px solid #BFDBFE;
-        border-radius: 12px;
-        padding: 16px 20px;
+        border-radius: 14px;
+        padding: 18px 24px;
         margin: 20px 0;
         display: flex;
         align-items: center;
         justify-content: space-around;
         text-align: center;
     }
-    .spec-flow-step { font-size: 16px; font-weight: 800; color: #1E40AF; }
-    .spec-flow-arrow { font-size: 20px; color: #3B82F6; font-weight: 900; }
+    .spec-flow-step {
+        font-size: 16px;
+        font-weight: 800;
+        color: #1E40AF;
+    }
+    .spec-flow-arrow {
+        font-size: 22px;
+        color: #3B82F6;
+        font-weight: 900;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -254,30 +261,61 @@ st.markdown(
 
 st.markdown("##### ⚡ 平台核心效益與決策閉環")
 
-# 三張效益卡
-ef1, ef2, spec_ef3 = st.columns(3)
-with ef1:
-    st.markdown('<div class="spec-benefit-card"><div class="spec-benefit-lbl">⏱️ 分析時間節省</div><div class="spec-benefit-val">12.4分 ➔ 4.1分</div><div class="spec-benefit-sub">效率提升 67% (n=8 實測)</div></div>', unsafe_allow_html=True)
-with ef2:
-    st.markdown('<div class="spec-benefit-card"><div class="spec-benefit-lbl">🎯 重點品項辨識</div><div class="spec-benefit-val">100%</div><div class="spec-benefit-sub">精準抓出虧損與爆款檔期</div></div>', unsafe_allow_html=True)
-with spec_ef3:
-    st.markdown('<div class="spec-benefit-card"><div class="spec-benefit-lbl">⚡ 策略建議產出</div><div class="spec-benefit-val">&lt; 3 秒</div><div class="spec-benefit-sub">一鍵自動生成執行內容</div></div>', unsafe_allow_html=True)
+# 三張效益卡 (規格書規定)
+b_col1, b_col2, b_col3 = st.columns(3)
 
-# 四步驟流程圖
+with b_col1:
+    st.markdown(
+        """
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">⏱️ 分析時間節省</div>
+        <div class="spec-benefit-val">12.4分 ➔ 4.1分</div>
+        <div class="spec-benefit-sub">效率提升 67% (n=8 小型實測)</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with b_col2:
+    st.markdown(
+        """
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">🎯 重點品項辨識</div>
+        <div class="spec-benefit-val">100%</div>
+        <div class="spec-benefit-sub">精準抓出虧損與爆款檔期</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with b_col3:
+    st.markdown(
+        """
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">⚡ 策略建議產出</div>
+        <div class="spec-benefit-val">&lt; 3 秒</div>
+        <div class="spec-benefit-sub">一鍵自動生成執行內容</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+# 四步驟流程圖 (規格書規定)
 st.markdown(
     """
 <div class="spec-flow-wrapper">
-    <div class="spec-flow-step">1. 銷量資料</div>
+    <div class="spec-flow-step">📄 1. 銷量資料</div>
     <div class="spec-flow-arrow">➔</div>
-    <div class="spec-flow-step">2. AI 結構化洞察</div>
+    <div class="spec-flow-step">🤖 2. AI 結構化洞察</div>
     <div class="spec-flow-arrow">➔</div>
-    <div class="spec-flow-step">3. 可執行行動建議</div>
+    <div class="spec-flow-step">💡 3. 可執行行動建議</div>
     <div class="spec-flow-arrow">➔</div>
-    <div class="spec-flow-step">4. 效益與成效追蹤</div>
+    <div class="spec-flow-step">📈 4. 效益與成效追蹤</div>
 </div>
 """,
     unsafe_allow_html=True,
 )
+
 
 # =========================================================
 # 4. Executive Brief & Decision Queue
@@ -425,7 +463,6 @@ with dq2:
     if st.button("👉 Approve 採納並生成文案", key="app_1", use_container_width=True, type="primary"):
         load_demo_data_to_session()
         st.toast("已帶入補貨與折扣建議！正在跳轉至行動生成頁面...", icon="✅")
-        
         for target in ["pages/18_行動生成.py", "app_pages/18_行動生成.py", "18_行動生成.py"]:
             try:
                 st.switch_page(target)
