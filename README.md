@@ -147,6 +147,20 @@ streamlit run product_app.py
 streamlit run app.py
 ```
 
+## 團隊本機共用資料庫
+
+還沒要公開部署到 Streamlit Cloud 之前，團隊成員也可以各自在本機執行，只要大家的 `.env` 填**同一組** `DATABASE_URL`，就會連到同一個 Supabase 專案，分析快照能跨團隊成員互通，不需要先產生公開連結。
+
+1. 把上面「本機安裝」那組 `DATABASE_URL` 連線字串（含密碼）交給團隊成員
+2. 每人各自建立 `.env`（此檔已被 `.gitignore` 排除，不會被 push 上 GitHub），貼入同一組 `DATABASE_URL`，`GEMINI_API_KEY` 則可各自申請
+3. 各自照常執行 `streamlit run product_app.py`
+
+注意事項：
+
+- 這組連線字串等於資料庫的完整讀寫權限，不是唯讀 API key。請透過密碼管理工具（1Password、Bitwarden 共享 vault 等）或公司內部的 secret 分享機制傳遞，避免貼在沒有存取控制、會長期留存紀錄的聊天室或群組中。
+- Transaction pooler（port `6543`）本身即支援多個短連線同時使用，多人同時本機執行不需要額外設定。
+- 之後正式部署到 Streamlit Cloud 時，把同一組 `DATABASE_URL` 貼到雲端 Secrets 即可，本機與雲端會共用同一份資料，不需要遷移。
+
 ## Streamlit Community Cloud 部署
 
 部署設定：
