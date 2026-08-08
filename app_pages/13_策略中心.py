@@ -104,6 +104,8 @@ initialize_session_state()
 dark_mode = bool(st.session_state.get("dark_mode", False))
 
 
+dark_mode = bool(st.session_state.get("dark_mode", False))
+
 st.markdown(
     """
     <style>
