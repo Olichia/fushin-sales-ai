@@ -18,7 +18,6 @@ from src.session_helpers import initialize_session_state
 
 initialize_session_state()
 
-# 🎯 已修正為標準檔名：assets/demo_sales_data.xlsx
 DEMO_FILE_PATH = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx"
 LOGO_PATH = PROJECT_ROOT / "assets" / "logo-white.png"
 
@@ -55,20 +54,18 @@ st.markdown(
 # =========================================================
 
 def load_demo_data_to_session():
-    """強制將 Demo Excel 檔案讀取並存入 Streamlit Session State"""
+    """將 Demo Excel 讀取並存入 Streamlit Session State"""
     st.session_state["is_demo_mode"] = True
     st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
     
     if DEMO_FILE_PATH.exists():
         try:
             xls = pd.ExcelFile(DEMO_FILE_PATH)
-            # 讀取銷量原始資料
             if "銷量原始資料(零填補)" in xls.sheet_names:
                 st.session_state["sales_data"] = pd.read_excel(xls, sheet_name="銷量原始資料(零填補)")
             else:
                 st.session_state["sales_data"] = pd.read_excel(xls, sheet_name=0)
                 
-            # 讀取活動單位清單
             if "活動單位清單(依時間)" in xls.sheet_names:
                 st.session_state["events_data"] = pd.read_excel(xls, sheet_name="活動單位清單(依時間)")
                 
@@ -144,7 +141,7 @@ st.markdown(
 )
 
 # =========================================================
-# 2. CTA 按鈕與 Demo 資料一鍵載入控制區
+# 2. CTA 按鈕區 (載入 Demo 資料並直達 4_銷售總覽.py)
 # =========================================================
 
 cta_col1, cta_col2 = st.columns([1, 1])
@@ -163,28 +160,25 @@ with cta_col2:
         use_container_width=True,
     )
 
-# 點擊按鈕後的邏輯處理
-if start_demo:
+if start_demo or start_exploring:
     if load_demo_data_to_session():
-        st.success("✅ 已成功載入 Demo 活動數據！正在跳轉資料頁面...")
+        st.toast("🚀 已成功載入 Demo 活動數據！正在跳轉至銷售總覽...", icon="✅")
+        # 🎯 精確跳轉防錯機制 (優先跳轉 4_銷售總覽.py)
         try:
-            st.switch_page("app_pages/5_活動資料上傳.py")
+            st.switch_page("app_pages/4_銷售總覽.py")
         except Exception:
             try:
-                st.switch_page("app_pages/5_活動資料處理.py")
-            except Exception as e:
-                st.warning(f"請點擊左側選單進入資料頁面。(跳轉提示: {e})")
-
-if start_exploring:
-    try:
-        st.switch_page("app_pages/5_活動資料上傳.py")
-    except Exception:
-        pass
+                st.switch_page("app_pages/8_活動成效分析.py")
+            except Exception:
+                try:
+                    st.switch_page("app_pages/12_活動洞察.py")
+                except Exception as e:
+                    st.error(f"跳轉失敗，請確認檔案路徑：{e}")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =========================================================
-# 3. Executive Brief & 合併「執行完整分析」視覺區
+# 3. Executive Brief (今日決策簡報)
 # =========================================================
 
 st.markdown(
@@ -297,7 +291,7 @@ with dq3:
 with dq4:
     if st.button("Review 檢視洞察", key="rev_1", use_container_width=True):
         try:
-            st.switch_page("app_pages/8_活動成效分析.py")
+            st.switch_page("app_pages/12_活動洞察.py")
         except Exception:
             pass
 
