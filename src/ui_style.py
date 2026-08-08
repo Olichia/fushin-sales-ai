@@ -1858,7 +1858,16 @@ def apply_product_styles(dark_mode: bool = False) -> None:
 
         .block-container,
         [data-testid="stMainBlockContainer"] {
-            width: auto !important;
+            /*
+            寬度改成明確的 100%（不是 auto）：切換分頁時舊頁面
+            內容會先被清空、新頁面內容還沒插入，這個容器在這段
+            空檔如果用 auto 寬度，會被 flex 版面依「目前內容」
+            （幾乎是空的）算出一個很窄的寬度，等新內容陸續插入
+            才逐漸撐開，畫面上就是「先窄後寬」的跳動。改成
+            100% 讓寬度只看父層（不看自己內容），沒有內容時也
+            維持跟平常一樣寬，不會跟著內容多寡忽窄忽寬。
+            */
+            width: 100% !important;
             max-width: 100% !important;
 
             padding:
@@ -2571,14 +2580,22 @@ def render_theme_toggle() -> None:
 # =========================================================
 # 側邊欄：icon-only 精簡模式
 #
-# 跟首頁（0_首頁.py）收合列用的是同一套視覺（寬度 96px、
-# 只顯示圖示、隱藏文字標籤），這裡另外提供一份給「其他頁面」
-# 依使用者切換自由套用，形成兩級收合：
-# 1. 「精簡為 icon」（這裡）：仍是完整的 Streamlit 導覽，
-#    只是視覺上縮成 icon 列，隨時可以點連結切頁。
-# 2. 原生「收合」按鈕：側邊欄寬度直接歸零、整個隱藏。
-# 首頁本身的收合列已經有自己獨立的樣板檔案（一直運作穩定，
-# 這裡不去動它），這份是特地給「其他頁面」用的等效版本。
+# 首頁（0_首頁.py）與「其他頁面」用的是同一套視覺概念
+# （寬度 96px、只顯示圖示、隱藏文字標籤），但各自有一份獨立
+# 樣式（首頁那份多了一段圖示縮小到 21px 的規則，兩者不共用
+# 同一組常數，維持既有差異）：
+# 1. 「精簡為 icon」（_SIDEBAR_ICON_ONLY_STYLE，這裡）：給
+#    首頁以外的頁面用，仍是完整的 Streamlit 導覽，只是視覺上
+#    縮成 icon 列，隨時可以點連結切頁，由使用者自行切換。
+# 2. 首頁固定收合（_HOME_SIDEBAR_COLLAPSE_STYLE，下面）：
+#    首頁一律是 icon-only，不受切換鈕影響。這份樣式必須跟
+#    apply_product_styles() 一樣，在 product_app.py 裡
+#    st.navigation() 之後、navigation.run() 之前就套用，
+#    不能等到頁面腳本內部才注入——太晚注入會讓瀏覽器先畫出
+#    一幀展開中的側邊欄，深/淺色模式切換觸發整頁 rerun 時
+#    就會被使用者看到「閃一下」，這正是這份樣式從
+#    app_pages/templates/sidebar_collapse.html 搬過來的原因。
+# 3. 原生「收合」按鈕：側邊欄寬度直接歸零、整個隱藏。
 # =========================================================
 
 _SIDEBAR_ICON_ONLY_STYLE = """
@@ -2627,6 +2644,87 @@ def apply_sidebar_icon_only_style() -> None:
     """套用側邊欄「只顯示 icon」精簡樣式（給首頁以外的頁面用）。"""
 
     st.markdown(_SIDEBAR_ICON_ONLY_STYLE, unsafe_allow_html=True)
+
+
+_HOME_SIDEBAR_COLLAPSE_STYLE = """
+<style>
+section[data-testid="stSidebar"],
+[data-testid="stSidebar"] {
+    width: 96px !important;
+    min-width: 96px !important;
+    max-width: 96px !important;
+    flex: 0 0 96px !important;
+}
+
+/*
+品牌區（logo 背景）的高度／內距完全不覆寫，沿用跟其他
+頁面一樣的基礎樣式（含 padding-top），這樣不論側邊欄是
+收合成 icon 列還是展開的完整導覽，logo 背景的高度都固定
+不變。
+*/
+[data-testid="stSidebarContent"] {
+    width: 96px !important;
+    min-width: 96px !important;
+    max-width: 96px !important;
+}
+
+.reference-brand-copy {
+    display: none !important;
+}
+
+.reference-brand-wrap {
+    justify-content: center !important;
+}
+
+/*
+導覽圖示改成靠左對齊，不覆寫左右內距，沿用跟展開頁面
+（base 樣式）相同的 padding: 11px 12px，讓 icon 不論
+側邊欄是收合列還是展開的完整導覽，水平位置都對得起來，
+不會切換頁面時圖示位置跳動。
+*/
+[data-testid="stSidebarNav"] a {
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 0 !important;
+}
+
+/*
+Streamlit 的 :material/xxx: 圖示實際上是用連字型渲染的
+<span data-testid="stIconMaterial">，不是 <svg>，早前用
+「a svg」當選擇器完全沒有命中任何元素，圖示大小才會沒有
+變化。這裡改成鎖定真正的圖示元素，並直接控制 font-size
+（連字型圖示的大小由 font-size 決定，不是 width/height）。
+縮小為原本 28px 的 3/4（21px）。
+*/
+[data-testid="stSidebarNav"] a [data-testid="stIconMaterial"] {
+    font-size: 21px !important;
+    width: 21px !important;
+    height: 21px !important;
+    line-height: 1 !important;
+
+    font-variation-settings:
+        "FILL" 0,
+        "wght" 400,
+        "GRAD" 0,
+        "opsz" 24 !important;
+}
+
+[data-testid="stSidebarNav"] a p {
+    display: none !important;
+}
+
+[data-testid="stSidebarNav"] [data-testid="stNavSectionHeader"] {
+    display: none !important;
+}
+</style>
+"""
+
+
+def apply_home_sidebar_collapse_style() -> None:
+    """套用首頁固定 icon-only 側邊欄樣式（在 navigation.run() 之前呼叫，避免閃爍）。"""
+
+    st.markdown(_HOME_SIDEBAR_COLLAPSE_STYLE, unsafe_allow_html=True)
 
 
 def render_sidebar_icon_only_toggle() -> None:

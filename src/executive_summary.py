@@ -493,7 +493,7 @@ def build_executive_brief_summary(
     prepare_unit_overview_for_display 產生的 color_category），
     不重新定義任何規則，只是為了首屏而重新包裝呈現方式。
 
-    「不可分離」（color_category）對應母子活動組合或疊加多個
+    「重疊活動」（color_category）對應母子活動組合或疊加多個
     活動、瀑布法尚未拆分的活動單位，即摘要句裡「不適合直接
     歸因」的活動數。
     """
@@ -518,7 +518,7 @@ def build_executive_brief_summary(
     )
     risk_count = int(unit_overview["is_risky"].sum())
     unclear_count = int(
-        (unit_overview["color_category"] == "不可分離").sum()
+        (unit_overview["color_category"] == "重疊活動").sum()
     )
 
     headline_text = (

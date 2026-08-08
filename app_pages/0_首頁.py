@@ -91,7 +91,7 @@ HERO_FEATURES = [
 
 HERO_STATS = [
     ("📊", "orange", "20+", "活動單位拆解案例"),
-    ("🧮", "blue", "1,000+", "SKU規模"),
+    ("🧮", "blue", "10000+", "SKU規模"),
     ("🤖", "magenta", "24/7", "AI 洞察待命"),
     ("🏬", "green", "600+", "合作門市"),
 ]
@@ -102,19 +102,6 @@ def _encode_logo() -> str | None:
         return None
 
     return base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
-
-
-# =========================================================
-# 側邊欄：本頁收合成純 icon 列
-#
-# 只在首頁這支腳本執行時注入，切到其他頁面就不會套用，
-# 不需要額外的 Session State 旗標控制顯示範圍。
-# =========================================================
-
-st.markdown(
-    _render_template("sidebar_collapse.html"),
-    unsafe_allow_html=True,
-)
 
 
 # =========================================================

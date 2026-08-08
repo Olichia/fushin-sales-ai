@@ -10,8 +10,8 @@ import pandas as pd
 MINIMUM_DAYS_FOR_CONFIDENCE = 2
 
 CATEGORY_COLOR_MAP = {
-    "可分離正向": "#009B73",
-    "不可分離": "#F45B1B",
+    "單一活動正向": "#009B73",
+    "重疊活動": "#F45B1B",
     "負增益": "#C62828",
 }
 
@@ -64,19 +64,19 @@ def prepare_unit_overview_for_display(
         # 「不可分割活動組合」（母子活動群組已被明確定義）與
         # 「多活動疊加,待瀑布法檢驗」（單純疊加多個標籤，還
         # 沒確定能不能拆）都代表這個單位不是單一活動，沿用
-        # 同一個「不可分離」風險色。
+        # 同一個「重疊活動」風險色。
         if row.get("classification") in {
             "多活動疊加,待瀑布法檢驗",
             "不可分割活動組合",
         }:
-            return "不可分離"
+            return "重疊活動"
 
         net_effect = row.get("net_revenue_effect_per_day")
 
         if pd.notna(net_effect) and net_effect < 0:
             return "負增益"
 
-        return "可分離正向"
+        return "單一活動正向"
 
     unit_overview["color_category"] = unit_overview.apply(
         classify_color_category, axis=1
