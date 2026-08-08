@@ -150,7 +150,7 @@ st.markdown(
 )
 
 # =========================================================
-# 2. 規格書指定：三張效益卡 + 四步驟流程圖 (明確出現在按鈕上方)
+# 2. 規格書指定：三張效益卡 + 四步驟流程圖
 # =========================================================
 
 st.markdown(
@@ -188,7 +188,7 @@ st.markdown(
 
 st.markdown("##### ⚡ 平台核心效益與決策閉環")
 
-# 三張效益卡 (規格書明確規定)
+# 三張效益卡
 ef1, ef2, spec_ef3 = st.columns(3)
 with ef1:
     st.markdown('<div class="spec-benefit-card"><div class="spec-benefit-lbl">⏱️ 分析時間節省</div><div class="spec-benefit-val">12.4分 ➔ 4.1分</div><div class="spec-benefit-sub">效率提升 67% (n=8 實測)</div></div>', unsafe_allow_html=True)
@@ -197,7 +197,7 @@ with ef2:
 with spec_ef3:
     st.markdown('<div class="spec-benefit-card"><div class="spec-benefit-lbl">⚡ 策略建議產出</div><div class="spec-benefit-val">&lt; 3 秒</div><div class="spec-benefit-sub">一鍵自動生成執行內容</div></div>', unsafe_allow_html=True)
 
-# 四步驟流程圖 (規格書明確規定)
+# 四步驟流程圖
 st.markdown(
     """
 <div class="spec-flow-wrapper">
@@ -232,7 +232,7 @@ with cta_col2:
         "🔍 查看 AI 如何判斷",
         type="secondary",
         use_container_width=True,
-        help="【合規檢查】查看數據檢核卡片與雙模式切換。"
+        help="【合規檢查】跳轉至銷量資料處理，查看雙模式切換與欄位檢核。"
     )
 
 # 1. 主要按鈕：直達 AI 活動洞察
@@ -243,20 +243,23 @@ if start_demo:
             st.switch_page("app_pages/12_活動洞察.py")
         except Exception:
             try:
-                st.switch_page("app_pages/活動洞察.py")
+                st.switch_page("12_活動洞察.py")
             except Exception as e:
                 st.error(f"跳轉失敗：{e}")
 
-# 2. 次要按鈕：跳轉至資料處理與檢核頁面
+# 2. 次要按鈕：直接跳轉至「銷量資料處理」頁面
 if goto_data_upload:
-    st.toast("🔍 前往資料處理與品質檢核頁面...", icon="ℹ️")
+    st.toast("🔍 前往銷量資料處理頁面...", icon="ℹ️")
     try:
         st.switch_page("app_pages/01_銷量資料處理.py")
     except Exception:
         try:
-            st.switch_page("app_pages/15_資料管理中心.py")
-        except Exception as e:
-            st.error(f"跳轉失敗：{e}")
+            st.switch_page("01_銷量資料處理.py")
+        except Exception:
+            try:
+                st.switch_page("app_pages/銷量資料處理.py")
+            except Exception as e:
+                st.error(f"跳轉失敗，請確認檔名是否為 01_銷量資料處理.py：{e}")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
