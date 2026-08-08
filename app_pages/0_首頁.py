@@ -43,6 +43,15 @@ def _encode_logo() -> str | None:
     return base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
 
 
+def _resolve_demo_path() -> Path | None:
+    if DEMO_FILE_PATH.exists():
+        return DEMO_FILE_PATH
+    alt_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
+    if alt_path.exists():
+        return alt_path
+    return None
+
+
 # 側邊欄自動收合
 st.markdown(
     _render_template("sidebar_collapse.html"),
@@ -57,27 +66,23 @@ def load_demo_data_to_session():
     """將 3-4 月銷量活動數據預先讀取並存入 Streamlit Session State"""
     st.session_state["is_demo_mode"] = True
     st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
-    
-    target_path = DEMO_FILE_PATH
-    if not target_path.exists():
-        alt_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
-        if alt_path.exists():
-            target_path = alt_path
 
-    if target_path.exists():
+    target_path = _resolve_demo_path()
+
+    if target_path is not None:
         try:
             xls = pd.ExcelFile(target_path)
             if "銷量原始資料(零填補)" in xls.sheet_names:
                 st.session_state["sales_data"] = pd.read_excel(xls, sheet_name="銷量原始資料(零填補)")
             else:
                 st.session_state["sales_data"] = pd.read_excel(xls, sheet_name=0)
-                
+
             if "活動單位清單(依時間)" in xls.sheet_names:
                 st.session_state["events_data"] = pd.read_excel(xls, sheet_name="活動單位清單(依時間)")
-                
+
             if "活動單位總覽(vs基準)" in xls.sheet_names:
                 st.session_state["overview_data"] = pd.read_excel(xls, sheet_name="活動單位總覽(vs基準)")
-                
+
             st.session_state["data_loaded"] = True
             return True
         except Exception as e:
@@ -86,6 +91,174 @@ def load_demo_data_to_session():
     else:
         st.error("找不到數據檔案，請確認 assets/demo_sales_data.xlsx 是否存在。")
         return False
+
+
+# =========================================================
+# 3.5 首頁 KPI／建議文案：全部在執行時從 Excel 現算，禁止寫死數字
+# =========================================================
+
+def _confidence_level(days: int, sample_warning: bool) -> tuple[str, str]:
+    """
+    規格書要求「信心分數」不可虛構，也要標示資料不足。
+    這裡不生成假的百分比，改用資料本身可觀察到的兩個真實條件推出「高/中/低」＋原因：
+    天數越長、樣本量提示欄位沒有警告，代表這段觀察越不容易只是單日雜訊。
+    """
+    if sample_warning or days < 2:
+        return "低", "樣本量小(單日或系統標註信賴區間寬)，僅供參考方向"
+    if days < 4:
+        return "中", f"{days}天實測，無樣本量警告，但天數仍偏短"
+    return "高", f"{days}天實測，無樣本量警告，且為可拆分的單一活動效果"
+
+
+@st.cache_data(show_spinner=False)
+def compute_home_insights(file_path: str):
+    """
+    讀取「銷量原始資料(零填補)」與「活動單位總覽(vs基準)」，
+    現場算出首頁需要的所有 KPI 與建議文案素材。
+    回傳 dict，找不到資料時回傳 None（呼叫端要處理沒有數據的情況，不能塞假數字）。
+    """
+    path = Path(file_path)
+    if not path.exists():
+        return None
+
+    xls = pd.ExcelFile(path)
+    if "銷量原始資料(零填補)" not in xls.sheet_names or "活動單位總覽(vs基準)" not in xls.sheet_names:
+        return None
+
+    sales_df = pd.read_excel(xls, sheet_name="銷量原始資料(零填補)")
+    overview_df = pd.read_excel(xls, sheet_name="活動單位總覽(vs基準)")
+
+    # --- 資料規模 ---
+    total_records = len(sales_df)
+    total_days = sales_df["日期"].nunique()
+    total_units = len(overview_df)
+
+    # --- 健康度：正向增益檔期佔比（現算）---
+    positive_units = int((overview_df["淨營收效應_合計"] > 0).sum())
+    negative_units = int((overview_df["淨營收效應_合計"] < 0).sum())
+    health_score = round(positive_units / total_units * 100) if total_units else 0
+
+    # --- 活動總淨效益：全部140個活動單位的淨營收效應加總（現算）---
+    total_net_effect = float(overview_df["淨營收效應_合計"].sum())
+
+    # --- 風險警示：找出「虧損檔次數最多的品項」---
+    loss_counts = (
+        overview_df[overview_df["淨營收效應_合計"] < 0]
+        .groupby(["商品編號", "商品名稱"])
+        .size()
+        .sort_values(ascending=False)
+    )
+    if len(loss_counts) > 0:
+        (risk_sku, risk_name), risk_loss_count = loss_counts.index[0], loss_counts.iloc[0]
+    else:
+        risk_sku, risk_name, risk_loss_count = None, None, 0
+
+    # --- 針對風險品項，找「乾淨可拆分、且該SKU真的有參與」的正向翻轉案例 ---
+    turnaround = None
+    if risk_sku is not None:
+        clean_positive = overview_df[
+            (overview_df["商品編號"] == risk_sku)
+            & (overview_df["淨營收效應_合計"] > 0)
+            & (overview_df["分類"] == "可分離,單一活動")
+            & (overview_df["本品項是否參與"] == True)
+        ].sort_values("淨營收效應_合計", ascending=False)
+        if len(clean_positive) > 0:
+            best = clean_positive.iloc[0]
+            days = int(best["天數"])
+            sample_warning = bool(pd.notna(best.get("樣本量提示")))
+            level, reason = _confidence_level(days, sample_warning)
+            turnaround = {
+                "sku": risk_sku,
+                "name": risk_name,
+                "event": best["對應活動"],
+                "days": days,
+                "price": best["活動售價"],
+                "base_price": best["基準售價"],
+                "avg_qty": best["單位平均銷量"],
+                "base_qty": best["基準平均銷量_同月"],
+                "net_effect": float(best["淨營收效應_合計"]),
+                "sample_warning": sample_warning,
+                "confidence_level": level,
+                "confidence_reason": reason,
+                "evidence": {
+                    "商品編號": str(best["商品編號"]),
+                    "活動單位": best["活動單位"],
+                    "開始日期": str(best["開始日期"]),
+                    "結束日期": str(best["結束日期"]),
+                    "對應活動": best["對應活動"],
+                    "分類": best["分類"],
+                    "本品項是否參與": bool(best["本品項是否參與"]),
+                    "活動售價": best["活動售價"],
+                    "基準售價(同月代理牌價)": best["基準售價"],
+                    "單位平均銷量": best["單位平均銷量"],
+                    "基準平均銷量_同月": best["基準平均銷量_同月"],
+                    "淨營收效應_合計": best["淨營收效應_合計"],
+                    "資料來源工作表": "活動單位總覽(vs基準)",
+                },
+            }
+
+    # --- 決策佇列：全資料庫裡「可拆分、單一活動、該SKU真的有參與、天數>=2」的前3名淨增益案例 ---
+    clean_df = overview_df[
+        (overview_df["分類"] == "可分離,單一活動")
+        & (overview_df["天數"] >= 2)
+        & (overview_df["本品項是否參與"] == True)
+    ].sort_values("淨營收效應_合計", ascending=False)
+
+    decision_items = []
+    for _, row in clean_df.head(3).iterrows():
+        days = int(row["天數"])
+        sample_warning = bool(pd.notna(row.get("樣本量提示")))
+        level, reason = _confidence_level(days, sample_warning)
+        decision_items.append(
+            {
+                "sku": row["商品編號"],
+                "name": row["商品名稱"],
+                "event": row["對應活動"],
+                "days": days,
+                "net_effect": float(row["淨營收效應_合計"]),
+                "avg_qty": row["單位平均銷量"],
+                "base_qty": row["基準平均銷量_同月"],
+                "price": row["活動售價"],
+                "base_price": row["基準售價"],
+                "sample_warning": sample_warning,
+                "confidence_level": level,
+                "confidence_reason": reason,
+                "evidence": {
+                    "商品編號": str(row["商品編號"]),
+                    "活動單位": row["活動單位"],
+                    "開始日期": str(row["開始日期"]),
+                    "結束日期": str(row["結束日期"]),
+                    "對應活動": row["對應活動"],
+                    "分類": row["分類"],
+                    "本品項是否參與": bool(row["本品項是否參與"]),
+                    "活動售價": row["活動售價"],
+                    "基準售價(同月代理牌價)": row["基準售價"],
+                    "單位平均銷量": row["單位平均銷量"],
+                    "基準平均銷量_同月": row["基準平均銷量_同月"],
+                    "淨營收效應_合計": row["淨營收效應_合計"],
+                    "資料來源工作表": "活動單位總覽(vs基準)",
+                },
+            }
+        )
+
+    return {
+        "total_records": total_records,
+        "total_days": total_days,
+        "total_units": total_units,
+        "positive_units": positive_units,
+        "negative_units": negative_units,
+        "health_score": health_score,
+        "total_net_effect": total_net_effect,
+        "risk_sku": risk_sku,
+        "risk_name": risk_name,
+        "risk_loss_count": int(risk_loss_count),
+        "turnaround": turnaround,
+        "decision_items": decision_items,
+    }
+
+
+_demo_path = _resolve_demo_path()
+insights = compute_home_insights(str(_demo_path)) if _demo_path else None
 
 
 # =========================================================
@@ -261,28 +434,38 @@ st.markdown(
 
 st.markdown("##### ⚡ 平台核心效益與決策閉環")
 
-# 三張效益卡 (完全無虛構數字)[cite: 3]
+# 三張效益卡：直接用現算出來的 insights，不再是寫死字串
 b_col1, b_col2, b_col3 = st.columns(3)
 
 with b_col1:
+    if insights:
+        records_val = f"{insights['total_records']} 筆"
+        records_sub = f"涵蓋 3-4 月完整 {insights['total_days']} 天銷量紀錄"
+    else:
+        records_val = "—"
+        records_sub = "尚未載入資料"
     st.markdown(
-        """
+        f"""
     <div class="spec-benefit-card">
         <div class="spec-benefit-lbl">📊 資料追蹤規模</div>
-        <div class="spec-benefit-val">305 筆</div>
-        <div class="spec-benefit-sub">涵蓋 3-4 月完整 61 天銷量紀錄</div>
+        <div class="spec-benefit-val">{records_val}</div>
+        <div class="spec-benefit-sub">{records_sub}</div>
     </div>
     """,
         unsafe_allow_html=True,
     )
 
 with b_col2:
+    if insights:
+        units_sub = f"自動對比 {insights['total_units']} 筆歷史檔期基準"
+    else:
+        units_sub = "尚未載入資料"
     st.markdown(
-        """
+        f"""
     <div class="spec-benefit-card">
         <div class="spec-benefit-lbl">🎯 檔期與品項辨識</div>
         <div class="spec-benefit-val">100%</div>
-        <div class="spec-benefit-sub">自動對比 140 筆歷史檔期基準</div>
+        <div class="spec-benefit-sub">{units_sub}</div>
     </div>
     """,
         unsafe_allow_html=True,
@@ -318,10 +501,10 @@ st.markdown(
 
 
 # =========================================================
-# 4. 極簡化 Executive Brief & Decision Queue (去蕪存菁版)
+# 4. Executive Brief & Decision Queue — 全部改為現算數字，附上真實依據
 # =========================================================
 
-st.markdown("##### ⚡ 今日活動決策簡報 (Executive Brief)")
+st.markdown("##### ⚡ 活動決策簡報 (Executive Brief，依歷史資料現算)")
 
 st.markdown(
     """
@@ -351,6 +534,7 @@ st.markdown(
     }
     .ai-rec-head { color: #C2410C; font-weight: 800; font-size: 16px; }
     .ai-rec-body { font-size: 16px; color: #0F172A; font-weight: 700; margin-top: 6px; line-height: 1.4; }
+    .ai-rec-caveat { font-size: 12px; color: #92400E; font-weight: 600; margin-top: 6px; }
 
     .decision-row {
         background: #FFFFFF;
@@ -379,100 +563,133 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 4 大活動監控指標 (對應 Excel 實算)
-b1, b2, b3, b4 = st.columns(4)
-with b1:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動健康度 Health</div><div class="kpi-mini-val kpi-health">88</div><div class="kpi-subtext" style="color: #059669;">81/140 正向增益檔期</div></div>', unsafe_allow_html=True)
-with b2:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動風險警示 Risk</div><div class="kpi-mini-val kpi-risk">7 檔</div><div class="kpi-subtext" style="color: #DC2626;">調理機鋪底虧損警告</div></div>', unsafe_allow_html=True)
-with b3:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">待執行策略 Decision</div><div class="kpi-mini-val kpi-pending">3 項</div><div class="kpi-subtext" style="color: #D97706;">今日建議優先審核</div></div>', unsafe_allow_html=True)
-with b4:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">下一檔預估 Forecast</div><div class="kpi-mini-val kpi-forecast">+15.2%</div><div class="kpi-subtext" style="color: #2563EB;">預估品牌日營收成長</div></div>', unsafe_allow_html=True)
+if not insights:
+    st.warning("找不到示範資料檔，請確認 `assets/demo_sales_data.xlsx` 存在後再查看決策簡報。")
+else:
+    # --- 4 大活動監控指標：全部現算 ---
+    b1, b2, b3, b4 = st.columns(4)
+    with b1:
+        st.markdown(
+            f'<div class="kpi-mini-card"><div class="kpi-mini-title">活動健康度 Health</div>'
+            f'<div class="kpi-mini-val kpi-health">{insights["health_score"]}</div>'
+            f'<div class="kpi-subtext" style="color: #059669;">'
+            f'{insights["positive_units"]}/{insights["total_units"]} 正向增益檔期</div></div>',
+            unsafe_allow_html=True,
+        )
+    with b2:
+        if insights["risk_sku"]:
+            risk_sub = f'{insights["risk_name"]} 鋪底虧損警告'
+        else:
+            risk_sub = "目前無虧損警告"
+        st.markdown(
+            f'<div class="kpi-mini-card"><div class="kpi-mini-title">活動風險警示 Risk</div>'
+            f'<div class="kpi-mini-val kpi-risk">{insights["risk_loss_count"]} 檔</div>'
+            f'<div class="kpi-subtext" style="color: #DC2626;">{risk_sub}</div></div>',
+            unsafe_allow_html=True,
+        )
+    with b3:
+        st.markdown(
+            f'<div class="kpi-mini-card"><div class="kpi-mini-title">待執行策略 Decision</div>'
+            f'<div class="kpi-mini-val kpi-pending">{len(insights["decision_items"])} 項</div>'
+            f'<div class="kpi-subtext" style="color: #D97706;">依歷史淨增益排序建議審核</div></div>',
+            unsafe_allow_html=True,
+        )
+    with b4:
+        net_effect_wan = insights["total_net_effect"] / 10000
+        st.markdown(
+            f'<div class="kpi-mini-card"><div class="kpi-mini-title">活動總淨效益 Net Impact</div>'
+            f'<div class="kpi-mini-val kpi-forecast">{net_effect_wan:+.1f}萬</div>'
+            f'<div class="kpi-subtext" style="color: #2563EB;">3-4月全部{insights["total_units"]}檔活動淨營收加總</div></div>',
+            unsafe_allow_html=True,
+        )
 
-# AI 主動建議 Banner
-st.markdown(
-    """
+    # --- AI 主動建議 Banner ---
+    turnaround = insights["turnaround"]
+    if turnaround:
+        net_wan = turnaround["net_effect"] / 10000
+        st.markdown(
+            f"""
 <div class="ai-rec-banner">
-    <div class="ai-rec-head">💡 AI 主動最佳策略建議</div>
-    <div class="ai-rec-body">優先調整 <span style="color: #EA580C;">【品牌】高速調理機</span> 之原價鋪底策略，改採品牌日專屬促銷價 <span style="color: #EA580C; font-size: 19px;">($7,999)</span>，預估可轉負為正改善營收 <span style="background: #FEF08A; padding: 2px 6px; border-radius: 4px;">+167.8 萬元</span>[cite: 3]。</div>
+    <div class="ai-rec-head">💡 AI 主動最佳策略建議
+        <span class="confidence-tag" style="background:#FFEDD5;color:#C2410C;padding:2px 8px;border-radius:6px;">
+            信心：{turnaround['confidence_level']}
+        </span>
+    </div>
+    <div class="ai-rec-body">
+        <span style="color: #EA580C;">【{turnaround['name']}】</span>在「{turnaround['event']}」檔期
+        （{turnaround['days']}天實測，售價 ${turnaround['price']:,.0f}）
+        相較基準售價 ${turnaround['base_price']:,.0f}，
+        日均銷量由 {turnaround['base_qty']:.1f} 件成長至 {turnaround['avg_qty']:.1f} 件，
+        累計淨營收效應
+        <span style="background: #FEF08A; padding: 2px 6px; border-radius: 4px;">{net_wan:+.1f} 萬元</span>。
+        建議比照此檔期定價策略，優先處理{turnaround['name']}目前的
+        {insights['risk_loss_count']} 檔虧損期間。
+    </div>
+    <div class="ai-rec-caveat">
+        ※ 此為歷史實測結果（單一活動，可拆分），非未來預估；信心判斷依據：{turnaround['confidence_reason']}。
+        其餘同售價但疊加多種活動的期間因無法拆分個別貢獻，未列入此建議。
+    </div>
 </div>
 """,
-    unsafe_allow_html=True,
-)
+            unsafe_allow_html=True,
+        )
+        with st.expander("🔍 查看 AI 推論依據（原始欄位與數值）"):
+            st.caption("以下數值皆直接讀自「活動單位總覽(vs基準)」工作表，未經人工調整。")
+            st.json(turnaround["evidence"])
+    else:
+        st.info("目前資料中找不到可拆分的正向翻轉案例，暫無 AI 主動建議（資料不足，不猜測）。")
 
-# 🎯 Decision Queue
-st.markdown("##### 🎯 今日 AI 建議決策隊列 (Decision Queue)")
+    # 🎯 Decision Queue
+    st.markdown("##### 🎯 AI 建議決策隊列 (Decision Queue，依歷史淨增益排序)")
 
-# 決策卡 01
-dq1, dq2 = st.columns([3.2, 1.2])
-with dq1:
-    st.markdown("""
-    <div class="decision-row">
-        <div>
-            <span class="badge-impact-high">高影響力 High Impact</span>
-            <span class="confidence-tag">AI 信心度: 92%</span>
-            <div style="margin-top: 4px;">
-                <strong class="decision-text">01 促銷折扣修正：高速調理機原價鋪底虧損，建議調降至促銷價 $7,999</strong>
+    button_specs = [
+        ("👉 Approve 採納文案", "app", ["pages/18_行動生成.py", "app_pages/18_行動生成.py", "18_行動生成.py"]),
+        ("👉 Review 檢視趨勢", "rev", ["pages/12_活動洞察.py", "app_pages/12_活動洞察.py", "12_活動洞察.py"]),
+        ("👉 Simulate 效益試算", "sim", ["pages/17_情境模擬.py", "app_pages/17_情境模擬.py", "17_情境模擬.py"]),
+    ]
+    impact_badges = ["badge-impact-high", "badge-impact-high", "badge-impact-med"]
+
+    if not insights["decision_items"]:
+        st.info("目前資料中找不到符合條件（可拆分、單一活動、天數≥2、確實參與）的建議案例。")
+
+    for i, item in enumerate(insights["decision_items"]):
+        net_wan = item["net_effect"] / 10000
+        badge_cls = impact_badges[i] if i < len(impact_badges) else "badge-impact-med"
+        badge_label = "高影響力 High Impact" if badge_cls == "badge-impact-high" else "中影響力 Medium Impact"
+        confidence_label = f"信心：{item['confidence_level']}（{item['days']}天實測・可拆分）"
+
+        dq_col1, dq_col2 = st.columns([3.2, 1.2])
+        with dq_col1:
+            st.markdown(
+                f"""
+            <div class="decision-row">
+                <div>
+                    <span class="{badge_cls}">{badge_label}</span>
+                    <span class="confidence-tag">{confidence_label}</span>
+                    <div style="margin-top: 4px;">
+                        <strong class="decision-text">
+                            {i+1:02d} {item['name']}：「{item['event']}」檔期
+                            淨增益達 {net_wan:+.1f} 萬元，
+                            日均銷量 {item['avg_qty']:.1f} 件（基準日均 {item['base_qty']:.1f} 件），
+                            售價 ${item['price']:,.0f}
+                        </strong>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-with dq2:
-    if st.button("👉 Approve 採納文案", key="app_1", use_container_width=True, type="primary"):
-        load_demo_data_to_session()
-        st.toast("已帶入補貨與折扣建議！正在跳轉至行動生成頁面...", icon="✅")
-        for target in ["pages/18_行動生成.py", "app_pages/18_行動生成.py", "18_行動生成.py"]:
-            try:
-                st.switch_page(target)
-                break
-            except Exception:
-                continue
-
-# 決策卡 02
-dq3, dq4 = st.columns([3.2, 1.2])
-with dq3:
-    st.markdown("""
-    <div class="decision-row">
-        <div>
-            <span class="badge-impact-med">中影響力 Medium Impact</span>
-            <span class="confidence-tag">AI 信心度: 90%</span>
-            <div style="margin-top: 4px;">
-                <strong class="decision-text">02 熱銷品項備貨：5L氣炸鍋 A10 淨增益達 +$132.3 萬，預估 5 天內補貨</strong>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-with dq4:
-    if st.button("👉 Review 檢視趨勢", key="rev_1", use_container_width=True):
-        load_demo_data_to_session()
-        for target in ["pages/12_活動洞察.py", "app_pages/12_活動洞察.py", "12_活動洞察.py"]:
-            try:
-                st.switch_page(target)
-                break
-            except Exception:
-                continue
-
-# 決策卡 03
-dq5, dq6 = st.columns([3.2, 1.2])
-with dq5:
-    st.markdown("""
-    <div class="decision-row">
-        <div>
-            <span class="badge-impact-high">高影響力 High Impact</span>
-            <span class="confidence-tag">AI 信心度: 87%</span>
-            <div style="margin-top: 4px;">
-                <strong class="decision-text">03 組合促銷模擬：IH 電子鍋搭配夜貓加碼，預估提高 10% 廣告可升營收 12.5%</strong>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-with dq6:
-    if st.button("👉 Simulate 效益試算", key="sim_1", use_container_width=True):
-        load_demo_data_to_session()
-        for target in ["pages/17_情境模擬.py", "app_pages/17_情境模擬.py", "17_情境模擬.py"]:
-            try:
-                st.switch_page(target)
-                break
-            except Exception:
-                continue
+            """,
+                unsafe_allow_html=True,
+            )
+            with st.expander(f"🔍 決策 {i+1:02d}：查看判斷依據"):
+                st.caption(f"信心理由：{item['confidence_reason']}")
+                st.json(item["evidence"])
+        with dq_col2:
+            label, key_prefix, targets = button_specs[i] if i < len(button_specs) else button_specs[-1]
+            if st.button(label, key=f"{key_prefix}_{i}", use_container_width=True, type="primary" if i == 0 else "secondary"):
+                load_demo_data_to_session()
+                st.toast("已帶入此檔期的實測數據，正在跳轉...", icon="✅")
+                for target in targets:
+                    try:
+                        st.switch_page(target)
+                        break
+                    except Exception:
+                        continue
