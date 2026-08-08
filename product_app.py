@@ -8,6 +8,7 @@ from src.floating_chatbot import render_floating_chatbot
 from src.persistence import bootstrap_session_from_db
 from src.session_helpers import initialize_session_state
 from src.ui_style import (
+    apply_home_sidebar_collapse_style,
     apply_product_styles,
     apply_sidebar_icon_only_style,
     render_sidebar_icon_only_toggle,
@@ -179,11 +180,13 @@ navigation = st.navigation(
         "分析流程": [
             full_analysis_page,
         ],
-        "成果與決策": [
+        "主決策引擎": [
             product_home_page,
             activity_insight_page,
             strategy_center_page,
             whatif_simulation_page,
+        ],
+        "成果匯出": [
             action_generation_page,
             management_report_page,
         ],
@@ -199,10 +202,15 @@ navigation = st.navigation(
 # 第一級「精簡為 icon」：側邊欄仍是完整導覽，只是視覺上縮成
 # icon 列（使用者可自行切換）；第二級是 Streamlit 原生的
 # 「收合」按鈕，直接把側邊欄寬度歸零、整個隱藏。首頁本身一律
-# 是 icon-only（有自己獨立的樣板，不受這個切換鈕影響）。
+# 是 icon-only，不受這個切換鈕影響；這裡要在 navigation.run()
+# 之前就套用首頁的收合樣式，避免深/淺色切換 rerun 時側邊欄
+# 先閃過一幀展開畫面才收合（見 src/ui_style.py 的
+# apply_home_sidebar_collapse_style() 說明）。
 # =========================================================
 
-if navigation.title != "首頁":
+if navigation.title == "首頁":
+    apply_home_sidebar_collapse_style()
+else:
     sidebar_icon_only = bool(
         st.session_state.get("sidebar_icon_only", False)
     )

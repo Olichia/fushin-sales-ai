@@ -19,6 +19,11 @@ _SCENARIO_BADGE_CLASS = {
     "risk": "badge-confidence-low",
 }
 
+_OUTCOME_ICON = {
+    "表現最佳": "🏆",
+    "表現較差": "📉",
+}
+
 
 def render_structured_advisor_card(
     finding: str,
@@ -86,10 +91,13 @@ def render_ai_insight_card(
     reason: str,
     action: str,
     confidence: str | None = None,
+    outcome: str | None = None,
 ) -> None:
     """
     以「發現／原因／建議」三段格式呈現規則式的 AI 洞察摘要，
-    confidence 給定時在標題列右側加上資料信心徽章。
+    confidence 給定時在標題列右側加上資料信心徽章。outcome 給定時
+    （例如「表現最佳」／「表現較差」）取代預設的「✨ AI 洞察」
+    標籤文字，用於明確標示這張卡片在一組最佳／較差配對中的角色。
 
     跟 render_structured_advisor_card() 的差異：這裡的內容是直接
     從已經算好的數字組句（例如情境模擬結果、既有的策略分類／
@@ -126,11 +134,52 @@ def render_ai_insight_card(
     else:
         confidence_badge = ""
 
+    if outcome is not None:
+        outcome_icon = _OUTCOME_ICON.get(outcome, "🏆")
+        tag_text = f"{outcome_icon} {outcome}"
+    else:
+        tag_text = "✨ AI 洞察"
+
     card_html = (
         '<div class="advisor-card">'
         '<div class="advisor-card-header">'
-        '<span class="advisor-tag">✨ AI 洞察</span>'
+        f'<span class="advisor-tag">{html.escape(tag_text)}</span>'
         f"{confidence_badge}"
+        "</div>"
+        f"{row_html}"
+        "</div>"
+    )
+
+    st.markdown(card_html, unsafe_allow_html=True)
+
+
+def render_discount_insight_card(rows: list[tuple[str, str]]) -> None:
+    """
+    沿用與 AI 洞察卡片相同的 .advisor-card／.advisor-row 版面（原本
+    的藍底設計），但標籤與列標籤改用 --blue 修飾類別（原始藍色
+    var(--ai-accent) / var(--ai-accent-deep)），刻意跟商品／活動
+    視角 AI 洞察卡片現在的紫色（表現最佳／較差）做出區隔，取代
+    原本逐段 st.markdown() 純文字輸出。
+
+    rows 中每個 (label, text_html) tuple，label 為純文字（例如
+    「折扣率」「值得留意」，這裡會做 html.escape()），text_html
+    須為呼叫端已組好、內嵌資料已用 html.escape() 處理過的安全
+    HTML 字串（可包含 <strong> 等行內標籤），這裡不再對它逃逸。
+    """
+
+    row_html = "".join(
+        '<div class="advisor-row">'
+        '<span class="advisor-row-label advisor-row-label--blue">'
+        f"{html.escape(label)}</span>"
+        f'<span class="advisor-row-text">{text}</span>'
+        "</div>"
+        for label, text in rows
+    )
+
+    card_html = (
+        '<div class="advisor-card">'
+        '<div class="advisor-card-header">'
+        '<span class="advisor-tag advisor-tag--blue">📊 折扣率洞察</span>'
         "</div>"
         f"{row_html}"
         "</div>"

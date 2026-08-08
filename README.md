@@ -112,6 +112,7 @@
 - OpenPyXL
 - Google Gen AI SDK
 - ReportLab
+- Supabase (Postgres)
 
 ## 本機安裝
 
@@ -127,7 +128,12 @@ pip install -r requirements.txt
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
+DATABASE_URL=postgresql://postgres.xxxxxxxx:your_password@aws-0-xxxxx.pooler.supabase.com:6543/postgres
 ```
+
+`DATABASE_URL` 是 Supabase 專案的 Postgres 連線字串，用來取代原本的本機 SQLite，讓分析快照可以跨部署／重啟保存。第一次連線時程式會自動建立所需的資料表，不用手動建 schema。
+
+請用 **Transaction pooler**（Project Settings -> Database -> Connect -> Connection Method 選 "Transaction pooler"，port `6543`）的連線字串，不要用預設的 Direct connection（port `5432`）。程式每次讀寫都是開一條新連線、用完即關，符合 Transaction pooler「每次互動都短暫且獨立」的設計場景；Direct connection 是給長駐連線用的，多人同時操作時很快會撐爆 Supabase 免費方案的連線數上限。
 
 啟動產品版：
 
@@ -140,6 +146,20 @@ streamlit run product_app.py
 ```powershell
 streamlit run app.py
 ```
+
+## 團隊本機共用資料庫
+
+還沒要公開部署到 Streamlit Cloud 之前，團隊成員也可以各自在本機執行，只要大家的 `.env` 填**同一組** `DATABASE_URL`，就會連到同一個 Supabase 專案，分析快照能跨團隊成員互通，不需要先產生公開連結。
+
+1. 把上面「本機安裝」那組 `DATABASE_URL` 連線字串（含密碼）交給團隊成員
+2. 每人各自建立 `.env`（此檔已被 `.gitignore` 排除，不會被 push 上 GitHub），貼入同一組 `DATABASE_URL`，`GEMINI_API_KEY` 則可各自申請
+3. 各自照常執行 `streamlit run product_app.py`
+
+注意事項：
+
+- 這組連線字串等於資料庫的完整讀寫權限，不是唯讀 API key。請透過密碼管理工具（1Password、Bitwarden 共享 vault 等）或公司內部的 secret 分享機制傳遞，避免貼在沒有存取控制、會長期留存紀錄的聊天室或群組中。
+- Transaction pooler（port `6543`）本身即支援多個短連線同時使用，多人同時本機執行不需要額外設定。
+- 之後正式部署到 Streamlit Cloud 時，把同一組 `DATABASE_URL` 貼到雲端 Secrets 即可，本機與雲端會共用同一份資料，不需要遷移。
 
 ## Streamlit Community Cloud 部署
 
@@ -154,6 +174,8 @@ Main file path: product_app.py
 
 ```toml
 GEMINI_API_KEY = "your_gemini_api_key"
+DATABASE_URL = "postgresql://postgres.xxxxxxxx:your_password@aws-0-xxxxx.pooler.supabase.com:6543/postgres"
+# 連線字串請從 Connect -> Connection Method 選 "Transaction pooler" 取得
 ```
 
 `packages.txt` 用於安裝 PDF 所需的 Linux 中文字型：
@@ -186,6 +208,7 @@ fushin-sales-ai/
 - `.env`
 - `.streamlit/secrets.toml`
 - Gemini API Key
+- Supabase 連線字串（`DATABASE_URL`）
 - 客戶姓名、電話、Email 等個資
 - 公司成本、毛利與未公開營運資料
 - 真實企業原始 Excel
