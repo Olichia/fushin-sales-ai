@@ -50,7 +50,7 @@ st.markdown(
 )
 
 # =========================================================
-# 數據預載邏輯函式 (解析 3-4 月活動成效 Excel 數據)
+# 數據預載邏輯函式
 # =========================================================
 
 def load_demo_data_to_session():
@@ -89,21 +89,23 @@ def load_demo_data_to_session():
 
 
 # =========================================================
-# 1. Hero 視覺區塊
+# 1. Hero 視覺區塊 (完全還原截圖內容與四指標)
 # =========================================================
 
+# 對照截圖 2：四卡片標題與副標題
 HERO_FEATURES = [
-    ("search", "orange", "AI 主動洞察", "揪出高低成效檔期與成效風險"),
-    ("show_chart", "blue", "情境模擬", "促銷方案比較預估 ROI 與營收"),
-    ("lightbulb", "magenta", "策略建議", "一鍵生成 LINE/Email 促銷文案"),
-    ("picture_as_pdf", "green", "主管報表", "一鍵匯出 AI 策略與成效 PDF"),
+    ("search", "orange", "AI 主動洞察", "揪出高低成效風險"),
+    ("show_chart", "blue", "情境模擬", "方案比較找出最佳解"),
+    ("lightbulb", "magenta", "策略建議", "AI 顧問即時問答"),
+    ("picture_as_pdf", "green", "主管報表", "一鍵匯出 PDF 報告"),
 ]
 
+# 對照截圖 1：Hero 統計數據
 HERO_STATS = [
     ("📊", "orange", "20+", "活動單位拆解案例"),
-    ("🧮", "blue", "10,000+", "活動 SKU 規模"),
+    ("🧮", "blue", "1,000+", "SKU規模"),
     ("🤖", "magenta", "24/7", "AI 洞察待命"),
-    ("🏬", "green", "600+", "合作實體與線上門市"),
+    ("🏬", "green", "600+", "合作門市"),
 ]
 
 encoded_logo = _encode_logo()
@@ -150,7 +152,33 @@ st.markdown(
 )
 
 # =========================================================
-# 2. 規格書指定：三張效益卡 + 四步驟流程圖
+# 2. CTA 按鈕區 (對照截圖 1：橘色單顆按鈕「開始探索 →」)
+# =========================================================
+
+cta_col, _ = st.columns([1, 2])
+
+with cta_col:
+    start_exploring = st.button(
+        "開始探索 →",
+        type="primary",
+        use_container_width=True,
+    )
+
+if start_exploring:
+    load_demo_data_to_session()
+    st.toast("🚀 數據已就緒！正在前往銷量資料處理...", icon="✅")
+    try:
+        st.switch_page("app_pages/01_銷量資料處理.py")
+    except Exception:
+        try:
+            st.switch_page("01_銷量資料處理.py")
+        except Exception as e:
+            st.error(f"跳轉失敗，請確認檔名是否為 01_銷量資料處理.py：{e}")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# =========================================================
+# 3. 規格書指定：三張效益卡 + 四步驟流程圖
 # =========================================================
 
 st.markdown(
@@ -212,56 +240,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
-# =========================================================
-# 3. 首頁雙按鈕區
-# =========================================================
-
-cta_col1, cta_col2 = st.columns([1, 1])
-
-with cta_col1:
-    start_demo = st.button(
-        "🚀 開始示範",
-        type="primary",
-        use_container_width=True,
-        help="【Demo 極速通道】背景預載 3-4 月示範數據，直達 AI 活動洞察。"
-    )
-
-with cta_col2:
-    goto_data_upload = st.button(
-        "🔍 查看 AI 如何判斷",
-        type="secondary",
-        use_container_width=True,
-        help="【合規檢查】跳轉至銷量資料處理，查看雙模式切換與欄位檢核。"
-    )
-
-# 1. 主要按鈕：直達 AI 活動洞察
-if start_demo:
-    if load_demo_data_to_session():
-        st.toast("🚀 3-4 月示範數據已載入！正在進入 AI 活動洞察...", icon="✅")
-        try:
-            st.switch_page("app_pages/12_活動洞察.py")
-        except Exception:
-            try:
-                st.switch_page("12_活動洞察.py")
-            except Exception as e:
-                st.error(f"跳轉失敗：{e}")
-
-# 2. 次要按鈕：直接跳轉至「銷量資料處理」頁面
-if goto_data_upload:
-    st.toast("🔍 前往銷量資料處理頁面...", icon="ℹ️")
-    try:
-        st.switch_page("app_pages/01_銷量資料處理.py")
-    except Exception:
-        try:
-            st.switch_page("01_銷量資料處理.py")
-        except Exception:
-            try:
-                st.switch_page("app_pages/銷量資料處理.py")
-            except Exception as e:
-                st.error(f"跳轉失敗，請確認檔名是否為 01_銷量資料處理.py：{e}")
-
-st.markdown("<br>", unsafe_allow_html=True)
 
 # =========================================================
 # 4. Executive Brief & Decision Queue
