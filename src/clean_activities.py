@@ -88,8 +88,15 @@ STANDARD_COLUMNS = [
 # 新模板實際內容是贈品文字）。
 # =========================================================
 
-NEW_TEMPLATE_MARKER_COLUMNS = {
+NEW_TEMPLATE_START_DATE_COLUMNS = {
+    "起始日期",
+    "開始日期",
     "活動開始日期",
+}
+
+
+NEW_TEMPLATE_END_DATE_COLUMNS = {
+    "結束日期",
     "活動結束日期",
 }
 
@@ -98,13 +105,24 @@ NEW_TEMPLATE_COLUMN_ALIASES = {
     "商品編號": "product_id",
     "商品名稱": "product_name",
     "品類": "product_category",
+    "起始日期": "activity_start_date_raw",
+    "開始日期": "activity_start_date_raw",
     "活動開始日期": "activity_start_date_raw",
+    "結束日期": "activity_end_date_raw",
     "活動結束日期": "activity_end_date_raw",
+    "售價(含稅)": "campaign_price",
+    "售價（含稅）": "campaign_price",
     "活動售價(含稅)": "campaign_price",
+    "活動售價（含稅）": "campaign_price",
+    "活動價": "campaign_price",
+    "售價": "campaign_price",
+    "活動贈品": "activity_gift",
     "贈品": "activity_gift",
+    "加碼贈品": "bonus_gift_name",
     "加碼送": "bonus_gift_text",
     "加碼活動": "bonus_campaign_text",
     "活動類型": "activity_tag_raw",
+    "類型": "activity_tag_raw",
 }
 
 
@@ -133,9 +151,16 @@ def detect_activity_sheet_format(
         for column in raw_dataframe.columns
     }
 
-    if NEW_TEMPLATE_MARKER_COLUMNS.issubset(
+    has_start_date = bool(
         normalized_columns
-    ):
+        & NEW_TEMPLATE_START_DATE_COLUMNS
+    )
+    has_end_date = bool(
+        normalized_columns
+        & NEW_TEMPLATE_END_DATE_COLUMNS
+    )
+
+    if has_start_date and has_end_date:
         return "new_template"
 
     return "legacy"
@@ -560,6 +585,7 @@ def _prepare_new_template_activity_dataframe(
         "activity_start_date_raw",
         "activity_end_date_raw",
         "activity_tag_raw",
+        "bonus_gift_name",
     ]:
         if column not in dataframe.columns:
             dataframe[column] = pd.NA
@@ -580,6 +606,7 @@ def _prepare_new_template_activity_dataframe(
         "product_name",
         "product_category",
         "activity_gift",
+        "bonus_gift_name",
         "bonus_gift_text",
         "bonus_campaign_text",
         "activity_tag_raw",
@@ -621,6 +648,8 @@ def _prepare_new_template_activity_dataframe(
     combined_gift_text = (
         dataframe["activity_gift"].fillna("")
         + " "
+        + dataframe["bonus_gift_name"].fillna("")
+        + " "
         + dataframe["bonus_gift_text"].fillna("")
         + " "
         + dataframe["bonus_campaign_text"].fillna("")
@@ -645,7 +674,6 @@ def _prepare_new_template_activity_dataframe(
     for column in [
         "promotion_period_raw",
         "bonus_period_raw",
-        "bonus_gift_name",
         "remark",
     ]:
         dataframe[column] = pd.NA
@@ -785,7 +813,9 @@ def explode_promotion_periods(
                     "campaign_price": row["campaign_price"],
                     "activity_gift": row["activity_gift"],
                     "bonus_period_raw": pd.NA,
-                    "bonus_gift_name": pd.NA,
+                    "bonus_gift_name": row.get(
+                        "bonus_gift_name", pd.NA
+                    ),
                     "remark": pd.NA,
                     "promotion_period_raw": pd.NA,
                     "product_category": row.get(

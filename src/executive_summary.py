@@ -588,7 +588,7 @@ def build_executive_brief_summary(
         insight_reason = "尚未有可用的淨營收效應資料。"
 
     insight_action = (
-        "建議前往「策略中心」查看完整策略清單與個別化建議，"
+        "建議前往「AI 策略中心」查看決策佇列與個別化建議，"
         "或使用「情境模擬」測試不同價格與贈品組合。"
     )
 
