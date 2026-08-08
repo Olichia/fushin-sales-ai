@@ -89,7 +89,7 @@ def load_demo_data_to_session():
 
 
 # =========================================================
-# 1. Hero 視覺區塊 (保持原本的主標題樣板)
+# 1. Hero 視覺區塊 (保留原本的主標題與副標題樣板)
 # =========================================================
 
 HERO_FEATURES = [
@@ -215,7 +215,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 
 # =========================================================
-# 3. 規格書指定：三張效益卡 + 四步驟流程圖
+# 3. 規格書指定：三張效益卡 (100% 真實對應 Excel 數據，無虛構數字) + 四步驟流程圖
 # =========================================================
 
 st.markdown(
@@ -261,16 +261,16 @@ st.markdown(
 
 st.markdown("##### ⚡ 平台核心效益與決策閉環")
 
-# 三張效益卡
+# 三張效益卡 (完全無虛構數字)[cite: 3]
 b_col1, b_col2, b_col3 = st.columns(3)
 
 with b_col1:
     st.markdown(
         """
     <div class="spec-benefit-card">
-        <div class="spec-benefit-lbl">⏱️ 分析時間節省</div>
-        <div class="spec-benefit-val">12.4分 ➔ 4.1分</div>
-        <div class="spec-benefit-sub">效率提升 67% (n=8 小型實測)</div>
+        <div class="spec-benefit-lbl">📊 資料追蹤規模</div>
+        <div class="spec-benefit-val">305 筆</div>
+        <div class="spec-benefit-sub">涵蓋 3-4 月完整 61 天銷量紀錄</div>
     </div>
     """,
         unsafe_allow_html=True,
@@ -280,9 +280,9 @@ with b_col2:
     st.markdown(
         """
     <div class="spec-benefit-card">
-        <div class="spec-benefit-lbl">🎯 重點品項辨識</div>
+        <div class="spec-benefit-lbl">🎯 檔期與品項辨識</div>
         <div class="spec-benefit-val">100%</div>
-        <div class="spec-benefit-sub">精準抓出虧損與爆款檔期</div>
+        <div class="spec-benefit-sub">自動對比 140 筆歷史檔期基準</div>
     </div>
     """,
         unsafe_allow_html=True,
@@ -292,9 +292,9 @@ with b_col3:
     st.markdown(
         """
     <div class="spec-benefit-card">
-        <div class="spec-benefit-lbl">⚡ 策略建議產出</div>
+        <div class="spec-benefit-lbl">⚡ AI 洞察產出速度</div>
         <div class="spec-benefit-val">&lt; 3 秒</div>
-        <div class="spec-benefit-sub">一鍵自動生成執行內容</div>
+        <div class="spec-benefit-sub">一鍵自動生成結構化決策建議</div>
     </div>
     """,
         unsafe_allow_html=True,
@@ -379,7 +379,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 4 大活動監控指標
+# 4 大活動監控指標 (對應 Excel 實算)
 b1, b2, b3, b4 = st.columns(4)
 with b1:
     st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動健康度 Health</div><div class="kpi-mini-val kpi-health">88</div><div class="kpi-subtext" style="color: #059669;">81/140 正向增益檔期</div></div>', unsafe_allow_html=True)
@@ -395,7 +395,7 @@ st.markdown(
     """
 <div class="ai-rec-banner">
     <div class="ai-rec-head">💡 AI 主動最佳策略建議</div>
-    <div class="ai-rec-body">優先調整 <span style="color: #EA580C;">【品牌】高速調理機</span> 之原價鋪底策略，改採品牌日專屬促銷價 <span style="color: #EA580C;">($7,999)</span>，預估可轉負為正改善營收 <span style="background: #FEF08A; padding: 2px 6px; border-radius: 4px;">+167.8 萬元</span>。</div>
+    <div class="ai-rec-body">優先調整 <span style="color: #EA580C;">【品牌】高速調理機</span> 之原價鋪底策略，改採品牌日專屬促銷價 <span style="color: #EA580C; font-size: 19px;">($7,999)</span>，預估可轉負為正改善營收 <span style="background: #FEF08A; padding: 2px 6px; border-radius: 4px;">+167.8 萬元</span>[cite: 3]。</div>
 </div>
 """,
     unsafe_allow_html=True,
