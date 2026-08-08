@@ -58,7 +58,6 @@ def load_demo_data_to_session():
     st.session_state["is_demo_mode"] = True
     st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
     
-    # 優先尋找預載路徑或專案根目錄的 Excel 備援檔
     target_path = DEMO_FILE_PATH
     if not target_path.exists():
         alt_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
@@ -90,7 +89,7 @@ def load_demo_data_to_session():
 
 
 # =========================================================
-# 1. Hero 視覺區塊 (對應 Excel 實測背景數據)
+# 1. Hero 視覺區塊 (已還原指定原始數據敘述)
 # =========================================================
 
 HERO_FEATURES = [
@@ -101,9 +100,9 @@ HERO_FEATURES = [
 ]
 
 HERO_STATS = [
-    ("📊", "orange", "28 檔", "3-4月活動單位拆解"),
-    ("🧮", "blue", "305 筆", "每日銷量追蹤規模"),
-    ("🤖", "magenta", "2,093 萬", "NT$ 累積淨營收增益"),
+    ("📊", "orange", "20+", "活動單位拆解案例"),
+    ("🧮", "blue", "10,000+", "活動 SKU 規模"),
+    ("🤖", "magenta", "24/7", "AI 洞察待命"),
     ("🏬", "green", "600+", "合作實體與線上門市"),
 ]
 
@@ -151,7 +150,7 @@ st.markdown(
 )
 
 # =========================================================
-# 2. CTA 按鈕區 (預載 3-4 月數據並連動跳轉)
+# 2. CTA 按鈕區
 # =========================================================
 
 cta_col1, cta_col2 = st.columns([1, 1])
@@ -184,7 +183,7 @@ if start_demo or start_exploring:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =========================================================
-# 3. Executive Brief (基於 3-4 月 Excel 實測之今日決策簡報)
+# 3. Executive Brief (高對比大字與關鍵字高亮版)
 # =========================================================
 
 st.markdown(
@@ -192,117 +191,141 @@ st.markdown(
 <style>
     .exec-brief-wrapper {
         background: #FFFFFF;
-        border: 1px solid #E2E8F0;
+        border: 2px solid #E2E8F0;
         border-radius: 16px;
         padding: 24px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
         margin-bottom: 24px;
     }
     .brief-title {
-        font-size: 20px;
-        font-weight: 700;
-        color: #1E293B;
-        margin-bottom: 16px;
+        font-size: 24px;
+        font-weight: 800;
+        color: #0F172A;
+        margin-bottom: 18px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
+    }
+    .brief-subtitle-badge {
+        background: #EFF6FF;
+        color: #2563EB;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 20px;
+        margin-left: 8px;
     }
     .kpi-mini-card {
         background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 16px;
+        border: 1px solid #CBD5E1;
+        border-radius: 14px;
+        padding: 18px 12px;
         text-align: center;
     }
-    .kpi-mini-title { font-size: 13px; color: #64748B; font-weight: 500; }
-    .kpi-mini-val { font-size: 26px; font-weight: 800; margin: 6px 0; }
-    .kpi-health { color: #10B981; }
-    .kpi-risk { color: #EF4444; }
-    .kpi-pending { color: #F59E0B; }
-    .kpi-forecast { color: #3B82F6; }
+    .kpi-mini-title { font-size: 15px; color: #475569; font-weight: 700; }
+    .kpi-mini-val { font-size: 36px; font-weight: 900; margin: 8px 0; line-height: 1.1; }
+    .kpi-health { color: #059669; }
+    .kpi-risk { color: #DC2626; }
+    .kpi-pending { color: #D97706; }
+    .kpi-forecast { color: #2563EB; }
+    .kpi-subtext { font-size: 13px; font-weight: 700; }
 
     .ai-rec-banner {
         background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%);
-        border-left: 5px solid #F97316;
-        border-radius: 10px;
-        padding: 16px 20px;
-        margin: 20px 0;
+        border-left: 6px solid #EA580C;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin: 24px 0;
+        box-shadow: 0 4px 12px rgba(234, 88, 12, 0.08);
     }
-    .ai-rec-head { color: #C2410C; font-weight: 700; font-size: 14px; }
-    .ai-rec-body { font-size: 15px; color: #1F2937; font-weight: 600; margin-top: 4px; }
-    .ai-rec-evidence { font-size: 12px; color: #6B7280; margin-top: 6px; }
+    .ai-rec-head { color: #C2410C; font-weight: 800; font-size: 17px; }
+    .ai-rec-body { font-size: 17px; color: #0F172A; font-weight: 700; margin-top: 8px; line-height: 1.5; }
+    .ai-rec-evidence { font-size: 14px; color: #475569; margin-top: 10px; background: rgba(255,255,255,0.75); padding: 8px 12px; border-radius: 6px; border: 1px solid #FED7AA; }
 
     .decision-row {
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 10px;
-        padding: 12px 16px;
-        margin-bottom: 10px;
+        background: #FFFFFF;
+        border: 1.5px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
     }
     .badge-impact-high {
-        background: #FEE2E2; color: #DC2626; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+        background: #FEE2E2; color: #DC2626; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 6px;
     }
     .badge-impact-med {
-        background: #FEF3C7; color: #D97706; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+        background: #FEF3C7; color: #D97706; font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 6px;
+    }
+    .confidence-tag {
+        font-size: 13px; color: #64748B; font-weight: 700; margin-left: 8px;
+    }
+    .decision-text {
+        font-size: 16px; color: #0F172A; font-weight: 700; margin-left: 10px;
     }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
+# Executive Brief 破題標題
 st.markdown(
     """
 <div class="exec-brief-wrapper">
     <div class="brief-title">
-        <span>⚡ Executive Brief | 今日活動決策簡報 (AI Executive Brief)</span>
+        <span>⚡ Executive Brief | 今日活動決策簡報 (AI 實時總覽)</span>
+        <span class="brief-subtitle-badge">🤖 AI 主動診斷</span>
     </div>
 </div>
 """,
     unsafe_allow_html=True,
 )
 
-# 4 大活動監控指標 (緊扣 Excel 的 28 檔與 140 個單位分析)
+# 4 大活動監控指標
 b1, b2, b3, b4 = st.columns(4)
 with b1:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動健康度 Health</div><div class="kpi-mini-val kpi-health">88</div><div style="font-size: 11px; color: #10B981;">81/140 正向增益檔期</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動健康度 Health</div><div class="kpi-mini-val kpi-health">88</div><div class="kpi-subtext" style="color: #059669;">81/140 正向增益檔期</div></div>', unsafe_allow_html=True)
 with b2:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動風險警示 Risk</div><div class="kpi-mini-val kpi-risk">7</div><div style="font-size: 11px; color: #EF4444;">調理機鋪底虧損檔期</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">活動風險警示 Risk</div><div class="kpi-mini-val kpi-risk">7 檔</div><div class="kpi-subtext" style="color: #DC2626;">調理機鋪底虧損警告</div></div>', unsafe_allow_html=True)
 with b3:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">待執行策略 Decision</div><div class="kpi-mini-val kpi-pending">3</div><div style="font-size: 11px; color: #F59E0B;">今日待審核</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">待執行策略 Decision</div><div class="kpi-mini-val kpi-pending">3 項</div><div class="kpi-subtext" style="color: #D97706;">今日建議優先審核</div></div>', unsafe_allow_html=True)
 with b4:
-    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">下一檔預估 Forecast</div><div class="kpi-mini-val kpi-forecast">+15.2%</div><div style="font-size: 11px; color: #3B82F6;">預估品牌日營收增益</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">下一檔預估 Forecast</div><div class="kpi-mini-val kpi-forecast">+15.2%</div><div class="kpi-subtext" style="color: #2563EB;">預估品牌日營收成長</div></div>', unsafe_allow_html=True)
 
 # AI 主動建議 Banner
 st.markdown(
     """
 <div class="ai-rec-banner">
-    <div class="ai-rec-head">💡 AI 主動活動策略建議</div>
-    <div class="ai-rec-body">優先調整【品牌】高速調理機之原價鋪底策略，改採品牌日專屬促銷價 ($7,999)，預估可轉負為正改善營收 +167.8 萬元。</div>
-    <div class="ai-rec-evidence">數據證據：Excel 顯示調理機在 M2/M7 原價 ($8,990) 淨增益為 -$14.38 萬，但在 A10 降至 $7,999 帶動單檔 +$167.8 萬增益。(AI 信心度: 92%)</div>
+    <div class="ai-rec-head">💡 AI 主動最佳策略建議</div>
+    <div class="ai-rec-body">優先調整 <span style="color: #EA580C;">【品牌】高速調理機</span> 之原價鋪底策略，改採品牌日專屬促銷價 <span style="color: #EA580C; font-size: 19px;">($7,999)</span>，預估可轉負為正改善營收 <span style="background: #FEF08A; padding: 2px 6px; border-radius: 4px;">+167.8 萬元</span>。</div>
+    <div class="ai-rec-evidence">🔍 <b>數據證據</b>：Excel 顯示調理機在 M2/M7 原價 ($8,990) 淨增益為 <b>-$14.38 萬</b>，但在 A10 品牌日降至 $7,999 帶動單檔 <b>+$167.8 萬增益</b>。(AI 信心度: <b>92%</b>)</div>
 </div>
 """,
     unsafe_allow_html=True,
 )
 
-# 🎯 Decision Queue (緊扣 3-4月活動成效表數據)
-st.markdown("##### 🎯 待審核活動策略隊列 (Decision Queue)")
+# 🎯 Decision Queue
+st.markdown("#### 🎯 今日 AI 建議決策隊列 (Decision Queue)")
+st.caption("📌 **使用說明**：AI 依影響力與緊急度排定的建議事項。請點擊右側按鈕進行**一鍵採納、查看圖表或情境試算**。")
 
-dq1, dq2 = st.columns([3.5, 1])
+# 決策卡 01
+dq1, dq2 = st.columns([3.2, 1.2])
 with dq1:
     st.markdown("""
     <div class="decision-row">
         <div>
-            <span class="badge-impact-high">Impact: High</span>
-            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 92%</span>
-            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">01 促銷折扣修正：高速調理機原價鋪底虧損，建議調降至促銷價 $7,999</strong>
+            <span class="badge-impact-high">高影響力 High Impact</span>
+            <span class="confidence-tag">AI 信心度: 92%</span>
+            <div style="margin-top: 6px;">
+                <strong class="decision-text">01 促銷折扣修正：高速調理機原價鋪底虧損，建議調降至促銷價 $7,999</strong>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 with dq2:
-    if st.button("Approve 採納策略", key="app_1", use_container_width=True):
+    if st.button("👉 Approve 採納並生成文案", key="app_1", use_container_width=True, type="primary"):
         load_demo_data_to_session()
         st.toast("已帶入補貨與折扣建議！正在跳轉至行動生成頁面...", icon="✅")
         try:
@@ -310,57 +333,65 @@ with dq2:
         except Exception:
             pass
 
-dq3, dq4 = st.columns([3.5, 1])
+# 決策卡 02
+dq3, dq4 = st.columns([3.2, 1.2])
 with dq3:
     st.markdown("""
     <div class="decision-row">
         <div>
-            <span class="badge-impact-med">Impact: Medium</span>
-            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 90%</span>
-            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">02 熱銷品項備貨：5L氣炸鍋 A10 檔期淨增益高達 +$132.3 萬，預估 5 天內補貨</strong>
+            <span class="badge-impact-med">中影響力 Medium Impact</span>
+            <span class="confidence-tag">AI 信心度: 90%</span>
+            <div style="margin-top: 6px;">
+                <strong class="decision-text">02 熱銷品項備貨：5L氣炸鍋 A10 淨增益達 +$132.3 萬，預估 5 天內補貨</strong>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 with dq4:
-    if st.button("Review 檢視洞察", key="rev_1", use_container_width=True):
+    if st.button("👉 Review 檢視數據趨勢", key="rev_1", use_container_width=True):
         load_demo_data_to_session()
         try:
             st.switch_page("app_pages/12_活動洞察.py")
         except Exception:
             pass
 
-dq5, dq6 = st.columns([3.5, 1])
+# 決策卡 03
+dq5, dq6 = st.columns([3.2, 1.2])
 with dq5:
     st.markdown("""
     <div class="decision-row">
         <div>
-            <span class="badge-impact-high">Impact: High</span>
-            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 87%</span>
-            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">03 組合促銷模擬：IH 電子鍋搭配廚電日夜貓加碼，預估提高 10% 廣告可提升營收 12.5%</strong>
+            <span class="badge-impact-high">高影響力 High Impact</span>
+            <span class="confidence-tag">AI 信心度: 87%</span>
+            <div style="margin-top: 6px;">
+                <strong class="decision-text">03 組合促銷模擬：IH 電子鍋搭配夜貓加碼，預估提高 10% 廣告可升營收 12.5%</strong>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 with dq6:
-    if st.button("Simulate 情境模擬", key="sim_1", use_container_width=True):
+    if st.button("👉 Simulate 情境效益試算", key="sim_1", use_container_width=True):
         load_demo_data_to_session()
         try:
             st.switch_page("app_pages/17_情境模擬.py")
         except Exception:
             pass
 
-# Prompt Chips (緊扣 3-4 月真實數據問答)
+# Prompt Chips
 st.markdown("<br>", unsafe_allow_html=True)
-st.markdown("##### 💬 一鍵 AI 活動策略查詢 (Prompt Chips)")
+st.markdown("#### 💬 一鍵 AI 策略問答 (點擊即刻回答)")
+st.caption("📌 點擊以下常用問題按鈕，即時觀看 AI 分析結論與 Excel 數據證據：")
+
 p1, p2, p3, p4 = st.columns(4)
 with p1:
-    if st.button("為什麼高速調理機在 3 月初營收下滑？", use_container_width=True):
+    if st.button("❓ 調理機 3 月為何下滑？", use_container_width=True):
         st.info("🤖 **AI 原因分析**：主因 M2/M7 檔期維護代理牌價 $8,990 缺乏促銷誘因，每日淨營收效應為 -NT$14.38 萬。\n\n📌 **數據證據**：銷量原始資料顯示無活動折扣時每日銷量為 0，降價至 $7,999 後銷量提升至每日 8~10 台。")
 with p2:
-    if st.button("3-4 月成效最高的活動是哪一檔？", use_container_width=True):
+    if st.button("🏆 哪一檔成效最高？", use_container_width=True):
         st.info("🤖 **AI 機會點**：A10 品牌日（含夜貓加碼與平台折價券）為成效冠軍。\n\n📌 **數據證據**：單檔帶動高速調理機 +NT$167.8 萬增益、氣炸鍋 +NT$132.3 萬增益。")
 with p3:
-    if st.button("哪些品項最值得在下一檔加碼？", use_container_width=True):
+    if st.button("🔥 哪些品項最值得加碼？", use_container_width=True):
         st.info("🤖 **AI 風險與加碼提醒**：【品牌】5L氣炸鍋 與 IH8人份電子鍋為營收雙核心。\n\n📌 **數據證據**：歷史累積淨營收增益分別高達 +NT$689.8 萬與 +NT$401.9 萬。")
 with p4:
-    if st.button("預估下檔品牌日 ROI", use_container_width=True):
+    if st.button("📈 預估下檔品牌日 ROI", use_container_width=True):
         st.info("🤖 **AI 趨勢預測**：若在品牌日追加 10% 廣告行銷預算，預估整體營收成長 +15.2%。\n\n📌 **數據證據**：情境模擬模型信心度 89% (預期淨邊際收益 +5.4%)。")
