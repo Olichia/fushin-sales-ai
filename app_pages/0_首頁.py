@@ -50,11 +50,11 @@ st.markdown(
 )
 
 # =========================================================
-# 數據預載邏輯函式 (一鍵 Demo 核心)
+# 數據預載邏輯函式
 # =========================================================
 
 def load_demo_data_to_session():
-    """將 Demo Excel 讀取並存入 Streamlit Session State"""
+    """將銷量活動數據預先讀取並存入 Streamlit Session State"""
     st.session_state["is_demo_mode"] = True
     st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
     
@@ -72,10 +72,10 @@ def load_demo_data_to_session():
             st.session_state["data_loaded"] = True
             return True
         except Exception as e:
-            st.error(f"Demo 檔案讀取失敗：{e}")
+            st.error(f"數據讀取失敗：{e}")
             return False
     else:
-        st.error(f"找不到 Demo 檔案，請確認 `assets/demo_sales_data.xlsx` 是否存在。")
+        st.error(f"找不到數據檔案，請確認 `assets/demo_sales_data.xlsx` 是否存在。")
         return False
 
 
@@ -84,10 +84,10 @@ def load_demo_data_to_session():
 # =========================================================
 
 HERO_FEATURES = [
-    ("search", "orange", "AI 活動洞察", "揪出高低成效檔期與成效風險"),
-    ("show_chart", "blue", "活動情境模擬", "促銷方案比較預估 ROI 與營收"),
-    ("lightbulb", "magenta", "策略行動建議", "一鍵生成 LINE/Email 促銷文案"),
-    ("picture_as_pdf", "green", "電商主管報表", "一鍵匯出 AI 策略與成效 PDF"),
+    ("search", "orange", "AI 主動洞察", "揪出高低成效檔期與成效風險"),
+    ("show_chart", "blue", "情境模擬", "促銷方案比較預估 ROI 與營收"),
+    ("lightbulb", "magenta", "策略建議", "一鍵生成 LINE/Email 促銷文案"),
+    ("picture_as_pdf", "green", "主管報表", "一鍵匯出 AI 策略與成效 PDF"),
 ]
 
 HERO_STATS = [
@@ -141,7 +141,7 @@ st.markdown(
 )
 
 # =========================================================
-# 2. CTA 按鈕區 (載入 Demo 資料並直達 4_銷售總覽.py)
+# 2. CTA 按鈕與數據狀態卡片區
 # =========================================================
 
 cta_col1, cta_col2 = st.columns([1, 1])
@@ -155,30 +155,32 @@ with cta_col1:
 
 with cta_col2:
     start_demo = st.button(
-        "🚀 載入活動 Demo 示範資料",
+        "🚀 載入 3-4 月銷量活動數據",
         type="secondary",
         use_container_width=True,
     )
 
 if start_demo or start_exploring:
     if load_demo_data_to_session():
-        st.toast("🚀 已成功載入 Demo 活動數據！正在跳轉至銷售總覽...", icon="✅")
-        # 🎯 精確跳轉防錯機制 (優先跳轉 4_銷售總覽.py)
+        st.toast("🚀 已成功載入銷量活動數據！正在跳轉至 AI 活動洞察...", icon="✅")
         try:
-            st.switch_page("app_pages/4_銷售總覽.py")
+            st.switch_page("app_pages/12_活動洞察.py")
         except Exception:
             try:
-                st.switch_page("app_pages/8_活動成效分析.py")
-            except Exception:
-                try:
-                    st.switch_page("app_pages/12_活動洞察.py")
-                except Exception as e:
-                    st.error(f"跳轉失敗，請確認檔案路徑：{e}")
+                st.switch_page("12_活動洞察.py")
+            except Exception as e:
+                st.error(f"跳轉失敗，請確認檔案路徑：{e}")
+
+# 📍 數據載入狀態卡片 (最直觀的顯示區域)
+if st.session_state.get("data_loaded", False):
+    st.success("✅ **數據狀態**：已成功載入 3-4 月銷量活動數據（已就緒於系統記憶體中）")
+else:
+    st.info("💡 **數據狀態**：尚未載入數據，可點擊上方按鈕一鍵載入數據進行評估。")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =========================================================
-# 3. Executive Brief (今日決策簡報)
+# 3. Executive Brief (今日決策簡報與 Decision Queue)
 # =========================================================
 
 st.markdown(
@@ -236,6 +238,12 @@ st.markdown(
         align-items: center;
         justify-content: space-between;
     }
+    .badge-impact-high {
+        background: #FEE2E2; color: #DC2626; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+    }
+    .badge-impact-med {
+        background: #FEF3C7; color: #D97706; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -263,7 +271,7 @@ with b3:
 with b4:
     st.markdown('<div class="kpi-mini-card"><div class="kpi-mini-title">下一檔預估 Forecast</div><div class="kpi-mini-val kpi-forecast">+8.2%</div><div style="font-size: 11px; color: #3B82F6;">預估營收成長</div></div>', unsafe_allow_html=True)
 
-# AI 主動建議
+# AI 主動建議 Banner
 st.markdown(
     """
 <div class="ai-rec-banner">
@@ -275,23 +283,64 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 活動決策隊列
+# 🎯 Decision Queue
 st.markdown("##### 🎯 待審核活動策略隊列 (Decision Queue)")
 
-dq1, dq2 = st.columns([3, 1])
+dq1, dq2 = st.columns([3.5, 1])
 with dq1:
-    st.markdown('<div class="decision-row"><div><span style="background:#FEE2E2; color:#DC2626; font-size:11px; font-weight:700; padding:2px 6px; border-radius:4px;">High Impact</span><strong style="margin-left:8px; font-size:14px; color:#1E293B;">01 促銷商品補貨與加碼：高流量活動品項 5 天後缺貨</strong></div></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="decision-row">
+        <div>
+            <span class="badge-impact-high">Impact: High</span>
+            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 91%</span>
+            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">01 促銷商品補貨：高流量活動品項預估 5 天後缺貨</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 with dq2:
     if st.button("Approve 採納策略", key="app_1", use_container_width=True):
-        st.success("已自動帶入補貨清單並生成推播文案！")
+        load_demo_data_to_session()
+        st.toast("已帶入補貨建議！正在跳轉至行動生成頁面...", icon="✅")
+        try:
+            st.switch_page("app_pages/18_行動生成.py")
+        except Exception:
+            pass
 
-dq3, dq4 = st.columns([3, 1])
+dq3, dq4 = st.columns([3.5, 1])
 with dq3:
-    st.markdown('<div class="decision-row"><div><span style="background:#E0F2FE; color:#0369A1; font-size:11px; font-weight:700; padding:2px 6px; border-radius:4px;">Medium Impact</span><strong style="margin-left:8px; font-size:14px; color:#1E293B;">02 活動頁面優化：行動端結帳漏鬥流失率調整</strong></div></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="decision-row">
+        <div>
+            <span class="badge-impact-med">Impact: Medium</span>
+            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 86%</span>
+            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">02 流量漏鬥優化：行動端結帳流失率高於桌機 18%</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 with dq4:
     if st.button("Review 檢視洞察", key="rev_1", use_container_width=True):
+        load_demo_data_to_session()
         try:
             st.switch_page("app_pages/12_活動洞察.py")
+        except Exception:
+            pass
+
+dq5, dq6 = st.columns([3.5, 1])
+with dq5:
+    st.markdown("""
+    <div class="decision-row">
+        <div>
+            <span class="badge-impact-high">Impact: High</span>
+            <span style="font-size: 11px; color: #64748B; margin-left: 6px;">Confidence: 89%</span>
+            <strong style="margin-left:8px; font-size:14px; color:#1E293B;">03 促銷折扣調整：預估提高 10% 預算可提升營收 8.2%</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+with dq6:
+    if st.button("Simulate 情境模擬", key="sim_1", use_container_width=True):
+        load_demo_data_to_session()
+        try:
+            st.switch_page("app_pages/17_情境模擬.py")
         except Exception:
             pass
 
@@ -301,13 +350,13 @@ st.markdown("##### 💬 一鍵 AI 活動策略查詢 (Prompt Chips)")
 p1, p2, p3, p4 = st.columns(4)
 with p1:
     if st.button("為什麼本檔期營收下降？", use_container_width=True):
-        st.info("🤖 **AI 原因分析**：主因非流量下滑，而是行動版付款頁面流失率上升 12%。")
+        st.info("🤖 **AI 原因分析**：主因非流量下滑，而是行動版付款頁面流失率上升 12%。\n\n📌 **數據證據**：行動端付款完成率僅 3.2% (桌機版為 5.1%)。")
 with p2:
     if st.button("潛在最大促銷機會？", use_container_width=True):
-        st.info("🤖 **AI 機會點**：組合銷售配件套裝可提升平均客單價 15%。")
+        st.info("🤖 **AI 機會點**：組合銷售配件套裝可提升平均客單價 15%。\n\n📌 **數據證據**：過往 3 月檔期配件加購率達 42%。")
 with p3:
     if st.button("活動庫存風險評估", use_container_width=True):
-        st.info("🤖 **AI 風險提醒**：Top 3 熱銷活動 SKU 庫存僅剩 4 天可售。")
+        st.info("🤖 **AI 風險提醒**：Top 3 熱銷活動 SKU 庫存僅剩 4 天可售。\n\n📌 **數據證據**：每日平均銷量 150 件，目前庫存僅餘 580 件。")
 with p4:
     if st.button("預估下檔活動 ROI", use_container_width=True):
-        st.info("🤖 **AI 趨勢預測**：若提高 10% 廣告預算，預估整體營收成長 +8.2%。")
+        st.info("🤖 **AI 趨勢預測**：若提高 10% 廣告預算，預估整體營收成長 +8.2%。\n\n📌 **數據證據**：模擬模型信心度 89% (Expected Margin +3.1%)。")
