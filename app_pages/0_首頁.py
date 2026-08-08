@@ -18,28 +18,8 @@ from src.session_helpers import initialize_session_state
 
 initialize_session_state()
 
-# ---------------------------------------------------------
-# 全域 Demo 資料預載 (確保首頁開啟時即擁有數據)
-# ---------------------------------------------------------
-DEMO_FILE_PATH = PROJECT_ROOT / "assets" / "3-4月活動成效表_v2.xlsx"
-
-if "is_demo_mode" not in st.session_state:
-    st.session_state["is_demo_mode"] = True
-    st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
-
-if "sales_data" not in st.session_state and DEMO_FILE_PATH.exists():
-    try:
-        xls = pd.ExcelFile(DEMO_FILE_PATH)
-        st.session_state["sales_data"] = pd.read_excel(
-            xls, sheet_name="銷量原始資料(零填補)"
-        )
-        if "活動單位清單(依時間)" in xls.sheet_names:
-            st.session_state["events_data"] = pd.read_excel(
-                xls, sheet_name="活動單位清單(依時間)"
-            )
-    except Exception:
-        pass
-
+# 🎯 精確對接你的 assets/ 檔名 (注意雙 .xlsx 附檔名)
+DEMO_FILE_PATH = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx.xlsx"
 LOGO_PATH = PROJECT_ROOT / "assets" / "logo-white.png"
 
 
@@ -71,7 +51,7 @@ st.markdown(
 )
 
 # =========================================================
-# 首頁重點功能與統計數字 (已更新 SKU 規模為 10,000+)
+# 首頁重點功能與統計數字 (扣緊：富信新零售 × AI活動決策)
 # =========================================================
 
 HERO_FEATURES = [
@@ -103,7 +83,7 @@ HERO_FEATURES = [
 
 HERO_STATS = [
     ("📊", "orange", "20+", "電商活動拆解案例"),
-    ("🧮", "blue", "10,000+", "活動 SKU 規模"),  # 已更新為 10,000+
+    ("🧮", "blue", "10,000+", "活動 SKU 規模"),
     ("🤖", "magenta", "24/7", "AI 活動洞察待命"),
     ("🏬", "green", "600+", "合作實體與線上門市"),
 ]
@@ -118,7 +98,7 @@ feature_cards_html = "".join(
     '<div class="hero-feature-card">'
     f'<div class="hero-feature-icon-badge hero-feature-icon-{color_key}">'
     '<span class="hero-feature-icon-glyph" data-testid="stIconMaterial" '
-    "style=\"font-family:'Material Symbols Rounded';\" translate=\"no\">"
+    'style="font-family:\'Material Symbols Rounded\';" translate="no">'
     f"{icon_name}</span>"
     "</div>"
     f'<div class="hero-feature-title">{title}</div>'
@@ -156,7 +136,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# CTA 按鈕區塊 (一鍵 Demo 資料觸發)
+# CTA 按鈕區塊：載入 Demo 資料並精確跳轉至 5_活動資料上傳.py
 cta_col1, cta_col2 = st.columns([1, 1])
 with cta_col1:
     start_exploring = st.button(
@@ -172,10 +152,28 @@ with cta_col2:
     )
 
 if start_exploring or start_demo:
-    if start_demo:
-        st.session_state["is_demo_mode"] = True
-        st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
-    st.switch_page("app_pages/15_資料管理中心.py")
+    st.session_state["is_demo_mode"] = True
+    st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
+    
+    # 即時讀取 demo_sales_data.xlsx.xlsx 檔案並寫入 Session State
+    if DEMO_FILE_PATH.exists():
+        try:
+            xls = pd.ExcelFile(DEMO_FILE_PATH)
+            if "銷量原始資料(零填補)" in xls.sheet_names:
+                st.session_state["sales_data"] = pd.read_excel(xls, sheet_name="銷量原始資料(零填補)")
+            else:
+                st.session_state["sales_data"] = pd.read_excel(xls, sheet_name=0)
+                
+            if "活動單位清單(依時間)" in xls.sheet_names:
+                st.session_state["events_data"] = pd.read_excel(xls, sheet_name="活動單位清單(依時間)")
+        except Exception as e:
+            st.error(f"預載資料過程發生錯誤：{e}")
+
+    # 🎯 精確跳轉至你專案目錄中的「5_活動資料上傳.py」
+    try:
+        st.switch_page("app_pages/5_活動資料上傳.py")
+    except Exception:
+        st.switch_page("5_活動資料上傳.py")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -372,7 +370,10 @@ with dq3:
     )
 with dq4:
     if st.button("Review 檢視洞察", key="rev_1", use_container_width=True):
-        st.switch_page("app_pages/20_AI洞察與建議.py")
+        try:
+            st.switch_page("app_pages/8_活動成效分析.py")
+        except Exception:
+            st.switch_page("8_活動成效分析.py")
 
 # Prompt Chips
 st.markdown("<br>", unsafe_allow_html=True)
