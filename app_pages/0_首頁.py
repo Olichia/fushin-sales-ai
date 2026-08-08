@@ -9,11 +9,7 @@ import streamlit as st
 # =========================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-# 自動相容：優先搜尋 app_pages/templates，找不到則自動回退至 PROJECT_ROOT/templates
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
-if not TEMPLATES_DIR.exists():
-    TEMPLATES_DIR = PROJECT_ROOT / "templates"
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -117,11 +113,11 @@ total_recs, total_days, total_units = get_home_stats(str(_demo_path)) if _demo_p
 
 
 # =========================================================
-# 1. Hero 視覺區塊
+# 1. Hero 視覺區塊 (保留原本的主標題與副標題樣板)
 # =========================================================
 
 HERO_FEATURES = [
-    ("search", "orange", "AI 主動洞察", "精準識別高低成效與風險"),
+    ("search", "orange", "AI 主動洞察", "揪出高低成效風險"),
     ("show_chart", "blue", "情境模擬", "方案比較找出最佳解"),
     ("lightbulb", "magenta", "策略建議", "AI 顧問即時問答"),
     ("picture_as_pdf", "green", "主管報表", "一鍵匯出 PDF 報告"),
@@ -192,24 +188,12 @@ with cta_col:
 if start_demo:
     if load_demo_data_to_session():
         st.toast("🚀 3-4 月示範數據已載入！正在進入 AI 活動洞察...", icon="✅")
-        candidate_pages = [
-            "pages/12_活動洞察.py",
-            "app_pages/12_活動洞察.py",
-            "12_活動洞察.py",
-            "pages/活動洞察.py",
-            "app_pages/活動洞察.py",
-        ]
-        switched = False
-        for target in candidate_pages:
+        for target in ["pages/12_活動洞察.py", "app_pages/12_活動洞察.py", "12_活動洞察.py"]:
             try:
                 st.switch_page(target)
-                switched = True
                 break
             except Exception:
                 continue
-
-        if not switched:
-            st.error("跳轉失敗：請確認專案目錄中是否存在 `12_活動洞察.py` 頁面檔案。")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -265,44 +249,52 @@ b_col1, b_col2, b_col3 = st.columns(3)
 
 with b_col1:
     st.markdown(
-        f"""<div class="spec-benefit-card">
-            <div class="spec-benefit-lbl">📊 資料追蹤規模</div>
-            <div class="spec-benefit-val">{total_recs} 筆</div>
-            <div class="spec-benefit-sub">涵蓋 3-4 月完整 {total_days} 天銷量紀錄</div>
-        </div>""",
+        f"""
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">📊 資料追蹤規模</div>
+        <div class="spec-benefit-val">{total_recs} 筆</div>
+        <div class="spec-benefit-sub">涵蓋 3-4 月完整 {total_days} 天銷量紀錄</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 with b_col2:
     st.markdown(
-        f"""<div class="spec-benefit-card">
-            <div class="spec-benefit-lbl">🎯 檔期與品項辨識</div>
-            <div class="spec-benefit-val">100%</div>
-            <div class="spec-benefit-sub">自動對比 {total_units} 筆歷史檔期基準</div>
-        </div>""",
+        f"""
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">🎯 檔期與品項辨識</div>
+        <div class="spec-benefit-val">100%</div>
+        <div class="spec-benefit-sub">自動對比 {total_units} 筆歷史檔期基準</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 with b_col3:
     st.markdown(
-        """<div class="spec-benefit-card">
-            <div class="spec-benefit-lbl">⚡ AI 洞察產出速度</div>
-            <div class="spec-benefit-val">&lt; 3 秒</div>
-            <div class="spec-benefit-sub">一鍵自動生成結構化決策建議</div>
-        </div>""",
+        """
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">⚡ AI 洞察產出速度</div>
+        <div class="spec-benefit-val">&lt; 3 秒</div>
+        <div class="spec-benefit-sub">一鍵自動生成結構化決策建議</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 # 四步驟流程圖
 st.markdown(
-    """<div class="spec-flow-wrapper">
-        <div class="spec-flow-step">📄 1. 銷量資料</div>
-        <div class="spec-flow-arrow">➔</div>
-        <div class="spec-flow-step">🤖 2. AI 結構化洞察</div>
-        <div class="spec-flow-arrow">➔</div>
-        <div class="spec-flow-step">💡 3. 可執行行動建議</div>
-        <div class="spec-flow-arrow">➔</div>
-        <div class="spec-flow-step">📈 4. 效益與成效追蹤</div>
-    </div>""",
+    """
+<div class="spec-flow-wrapper">
+    <div class="spec-flow-step">📄 1. 銷量資料</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">🤖 2. AI 結構化洞察</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">💡 3. 可執行行動建議</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">📈 4. 效益與成效追蹤</div>
+</div>
+""",
     unsafe_allow_html=True,
 )
