@@ -88,8 +88,8 @@ st.markdown(
 
     <p class="product-page-description">
         依序完成銷量資料處理、活動資料處理與完整分析，
-        系統就會建立可供分析總覽、活動洞察、策略中心、
-        主管報表及 AI 策略顧問使用的成果資料。
+        系統就會建立可供分析總覽、活動洞察、AI 策略中心
+        及主管報表使用的成果資料。
     </p>
     """,
     unsafe_allow_html=True,
@@ -367,8 +367,7 @@ next_incomplete_step = next(
 if next_incomplete_step is None:
     st.success(
         "三個主要步驟都已完成。現在可以前往成果與決策區，"
-        "查看分析總覽、活動洞察、策略中心、主管報表，"
-        "或向 AI 策略顧問提問。"
+        "查看分析總覽、活動洞察、AI 策略中心或主管報表。"
     )
 
 else:

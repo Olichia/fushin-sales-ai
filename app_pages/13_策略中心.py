@@ -4,13 +4,8 @@ import sys
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 
-
-# =========================================================
-# 專案路徑
-# =========================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -18,1259 +13,1299 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from src.ai_advisor import (
+    build_advisor_context,
+    condense_structured_response,
+    get_structured_advisor_answer,
+)
+from src.ai_strategy_center import (
+    build_decision_queue,
+    build_executive_brief,
+    build_next_period_plan,
+    prepare_ai_strategy_data,
+)
 from src.chart_theme import apply_chart_theme
 from src.executive_summary import build_activity_unit_strategy_text
-from src.session_helpers import initialize_session_state
-from src.unit_overview_helpers import (
-    compute_confidence_label,
-    compute_risk_mask,
-    compute_strategy_category,
-    prepare_unit_overview_for_display,
+from src.insight_cards import (
+    render_evidence_sections,
+    render_structured_advisor_card,
 )
+from src.session_helpers import initialize_session_state
 from src.unit_recommendation_notes import (
     build_unit_personalized_recommendation_sections,
 )
 
 
-def render_personalized_sections(
-    sections: list[tuple[str, str]],
-) -> None:
-    """
-    以 hanging indent 版面呈現個別化建議：
+def safe_html(value: object) -> str:
+    """將動態文字安全放入頁面卡片。"""
 
-    標籤後方的內容靠左對齊，換行時對齊內容起始位置，
-    不會退回標籤最左邊。
-    """
+    return html.escape(str(value))
 
-    blocks = []
 
-    for label, text in sections:
-        indent = len(label)
+def format_money(value: object, signed: bool = False) -> str:
+    numeric = pd.to_numeric(value, errors="coerce")
 
-        blocks.append(
-            '<div style="padding-left:{indent}em;'
-            "text-indent:-{indent}em;"
-            'margin:0 0 0.85em;line-height:1.7;">'
-            "<strong>{label}</strong>{text}</div>".format(
-                indent=indent,
-                label=html.escape(label),
-                text=html.escape(text),
-            )
-        )
+    if pd.isna(numeric):
+        return "-"
 
-    st.markdown(
-        "".join(blocks),
-        unsafe_allow_html=True,
+    if signed:
+        return f"{float(numeric):+,.0f}"
+
+    return f"{float(numeric):,.0f}"
+
+
+def confidence_class(label: str) -> str:
+    return (
+        "confidence-high"
+        if label in {"高", "較高"}
+        else "confidence-low"
     )
 
 
-def dataframe_ready(dataframe) -> bool:
-    """判斷 DataFrame 是否存在且有資料。"""
-
+def dataframe_ready(dataframe: object) -> bool:
     return (
         isinstance(dataframe, pd.DataFrame)
         and not dataframe.empty
     )
 
 
-# =========================================================
-# 頁面初始化
-# =========================================================
+def calculate_growth_rate(
+    current_value: float,
+    comparison_value: object,
+) -> float | None:
+    comparison = pd.to_numeric(
+        comparison_value, errors="coerce"
+    )
+
+    if pd.isna(comparison) or float(comparison) == 0:
+        return None
+
+    return current_value / float(comparison) - 1
+
+
+def render_latest_ai_answer(
+    latest_answer: dict,
+) -> None:
+    st.markdown("#### AI 解讀結果")
+    st.caption(
+        "來源："
+        + str(latest_answer.get("source", "策略提問"))
+        + "。結果同時保留在下方對話紀錄。"
+    )
+    render_structured_advisor_card(
+        **latest_answer["structured"],
+        is_fallback=latest_answer.get(
+            "is_fallback", False
+        ),
+    )
+
 
 initialize_session_state()
+dark_mode = bool(st.session_state.get("dark_mode", False))
+
 
 dark_mode = bool(st.session_state.get("dark_mode", False))
 
 st.markdown(
     """
-    <div class="step-label">STRATEGY CENTER</div>
+    <style>
+    [data-testid="stMainBlockContainer"] h3 {
+        font-size: 1.55rem;
+    }
 
-    <div class="product-page-title">
-        <div class="product-page-title-bar"></div>
-        <h1>策略中心</h1>
-    </div>
+    [data-testid="stMainBlockContainer"] h4 {
+        font-size: 1.22rem;
+    }
 
-    <p class="product-page-description">
-        根據活動成效分析與規則式策略報告，
-        整理建議延續、持續觀察／優化與建議檢討的活動。
-        策略分類屬於決策輔助，實際執行仍應搭配成本、
-        毛利、庫存與商業目標判斷。
-    </p>
+    [data-testid="stMainBlockContainer"] [data-testid="stCaptionContainer"] p {
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    [data-testid="stMainBlockContainer"] button p,
+    [data-testid="stMainBlockContainer"] [data-baseweb="tab"] p {
+        font-size: 0.94rem;
+    }
+
+    [data-testid="stMainBlockContainer"] .advisor-row-label,
+    [data-testid="stMainBlockContainer"] .advisor-row-text {
+        font-size: 0.94rem;
+        line-height: 1.65;
+    }
+
+    [data-testid="stMainBlockContainer"] .advisor-tag,
+    [data-testid="stMainBlockContainer"] .advisor-tag-fallback,
+    [data-testid="stMainBlockContainer"] .badge {
+        font-size: 0.8rem;
+    }
+
+    .ai-center-hero {
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 1.1rem;
+        padding: 1.45rem 1.55rem;
+        background:
+            radial-gradient(circle at 92% 15%, rgba(93, 169, 255, 0.22), transparent 33%),
+            linear-gradient(135deg, var(--surface) 0%, var(--ai-accent-soft) 100%);
+        border: 1px solid var(--ai-accent-border);
+        border-radius: 18px;
+        box-shadow: var(--shadow-md);
+    }
+
+    .ai-center-hero::after {
+        content: "";
+        position: absolute;
+        width: 130px;
+        height: 130px;
+        right: -48px;
+        bottom: -65px;
+        border: 1px solid rgba(93, 169, 255, 0.32);
+        border-radius: 50%;
+    }
+
+    .ai-center-kicker {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-bottom: 0.55rem;
+        color: var(--ai-accent-deep);
+        font-size: 0.86rem;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+    }
+
+    .ai-center-pulse {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--success);
+        box-shadow: 0 0 0 5px rgba(51, 209, 122, 0.12);
+    }
+
+    .ai-center-title {
+        margin: 0 0 0.45rem;
+        color: var(--text-primary);
+        font-size: clamp(1.9rem, 3vw, 2.7rem);
+        font-weight: 900;
+        letter-spacing: -0.035em;
+    }
+
+    .ai-center-subtitle {
+        max-width: 920px;
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 1.08rem;
+        font-weight: 540;
+        line-height: 1.75;
+    }
+
+    .ai-flow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin-top: 1rem;
+    }
+
+    .ai-flow span {
+        padding: 0.28rem 0.62rem;
+        background: var(--surface);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 750;
+    }
+
+    .ai-flow span strong {
+        color: var(--ai-accent-deep);
+    }
+
+    .ai-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin: 0.85rem 0 1.15rem;
+    }
+
+    .ai-kpi-card {
+        min-height: 112px;
+        padding: 0.9rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .ai-kpi-label {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+    }
+
+    .ai-kpi-value {
+        margin: 0.28rem 0 0.16rem;
+        color: var(--text-primary);
+        font-size: 1.55rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .ai-kpi-note {
+        color: var(--text-secondary);
+        font-size: 0.82rem;
+        line-height: 1.45;
+    }
+
+    .ai-brief {
+        margin: 0.3rem 0 0.7rem;
+        padding: 1.15rem 1.25rem;
+        background:
+            linear-gradient(135deg, var(--ai-accent-soft), var(--surface) 58%);
+        border: 1px solid var(--ai-accent-border);
+        border-radius: 15px;
+    }
+
+    .ai-brief-risk {
+        border-left: 5px solid var(--danger);
+    }
+
+    .ai-brief-good {
+        border-left: 5px solid var(--success);
+    }
+
+    .ai-brief-neutral {
+        border-left: 5px solid var(--ai-accent);
+    }
+
+    .ai-brief-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.7rem;
+        margin-bottom: 0.7rem;
+    }
+
+    .ai-brief-tag {
+        color: var(--ai-accent-deep);
+        font-size: 0.86rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+    }
+
+    .ai-confidence {
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 850;
+    }
+
+    .confidence-high {
+        color: var(--success);
+        background: rgba(51, 209, 122, 0.11);
+        border: 1px solid rgba(51, 209, 122, 0.32);
+    }
+
+    .confidence-low {
+        color: var(--warning);
+        background: rgba(251, 191, 36, 0.11);
+        border: 1px solid rgba(251, 191, 36, 0.32);
+    }
+
+    .ai-brief-finding {
+        margin-bottom: 0.7rem;
+        color: var(--text-primary);
+        font-size: 1.16rem;
+        font-weight: 850;
+        line-height: 1.55;
+    }
+
+    .ai-brief-row {
+        display: grid;
+        grid-template-columns: 5rem 1fr;
+        gap: 0.5rem;
+        padding: 0.28rem 0;
+        color: var(--text-secondary);
+        font-size: 0.94rem;
+        line-height: 1.55;
+    }
+
+    .ai-brief-row strong {
+        color: var(--ai-accent-deep);
+        font-weight: 850;
+    }
+
+    .decision-status {
+        display: inline-block;
+        margin-bottom: 0.32rem;
+        padding: 0.18rem 0.5rem;
+        color: var(--ai-accent-deep);
+        background: var(--ai-accent-soft);
+        border: 1px solid var(--ai-accent-border);
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 850;
+    }
+
+    .decision-title {
+        color: var(--text-primary);
+        font-size: 1.08rem;
+        font-weight: 850;
+    }
+
+    .decision-action {
+        margin-top: 0.35rem;
+        color: var(--text-secondary);
+        font-size: 0.92rem;
+        line-height: 1.55;
+    }
+
+    .decision-evidence {
+        margin-top: 0.5rem;
+        padding-top: 0.48rem;
+        color: var(--text-muted);
+        border-top: 1px dashed var(--border-soft);
+        font-size: 0.84rem;
+        line-height: 1.5;
+    }
+
+    .queue-balance-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.7rem;
+        margin: 0.35rem 0 1.1rem;
+    }
+
+    .queue-balance-card {
+        padding: 1rem 1.05rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .queue-balance-count {
+        display: inline-block;
+        margin-right: 0.45rem;
+        color: var(--ai-accent-deep);
+        font-size: 1.58rem;
+        font-weight: 900;
+    }
+
+    .queue-balance-label {
+        color: var(--text-primary);
+        font-size: 1.1rem;
+        font-weight: 850;
+    }
+
+    .queue-group-heading {
+        margin: 1rem 0 0.55rem;
+        padding: 0.78rem 0.9rem;
+        color: var(--text-secondary);
+        background: var(--surface-soft);
+        border-left: 4px solid var(--ai-accent);
+        border-radius: 0 10px 10px 0;
+        font-size: 0.9rem;
+        line-height: 1.55;
+    }
+
+    .queue-group-heading strong {
+        display: block;
+        color: var(--text-primary);
+        font-size: 1.18rem;
+    }
+
+    .queue-group-risk {
+        border-left-color: var(--danger);
+    }
+
+    .queue-group-opportunity {
+        border-left-color: var(--success);
+    }
+
+    .queue-group-observe {
+        border-left-color: var(--warning);
+    }
+
+    .plan-card {
+        min-height: 168px;
+        padding: 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .plan-step {
+        color: var(--brand-orange);
+        font-size: 0.8rem;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+    }
+
+    .plan-title {
+        margin: 0.35rem 0 0.5rem;
+        color: var(--text-primary);
+        font-size: 1.06rem;
+        font-weight: 850;
+    }
+
+    .plan-description,
+    .plan-evidence {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.55;
+    }
+
+    .plan-evidence {
+        margin-top: 0.5rem;
+        color: var(--text-muted);
+    }
+
+    @media (max-width: 900px) {
+        .ai-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .queue-balance-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 560px) {
+        .ai-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .ai-brief-row {
+            grid-template-columns: 1fr;
+        }
+    }
+    </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-# =========================================================
-# 取得既有資料
-# =========================================================
-
-strategy_dataframe = st.session_state.get(
-    "strategy_report_dataframe"
+st.markdown(
+    """
+    <div class="ai-center-hero">
+        <div class="ai-center-kicker">
+            <span class="ai-center-pulse"></span>
+            AI DECISION ASSISTANT · READY
+        </div>
+        <h1 class="ai-center-title">AI 策略中心</h1>
+        <p class="ai-center-subtitle">
+            將策略摘要、優先檢視活動與 AI 對話整合在同一頁。
+            系統先從既有活動單位分析找出機會與風險，再提供可執行、
+            可驗證且附資料佐證的下一期規劃。
+        </p>
+        <div class="ai-flow">
+            <span><strong>01</strong> 發現 Detect</span>
+            <span><strong>02</strong> 解釋 Explain</span>
+            <span><strong>03</strong> 建議 Recommend</span>
+            <span><strong>04</strong> 決策 Decide</span>
+            <span><strong>05</strong> 驗證 Learn</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-strategy_report_text = st.session_state.get(
-    "strategy_report_text"
-)
-
-performance_dataframe = st.session_state.get(
-    "activity_performance_dataframe"
-)
-
-standardized_dataframe = st.session_state.get(
-    "standardized_dataframe"
-)
-
-
-if strategy_dataframe is None:
-    st.warning(
-        "尚未產生策略建議資料。"
-        "請先完成「03 執行完整分析」。"
-    )
-    st.stop()
-
-
-if strategy_dataframe.empty:
-    st.warning(
-        "目前沒有可顯示的策略建議。"
-    )
-    st.stop()
-
-
-strategy = strategy_dataframe.copy()
-
-
-# =========================================================
-# 欄位整理
-# =========================================================
-
-numeric_columns = [
-    "活動提升率",
-    "活動總銷量",
-    "推估營收",
-]
-
-for column in numeric_columns:
-    if column in strategy.columns:
-        strategy[column] = pd.to_numeric(
-            strategy[column],
-            errors="coerce",
-        )
-
-
-required_columns = [
-    "策略分類",
-    "商品活動",
-    "活動提升率",
-    "活動總銷量",
-    "推估營收",
-    "資料信心",
-    "建議",
-]
-
-missing_columns = [
-    column
-    for column in required_columns
-    if column not in strategy.columns
-]
-
-if missing_columns:
-    st.error(
-        "策略資料缺少必要欄位："
-        + "、".join(missing_columns)
-    )
-    st.stop()
-
-
-# =========================================================
-# 新引擎策略清單（活動單位分析）
-#
-# 有新引擎資料時，策略清單改用活動單位分析的結果重新組出，
-# 取代上面舊版 uplift_rate 門檻分類。策略分類規則：淨增益
-# 為負一律是建議檢討；非負值時，達全體活動單位中位數以上
-# 為建議延續，未達中位數為持續觀察
-# （compute_strategy_category()）。
-# =========================================================
 
 unit_overview_raw = st.session_state.get(
     "activity_unit_overview_dataframe"
 )
-
 waterfall_summary_raw = st.session_state.get(
     "activity_waterfall_summary_dataframe"
 )
-
+unit_price_dataframe = st.session_state.get(
+    "activity_unit_price_dataframe"
+)
+standardized_dataframe = st.session_state.get(
+    "standardized_dataframe"
+)
+waterfall_pairing_dataframe = st.session_state.get(
+    "activity_waterfall_pairing_dataframe"
+)
 unit_analysis_completed = bool(
     st.session_state.get("unit_analysis_completed", False)
 )
 
-new_engine_ready = (
+analysis_ready = (
     unit_analysis_completed
-    and dataframe_ready(unit_overview_raw)
+    and isinstance(unit_overview_raw, pd.DataFrame)
+    and not unit_overview_raw.empty
+    and isinstance(waterfall_summary_raw, pd.DataFrame)
+    and not waterfall_summary_raw.empty
 )
 
-if new_engine_ready:
-    unit_overview = prepare_unit_overview_for_display(
-        unit_overview_raw
+
+if not analysis_ready:
+    st.warning(
+        "AI 策略中心正在等待分析資料。請先完成「03 執行完整分析」，"
+        "系統就會自動產生決策摘要、優先檢視活動與 AI 對話背景。"
     )
-    unit_risk_mask = compute_risk_mask(unit_overview)
-    unit_confidence_label = compute_confidence_label(
-        unit_overview
-    )
+    st.stop()
 
-    strategy = unit_overview.copy()
 
-    strategy["策略分類"] = compute_strategy_category(strategy)
+strategy = prepare_ai_strategy_data(unit_overview_raw)
+executive_brief = build_executive_brief(strategy)
+decision_queue = build_decision_queue(strategy, limit=5)
+next_period_plan = build_next_period_plan(strategy)
 
-    strategy["商品活動"] = (
-        strategy["product_name"].astype(str)
-        + "｜"
-        + strategy["unit_code"].astype(str)
-        + "（"
-        + strategy["corresponding_activities_label"]
-        + "）"
-    )
+advisor_context = build_advisor_context(
+    unit_overview_dataframe=unit_overview_raw,
+    waterfall_summary_dataframe=waterfall_summary_raw,
+    unit_price_dataframe=unit_price_dataframe,
+)
+st.session_state["ai_last_context"] = advisor_context
 
-    strategy["活動總銷量(估)"] = (
-        strategy["unit_avg_sales"] * strategy["days"]
-    )
 
-    strategy["淨增益/日"] = strategy["net_revenue_effect_per_day"]
-    strategy["淨增益合計"] = strategy["net_revenue_effect_total"]
-    strategy["資料信心"] = unit_confidence_label
-
-    def build_unit_suggestion(color_category: str, is_risky: bool) -> str:
-        if color_category == "可分離正向":
-            return (
-                "此活動單位淨增益為正且效果可獨立歸因，"
-                "可考慮延續此折扣／贈品組合，"
-                "並測試擴大曝光或延伸至相似商品。"
-            )
-
-        if color_category == "不可分離":
-            return (
-                "此活動單位疊加了多個活動，"
-                "效果無法拆分歸因到單一活動，"
-                "建議下次測試時錯開檔期，"
-                "才能確認真正有效的組合。"
-            )
-
-        if is_risky:
-            return (
-                "此活動單位淨增益為負，"
-                "且降價效應大於量增效應，屬於毛利侵蝕風險，"
-                "建議下檔縮減折扣或改以贈品吸引轉換。"
-            )
-
-        return (
-            "此活動單位淨增益為負，"
-            "建議檢視商品吸引力、曝光位置或活動設計，"
-            "不建議直接延續原方案。"
-        )
-
-    strategy["建議"] = [
-        build_unit_suggestion(color_category, is_risky)
-        for color_category, is_risky in zip(
-            strategy["color_category"], unit_risk_mask
-        )
+if not st.session_state.get("ai_chat_messages"):
+    st.session_state["ai_chat_messages"] = [
+        {
+            "role": "assistant",
+            "content": (
+                "你好，我是 AI 策略中心的決策助理。\n\n"
+                "你可以直接點選決策卡或快捷問題；我會根據目前的"
+                "活動單位分析，說明發現、原因、行動、影響、"
+                "資料信心與限制。"
+            ),
+        }
     ]
 
-    strategy = strategy[
-        [
-            "策略分類",
-            "商品活動",
-            "淨增益/日",
-            "活動總銷量(估)",
-            "淨增益合計",
-            "資料信心",
-            "建議",
-        ]
+
+total_units = len(strategy)
+continue_count = int(
+    (strategy["strategy_category"] == "建議延續").sum()
+)
+review_count = int(
+    (strategy["strategy_category"] == "建議檢討").sum()
+)
+risk_count = int(strategy["is_risky"].sum())
+total_net_effect = strategy["net_revenue_effect_total"].sum(
+    min_count=1
+)
+
+
+st.markdown(
+    f"""
+    <div class="ai-kpi-grid">
+        <div class="ai-kpi-card">
+            <div class="ai-kpi-label">ANALYZED UNITS</div>
+            <div class="ai-kpi-value">{total_units:,}</div>
+            <div class="ai-kpi-note">已完成活動單位判讀</div>
+        </div>
+        <div class="ai-kpi-card">
+            <div class="ai-kpi-label">OPPORTUNITIES</div>
+            <div class="ai-kpi-value">{continue_count:,}</div>
+            <div class="ai-kpi-note">建議延續並驗證放大的活動</div>
+        </div>
+        <div class="ai-kpi-card">
+            <div class="ai-kpi-label">NEED REVIEW</div>
+            <div class="ai-kpi-value">{review_count:,}</div>
+            <div class="ai-kpi-note">其中 {risk_count:,} 個有降價侵蝕風險</div>
+        </div>
+        <div class="ai-kpi-card">
+            <div class="ai-kpi-label">NET REVENUE EFFECT</div>
+            <div class="ai-kpi-value">{format_money(total_net_effect, signed=True)}</div>
+            <div class="ai-kpi-note">活動單位淨營收效應合計，非實際毛利</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+st.subheader("今日 AI 決策摘要")
+
+brief_tone = executive_brief["tone"]
+brief_confidence = str(executive_brief["confidence"])
+
+st.markdown(
+    f"""
+    <div class="ai-brief ai-brief-{safe_html(brief_tone)}">
+        <div class="ai-brief-head">
+            <span class="ai-brief-tag">✦ PRIMARY RECOMMENDATION</span>
+            <span class="ai-confidence {confidence_class(brief_confidence)}">
+                資料信心：{safe_html(brief_confidence)}
+            </span>
+        </div>
+        <div class="ai-brief-finding">{safe_html(executive_brief['finding'])}</div>
+        <div class="ai-brief-row"><strong>判斷原因</strong><span>{safe_html(executive_brief['reason'])}</span></div>
+        <div class="ai-brief-row"><strong>建議行動</strong><span>{safe_html(executive_brief['action'])}</span></div>
+        <div class="ai-brief-row"><strong>資料佐證</strong><span>{safe_html(executive_brief['evidence'])}</span></div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+shortcut_question = None
+question_source_label = None
+latest_answer = st.session_state.get(
+    "ai_center_latest_answer"
+)
+
+if st.button(
+    "請 AI 進一步解釋這項建議",
+    type="primary",
+    key="ai_center_explain_primary",
+):
+    shortcut_question = (
+        decision_queue[0]["prompt"]
+        if decision_queue
+        else (
+            "請深入解釋目前的首要策略建議。"
+            f"資料摘要：{executive_brief['evidence']}。"
+            "請說明可能原因、下一期執行步驟、替代方案與資料限制。"
+        )
+    )
+    question_source_label = "首要策略建議"
+
+
+if (
+    isinstance(latest_answer, dict)
+    and latest_answer.get("source") == "首要策略建議"
+):
+    render_latest_ai_answer(latest_answer)
+
+
+st.divider()
+st.subheader("優先檢視活動")
+
+queue_group_specs = [
+    (
+        "risk",
+        "風險優先",
+    ),
+    (
+        "opportunity",
+        "成長機會",
+    ),
+    (
+        "observe",
+        "待補資料",
+    ),
+    (
+        "other",
+        "其他高影響",
+    ),
+]
+
+queue_group_counts = {
+    group: sum(
+        decision["selection_group"] == group
+        for decision in decision_queue
+    )
+    for group, _ in queue_group_specs
+}
+
+st.markdown(
+    f"""
+    <div class="queue-balance-grid">
+        <div class="queue-balance-card">
+            <span class="queue-balance-count">{queue_group_counts['risk']}</span>
+            <span class="queue-balance-label">風險優先</span>
+        </div>
+        <div class="queue-balance-card">
+            <span class="queue-balance-count">{queue_group_counts['opportunity']}</span>
+            <span class="queue-balance-label">成長機會</span>
+        </div>
+        <div class="queue-balance-card">
+            <span class="queue-balance-count">{queue_group_counts['observe']}</span>
+            <span class="queue-balance-label">待補資料</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+queue_index = 0
+
+for group, group_label in queue_group_specs:
+    group_decisions = [
+        decision
+        for decision in decision_queue
+        if decision["selection_group"] == group
     ]
 
-    primary_metric_column = "淨增益/日"
-    primary_metric_label = "淨增益/日 中位數"
-    primary_metric_is_percent = False
-    volume_column = "活動總銷量(估)"
-    revenue_column = "淨增益合計"
-    revenue_label = "淨增益合計"
+    if not group_decisions:
+        continue
 
-else:
-    primary_metric_column = "活動提升率"
-    primary_metric_label = "提升率中位數"
-    primary_metric_is_percent = True
-    volume_column = "活動總銷量"
-    revenue_column = "推估營收"
-    revenue_label = "推估營收合計"
-
-
-# =========================================================
-# 篩選器
-# =========================================================
-
-st.subheader("策略篩選")
-
-with st.container(border=True):
     st.markdown(
-        """
-        <div class="analysis-filter-heading">
-            <div class="analysis-filter-icon">🧭</div>
-            <div>
-                <div class="analysis-filter-title">篩選策略資料</div>
-                <div class="analysis-filter-description">
-                    可依策略分類、資料信心與最低活動總銷量縮小範圍。
-                </div>
-            </div>
+        f"""
+        <div class="queue-group-heading queue-group-{safe_html(group)}">
+            <strong>{safe_html(group_label)} · {len(group_decisions)} 筆</strong>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    filter_col1, filter_col2, filter_col3 = st.columns(3)
+    for decision in group_decisions:
+        queue_index += 1
 
-
-    strategy_category_options = (
-        strategy["策略分類"]
-        .dropna()
-        .astype(str)
-        .unique()
-        .tolist()
-    )
-
-
-    with filter_col1:
-        selected_categories = st.multiselect(
-            "策略分類",
-            options=strategy_category_options,
-            default=strategy_category_options,
-        )
-
-
-    confidence_options = (
-        strategy["資料信心"]
-        .dropna()
-        .astype(str)
-        .unique()
-        .tolist()
-    )
-
-
-    with filter_col2:
-        selected_confidence = st.multiselect(
-            "資料信心",
-            options=confidence_options,
-            default=confidence_options,
-        )
-
-
-    with filter_col3:
-        minimum_sales = st.number_input(
-            f"最低{volume_column}",
-            min_value=0.0,
-            value=0.0,
-            step=1.0,
-        )
-
-filtered_strategy = strategy.copy()
-
-
-if selected_categories:
-    filtered_strategy = filtered_strategy[
-        filtered_strategy[
-            "策略分類"
-        ].astype(str).isin(
-            selected_categories
-        )
-    ].copy()
-
-
-if selected_confidence:
-    filtered_strategy = filtered_strategy[
-        filtered_strategy[
-            "資料信心"
-        ].astype(str).isin(
-            selected_confidence
-        )
-    ].copy()
-
-
-filtered_strategy = filtered_strategy[
-    filtered_strategy[
-        volume_column
-    ].fillna(0) >= minimum_sales
-].copy()
-
-
-if filtered_strategy.empty:
-    st.warning(
-        "目前篩選條件下沒有策略資料。"
-    )
-    st.stop()
-
-
-# =========================================================
-# KPI
-# =========================================================
-
-st.divider()
-
-st.subheader("策略摘要")
-
-
-if new_engine_ready:
-    middle_eyebrow = "OBSERVE"
-    middle_title = "持續觀察"
-    middle_description = (
-        "淨增益為正但未達整體中位數，建議持續觀察後續表現。"
-    )
-else:
-    middle_eyebrow = "OPTIMIZE"
-    middle_title = "建議優化"
-    middle_description = (
-        "調整優惠、價格、期間或商品組合後再次測試。"
-    )
-
-
-continue_count = int(
-    (
-        filtered_strategy[
-            "策略分類"
-        ] == "建議延續"
-    ).sum()
-)
-
-optimize_count = int(
-    (
-        filtered_strategy[
-            "策略分類"
-        ] == middle_title
-    ).sum()
-)
-
-review_count = int(
-    (
-        filtered_strategy[
-            "策略分類"
-        ] == "建議檢討"
-    ).sum()
-)
-
-median_uplift = filtered_strategy[
-    primary_metric_column
-].median()
-
-total_estimated_revenue = filtered_strategy[
-    revenue_column
-].sum(
-    min_count=1
-)
-
-
-strategy_card_col1, strategy_card_col2, strategy_card_col3 = (
-    st.columns(3)
-)
-
-card_specs = [
-    (
-        strategy_card_col1,
-        "CONTINUE",
-        "建議延續",
-        continue_count,
-        "優先保留成效較佳、資料可信度較高的活動。",
-    ),
-    (
-        strategy_card_col2,
-        middle_eyebrow,
-        middle_title,
-        optimize_count,
-        middle_description,
-    ),
-    (
-        strategy_card_col3,
-        "REVIEW",
-        "建議檢討",
-        review_count,
-        "檢視活動設計、重疊優惠與資料完整性。",
-    ),
-]
-
-for column, eyebrow, title, count, description in card_specs:
-    with column:
         with st.container(border=True):
-            st.caption(eyebrow)
-            st.metric(title, f"{count:,}")
-            st.caption(description)
+            content_column, metric_column, action_column = st.columns(
+                [3.4, 1.1, 1.15],
+                gap="medium",
+            )
+
+            with content_column:
+                st.markdown(
+                    f"""
+                    <span class="decision-status">{safe_html(decision['status'])}</span>
+                    <div class="decision-title">{queue_index:02d} · {safe_html(decision['title'])}</div>
+                    <div class="decision-action">{safe_html(decision['action'])}</div>
+                    <div class="decision-evidence">資料佐證：{safe_html(decision['evidence'])}</div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            with metric_column:
+                st.metric(
+                    "淨增益／日",
+                    format_money(
+                        decision["net_effect_per_day"],
+                        signed=True,
+                    ),
+                )
+                st.caption(f"資料信心：{decision['confidence']}")
+
+            with action_column:
+                if st.button(
+                    "交給 AI 解讀",
+                    width="stretch",
+                    key=f"ai_center_queue_{queue_index}",
+                ):
+                    shortcut_question = decision["prompt"]
+                    question_source_label = decision["title"]
+
+        if (
+            isinstance(latest_answer, dict)
+            and latest_answer.get("source") == decision["title"]
+        ):
+            render_latest_ai_answer(latest_answer)
 
 
-kpi_col4, kpi_col5 = st.columns(2)
-
-kpi_col4.metric(
-    primary_metric_label,
-    (
-        (
-            f"{median_uplift:.1%}"
-            if primary_metric_is_percent
-            else f"{median_uplift:,.0f}"
-        )
-        if pd.notna(median_uplift)
-        else "-"
-    ),
-)
-
-kpi_col5.metric(
-    revenue_label,
-    (
-        f"{total_estimated_revenue:,.0f}"
-        if pd.notna(total_estimated_revenue)
-        else "-"
-    ),
-)
-
-
-# =========================================================
-# 月度銷量趨勢、MoM 與 YoY
-# =========================================================
-
-st.divider()
-
-st.subheader("月度銷量趨勢")
-
-monthly_sales = pd.DataFrame()
+queue_sources = {
+    decision["title"] for decision in decision_queue
+}
 
 if (
-    standardized_dataframe is not None
-    and not standardized_dataframe.empty
-    and {
-        "sale_date",
-        "quantity",
-    }.issubset(standardized_dataframe.columns)
+    isinstance(latest_answer, dict)
+    and latest_answer.get("source") != "首要策略建議"
+    and latest_answer.get("source") not in queue_sources
 ):
-    monthly_source = standardized_dataframe[
-        [
-            "sale_date",
-            "quantity",
-        ]
-    ].copy()
+    render_latest_ai_answer(latest_answer)
 
-    monthly_source["sale_date"] = pd.to_datetime(
-        monthly_source["sale_date"],
-        errors="coerce",
-    )
 
-    monthly_source["quantity"] = pd.to_numeric(
-        monthly_source["quantity"],
-        errors="coerce",
-    )
+st.divider()
+st.subheader("下一期活動規劃")
 
-    monthly_source = monthly_source.dropna(
-        subset=[
-            "sale_date",
-            "quantity",
-        ]
-    )
+plan_columns = st.columns(3, gap="medium")
 
-    if not monthly_source.empty:
-        monthly_source["sale_month"] = (
-            monthly_source["sale_date"]
-            .dt.to_period("M")
-        )
-
-        monthly_sales = (
-            monthly_source.groupby(
-                "sale_month",
-                as_index=False,
-            )["quantity"]
-            .sum()
-            .rename(
-                columns={
-                    "quantity": "monthly_quantity",
-                }
-            )
-            .sort_values("sale_month")
-        )
-
-        monthly_sales["month_label"] = (
-            monthly_sales["sale_month"]
-            .astype(str)
+for plan_column, plan in zip(plan_columns, next_period_plan):
+    with plan_column:
+        st.markdown(
+            f"""
+            <div class="plan-card">
+                <div class="plan-step">STEP {safe_html(plan['step'])}</div>
+                <div class="plan-title">{safe_html(plan['title'])}</div>
+                <div class="plan-description">{safe_html(plan['description'])}</div>
+                <div class="plan-evidence">{safe_html(plan['evidence'])}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
 
-if monthly_sales.empty:
-    st.info(
-        "目前沒有足夠的標準化銷量資料，"
-        "因此無法計算月銷量、MoM 與 YoY。"
-    )
+st.divider()
+st.subheader("原始策略分析")
+st.caption(
+    "保留原策略中心的重要資訊與圖表，重新收納為四個頁籤；"
+    "大型策略表格已省略，但原始分析資料沒有刪除或改寫。"
+)
 
-else:
-    latest_period = monthly_sales[
-        "sale_month"
-    ].max()
+(
+    monthly_tab,
+    performance_tab,
+    personalized_tab,
+    manager_tab,
+) = st.tabs(
+    [
+        "月度銷量趨勢",
+        "活動成效對照",
+        "個別化建議",
+        "主管策略摘要",
+    ]
+)
 
-    previous_period = latest_period - 1
-    previous_year_period = latest_period - 12
 
-    monthly_lookup = monthly_sales.set_index(
-        "sale_month"
-    )["monthly_quantity"]
+with monthly_tab:
+    monthly_sales = pd.DataFrame()
 
-    latest_quantity = float(
-        monthly_lookup.get(
-            latest_period,
-            0,
+    if (
+        dataframe_ready(standardized_dataframe)
+        and {"sale_date", "quantity"}.issubset(
+            standardized_dataframe.columns
         )
-    )
-
-    previous_quantity = monthly_lookup.get(
-        previous_period
-    )
-
-    previous_year_quantity = monthly_lookup.get(
-        previous_year_period
-    )
-
-    def calculate_growth_rate(
-        current_value: float,
-        comparison_value,
     ):
-        if (
-            comparison_value is None
-            or pd.isna(comparison_value)
-            or comparison_value == 0
-        ):
-            return None
-
-        return (
-            current_value
-            / float(comparison_value)
-            - 1
+        monthly_source = standardized_dataframe[
+            ["sale_date", "quantity"]
+        ].copy()
+        monthly_source["sale_date"] = pd.to_datetime(
+            monthly_source["sale_date"], errors="coerce"
+        )
+        monthly_source["quantity"] = pd.to_numeric(
+            monthly_source["quantity"], errors="coerce"
+        )
+        monthly_source = monthly_source.dropna(
+            subset=["sale_date", "quantity"]
         )
 
-    mom_rate = calculate_growth_rate(
-        latest_quantity,
-        previous_quantity,
-    )
+        if not monthly_source.empty:
+            monthly_source["sale_month"] = (
+                monthly_source["sale_date"].dt.to_period("M")
+            )
+            monthly_sales = (
+                monthly_source.groupby(
+                    "sale_month", as_index=False
+                )["quantity"]
+                .sum()
+                .rename(
+                    columns={"quantity": "monthly_quantity"}
+                )
+                .sort_values("sale_month")
+            )
+            monthly_sales["month_label"] = (
+                monthly_sales["sale_month"].astype(str)
+            )
 
-    yoy_rate = calculate_growth_rate(
-        latest_quantity,
-        previous_year_quantity,
-    )
+    if monthly_sales.empty:
+        st.info(
+            "目前這個瀏覽工作階段沒有重新載入標準化銷量資料，"
+            "所以暫時無法顯示原本的月銷量、MoM 與 YoY。"
+        )
+    else:
+        latest_period = monthly_sales["sale_month"].max()
+        previous_period = latest_period - 1
+        previous_year_period = latest_period - 12
+        monthly_lookup = monthly_sales.set_index(
+            "sale_month"
+        )["monthly_quantity"]
+        latest_quantity = float(
+            monthly_lookup.get(latest_period, 0)
+        )
+        previous_quantity = monthly_lookup.get(
+            previous_period
+        )
+        previous_year_quantity = monthly_lookup.get(
+            previous_year_period
+        )
+        mom_rate = calculate_growth_rate(
+            latest_quantity, previous_quantity
+        )
+        yoy_rate = calculate_growth_rate(
+            latest_quantity, previous_year_quantity
+        )
 
-    latest_col, mom_col, yoy_col = st.columns(3)
-
-    with latest_col:
-        st.metric(
+        latest_column, mom_column, yoy_column = st.columns(3)
+        latest_column.metric(
             f"{latest_period} 月銷量",
             f"{latest_quantity:,.0f}",
         )
-
-        st.caption(
-            "以資料中最新月份為比較基準。"
-        )
-
-    with mom_col:
-        st.metric(
+        mom_column.metric(
             "MoM（月成長率）",
-            (
-                f"{mom_rate:.1%}"
-                if mom_rate is not None
-                else "-"
-            ),
-            delta=(
-                f"{latest_quantity - float(previous_quantity):+,.0f} 銷量"
-                if mom_rate is not None
-                else None
-            ),
+            f"{mom_rate:.1%}" if mom_rate is not None else "-",
         )
-
-        st.caption(
-            (
-                f"{latest_period}：{latest_quantity:,.0f}；"
-                f"{previous_period}：{float(previous_quantity):,.0f}"
-                if mom_rate is not None
-                else f"缺少 {previous_period} 或其銷量為 0，無法計算。"
-            )
-        )
-
-    with yoy_col:
-        st.metric(
+        yoy_column.metric(
             "YoY（年成長率）",
-            (
-                f"{yoy_rate:.1%}"
-                if yoy_rate is not None
-                else "-"
-            ),
-            delta=(
-                f"{latest_quantity - float(previous_year_quantity):+,.0f} 銷量"
-                if yoy_rate is not None
-                else None
-            ),
+            f"{yoy_rate:.1%}" if yoy_rate is not None else "-",
         )
 
-        st.caption(
-            (
-                f"{latest_period}：{latest_quantity:,.0f}；"
-                f"{previous_year_period}：{float(previous_year_quantity):,.0f}"
-                if yoy_rate is not None
-                else (
-                    f"缺少 {previous_year_period} 或其銷量為 0，"
-                    "無法計算。"
-                )
-            )
-        )
-
-    product_mom_source = standardized_dataframe[
-        ["sale_date", "product_id", "product_name", "quantity"]
-    ].copy()
-
-    product_mom_source["sale_date"] = pd.to_datetime(
-        product_mom_source["sale_date"], errors="coerce"
-    )
-
-    product_mom_source["quantity"] = pd.to_numeric(
-        product_mom_source["quantity"], errors="coerce"
-    )
-
-    product_mom_source = product_mom_source.dropna(
-        subset=["sale_date", "product_id", "quantity"]
-    )
-
-    product_mom_source["sale_month"] = (
-        product_mom_source["sale_date"].dt.to_period("M")
-    )
-
-    monthly_by_product = (
-        product_mom_source.groupby(
-            ["product_id", "product_name", "sale_month"],
-            as_index=False,
-        )["quantity"].sum()
-    )
-
-    latest_by_product = monthly_by_product[
-        monthly_by_product["sale_month"] == latest_period
-    ].set_index("product_id")["quantity"]
-
-    previous_by_product = monthly_by_product[
-        monthly_by_product["sale_month"] == previous_period
-    ].set_index("product_id")["quantity"]
-
-    product_names = (
-        monthly_by_product[["product_id", "product_name"]]
-        .drop_duplicates()
-        .set_index("product_id")["product_name"]
-    )
-
-    product_mom = pd.DataFrame(
-        {"product_name": product_names}
-    ).reset_index()
-
-    product_mom["latest_quantity"] = product_mom[
-        "product_id"
-    ].map(latest_by_product)
-
-    product_mom["previous_quantity"] = product_mom[
-        "product_id"
-    ].map(previous_by_product)
-
-    product_mom["mom_rate"] = product_mom.apply(
-        lambda row: calculate_growth_rate(
-            row["latest_quantity"], row["previous_quantity"]
-        ),
-        axis=1,
-    )
-
-    product_mom_chart_data = product_mom.dropna(
-        subset=["latest_quantity", "mom_rate"]
-    ).sort_values("mom_rate")
-
-    if product_mom_chart_data.empty:
-        st.info(
-            "目前沒有足夠的品項月銷量資料可比較 MoM。"
-        )
-    else:
-        mom_bar_figure = go.Figure(
-            go.Bar(
-                x=product_mom_chart_data["mom_rate"] * 100,
-                y=product_mom_chart_data["product_name"],
-                orientation="h",
-                marker_color=[
-                    "#3BA776" if rate >= 0 else "#D64550"
-                    for rate in product_mom_chart_data["mom_rate"]
-                ],
-                text=[
-                    f"銷量 {quantity:,.0f}（{rate:+.1%}）"
-                    for quantity, rate in zip(
-                        product_mom_chart_data["latest_quantity"],
-                        product_mom_chart_data["mom_rate"],
-                    )
-                ],
-                textposition="outside",
-            )
-        )
-
-        mom_bar_figure.update_layout(
-            xaxis_title="MoM 月增率（%）",
-            yaxis_title="品項",
-            margin={
-                "l": 10,
-                "r": 10,
-                "t": 20,
-                "b": 10,
+        monthly_figure = px.line(
+            monthly_sales,
+            x="month_label",
+            y="monthly_quantity",
+            markers=True,
+            labels={
+                "month_label": "月份",
+                "monthly_quantity": "月銷量",
             },
-            height=max(280, 60 * len(product_mom_chart_data)),
         )
-        apply_chart_theme(mom_bar_figure, dark_mode)
-
-        st.plotly_chart(
-            mom_bar_figure,
-            use_container_width=True,
+        monthly_figure.update_traces(
+            line={"color": "#4E56A6", "width": 3},
+            marker={"size": 9, "color": "#F45B1B"},
         )
-
-        st.caption(
-            f"比較 {previous_period} 與 {latest_period} "
-            "各品項銷量計算 MoM。"
+        monthly_figure.update_layout(
+            margin={"l": 10, "r": 10, "t": 24, "b": 10},
+            height=360,
         )
+        apply_chart_theme(monthly_figure, dark_mode)
+        st.plotly_chart(monthly_figure, width="stretch")
 
 
-# =========================================================
-# 活動提升率與總銷量圖
-# =========================================================
-
-st.divider()
-
-st.subheader("活動成效與銷量對照")
-
-
-chart_dataframe = filtered_strategy.dropna(
-    subset=[
-        primary_metric_column,
-        volume_column,
-    ]
-).copy()
-
-
-if chart_dataframe.empty:
-    st.info(
-        "目前沒有足夠資料繪製活動成效圖。"
+with performance_tab:
+    performance_chart = strategy.copy()
+    performance_chart["活動總銷量(估)"] = (
+        performance_chart["unit_avg_sales"]
+        * performance_chart["days"]
     )
 
-elif primary_metric_is_percent:
-    chart_dataframe[
-        "活動提升率百分比"
-    ] = (
-        chart_dataframe[
-            primary_metric_column
-        ] * 100
+    performance_chart = performance_chart.dropna(
+        subset=[
+            "活動總銷量(估)",
+            "net_revenue_effect_per_day",
+        ]
     )
 
-    strategy_scatter_figure = px.scatter(
-        chart_dataframe,
-        x=volume_column,
-        y="活動提升率百分比",
-        color="策略分類",
-        hover_name="商品活動",
-        hover_data={
-            revenue_column: ":,.0f",
-            "資料信心": True,
-            "活動提升率百分比": ":.1f",
-        },
-        labels={
-            volume_column: volume_column,
-            "活動提升率百分比": "活動提升率（%）",
-            "策略分類": "策略分類",
-        },
-    )
-
-    strategy_scatter_figure.add_hline(
-        y=0,
-        line_dash="dash",
-        annotation_text="無提升",
-    )
-
-    strategy_scatter_figure.add_hline(
-        y=20,
-        line_dash="dot",
-        annotation_text="高成效門檻 20%",
-    )
-
-    # 許多活動單位座標完全重疊（例如活動總銷量估計值都是0），
-    # 預設不透明的點會互相遮蔽，改成半透明＋外框線，重疊處
-    # 會自然顯示成顏色較深/較密的區塊，不更動任何資料本身。
-    strategy_scatter_figure.update_traces(
-        marker={
-            "opacity": 0.65,
-            "line": {"width": 1, "color": "rgba(0,0,0,0.35)"},
-        }
-    )
-
-    strategy_scatter_figure.update_layout(
-        xaxis_title=volume_column,
-        yaxis_title="活動提升率（%）",
-        margin={
-            "l": 10,
-            "r": 10,
-            "t": 20,
-            "b": 10,
-        },
-    )
-    apply_chart_theme(strategy_scatter_figure, dark_mode)
-
-    st.plotly_chart(
-        strategy_scatter_figure,
-        use_container_width=True,
-    )
-
-    st.caption(
-        "右上方通常代表銷量較高且活動提升率較高；"
-        "但沒有毛利與成本資料時，不能直接解讀為高獲利。"
-    )
-
-else:
-    median_metric_value = chart_dataframe[
-        primary_metric_column
-    ].median()
-
-    strategy_scatter_figure = px.scatter(
-        chart_dataframe,
-        x=volume_column,
-        y=primary_metric_column,
-        color="策略分類",
-        hover_name="商品活動",
-        hover_data={
-            revenue_column: ":,.0f",
-            "資料信心": True,
-            primary_metric_column: ":,.0f",
-        },
-        labels={
-            volume_column: volume_column,
-            primary_metric_column: primary_metric_column,
-            "策略分類": "策略分類",
-        },
-    )
-
-    if pd.notna(median_metric_value):
-        strategy_scatter_figure.add_hline(
-            y=median_metric_value,
+    if performance_chart.empty:
+        st.info("目前沒有足夠資料繪製活動成效對照圖。")
+    else:
+        median_net_effect = performance_chart[
+            "net_revenue_effect_per_day"
+        ].median()
+        performance_figure = px.scatter(
+            performance_chart,
+            x="活動總銷量(估)",
+            y="net_revenue_effect_per_day",
+            color="strategy_category",
+            hover_name="product_name",
+            hover_data={
+                "unit_code": True,
+                "corresponding_activities_label": True,
+                "discount_rate": ":.1%",
+                "confidence_label": True,
+                "net_revenue_effect_total": ":,.0f",
+            },
+            labels={
+                "net_revenue_effect_per_day": "淨增益／日",
+                "strategy_category": "策略分類",
+                "unit_code": "活動單位",
+                "corresponding_activities_label": "對應活動",
+                "discount_rate": "折扣率",
+                "confidence_label": "資料信心",
+                "net_revenue_effect_total": "淨增益合計",
+            },
+            color_discrete_map={
+                "建議延續": "#009B73",
+                "持續觀察": "#F45B1B",
+                "建議檢討": "#C62828",
+            },
+        )
+        performance_figure.add_hline(
+            y=median_net_effect,
             line_dash="dot",
-            annotation_text=f"{primary_metric_column} 中位數",
+            annotation_text="淨增益中位數",
+        )
+        performance_figure.update_traces(
+            marker={
+                "size": 10,
+                "opacity": 0.68,
+                "line": {
+                    "width": 1,
+                    "color": "rgba(0,0,0,0.28)",
+                },
+            }
+        )
+        performance_figure.update_layout(
+            margin={"l": 10, "r": 10, "t": 24, "b": 10},
+            height=430,
+        )
+        apply_chart_theme(performance_figure, dark_mode)
+        st.plotly_chart(performance_figure, width="stretch")
+        st.caption(
+            "右上方通常代表估算銷量與淨增益都較高；"
+            "淨增益不等於實際獲利。"
         )
 
-    # 許多活動單位座標完全重疊（例如活動總銷量估計值都是0），
-    # 預設不透明的點會互相遮蔽，改成半透明＋外框線，重疊處
-    # 會自然顯示成顏色較深/較密的區塊，不更動任何資料本身。
-    strategy_scatter_figure.update_traces(
-        marker={
-            "opacity": 0.65,
-            "line": {"width": 1, "color": "rgba(0,0,0,0.35)"},
+
+with personalized_tab:
+    st.caption(
+        "選擇一個活動單位，查看原策略中心保留的績效診斷、"
+        "檔期歸因、建議決策與下一檔執行方式。"
+    )
+
+    detail_options = list(strategy.index)
+
+    def format_detail_option(row_index: object) -> str:
+        row = strategy.loc[row_index]
+        activities_value = row.get(
+            "corresponding_activities_label"
+        )
+        activities = (
+            str(activities_value)
+            if pd.notna(activities_value)
+            and str(activities_value).strip()
+            else "安靜期"
+        )
+        return (
+            f"{row.get('product_name', '未命名')}｜"
+            f"{row.get('unit_code', '-')}（{activities}）"
+        )
+
+    selected_index = st.selectbox(
+        "選擇活動單位",
+        options=detail_options,
+        format_func=format_detail_option,
+        key="ai_center_detail_unit",
+    )
+    selected_unit = strategy.loc[selected_index]
+
+    pairing_table = (
+        waterfall_pairing_dataframe.copy()
+        if dataframe_ready(waterfall_pairing_dataframe)
+        else pd.DataFrame()
+    )
+
+    if not pairing_table.empty:
+        pairing_table["product_id"] = (
+            pairing_table["product_id"]
+            .astype(str)
+            .str.strip()
+        )
+        unit_pairing_rows = pairing_table[
+            (
+                pairing_table["product_id"]
+                == selected_unit["product_id"]
+            )
+            & (
+                pairing_table["target_unit"]
+                == selected_unit["unit_code"]
+            )
+        ]
+    else:
+        unit_pairing_rows = pd.DataFrame()
+
+    mechanism_text = str(
+        selected_unit.get(
+            "corresponding_activities_label", ""
+        )
+    )
+    personalized_sections = (
+        build_unit_personalized_recommendation_sections(
+            unit_row=selected_unit,
+            pairing_rows=unit_pairing_rows,
+            unit_overview=strategy,
+            mechanism_text=mechanism_text,
+            strategy_category=selected_unit[
+                "strategy_category"
+            ],
+        )
+    )
+
+    with st.container(border=True):
+        render_evidence_sections(personalized_sections)
+
+
+with manager_tab:
+    management_strategy_text = (
+        build_activity_unit_strategy_text(
+            unit_overview_raw,
+            waterfall_summary_raw,
+        )
+    )
+    st.markdown(management_strategy_text)
+    st.download_button(
+        "下載主管策略摘要",
+        data=management_strategy_text.encode("utf-8"),
+        file_name="ai_strategy_management_summary.md",
+        mime="text/markdown",
+        key="ai_center_download_management_summary",
+    )
+
+
+st.divider()
+st.subheader("與 AI 討論下一步")
+st.caption(
+    "不需要輸入長句：可直接點快捷問題，或在右側延續策略對話。"
+)
+
+
+prompt_column, chat_column = st.columns(
+    [1, 1.75],
+    gap="large",
+)
+
+
+with prompt_column:
+    with st.container(border=True):
+        st.markdown("#### 快捷問題")
+        st.caption("從目前分析結果直接開始，不會捏造未提供的成本或毛利資料。")
+
+        prompt_specs = [
+            (
+                "下一期促銷怎麼規劃？",
+                "請根據目前結果提出下一期促銷規劃，包含優先活動、測試設計、追蹤指標、資料佐證與風險控制。",
+            ),
+            (
+                "低成效活動原因？",
+                "請分析目前建議檢討的活動可能原因，區分可確認的觀察、合理推測與仍需補充的資料。",
+            ),
+            (
+                "折扣率怎麼設定？",
+                "請根據折扣深度洞察，整理表現較好的折扣區間與例外案例，並提出下一期可驗證的折扣測試。",
+            ),
+            (
+                "贈品如何搭配？",
+                "請根據建議延續活動的贈品與加碼組合，提出下一期贈品設計、替代方案與資料佐證。",
+            ),
+            (
+                "整理成主管摘要",
+                "請將目前分析整理成主管摘要，包含首要發現、原因、建議行動、預期影響、資料信心與限制。",
+            ),
+        ]
+
+        for prompt_index, (label, question) in enumerate(prompt_specs):
+            if st.button(
+                label,
+                width="stretch",
+                key=f"ai_center_prompt_{prompt_index}",
+            ):
+                shortcut_question = question
+                question_source_label = label
+
+        st.divider()
+
+        if st.button(
+            "清除對話紀錄",
+            width="stretch",
+            key="ai_center_clear_chat",
+        ):
+            st.session_state["ai_chat_messages"] = []
+            st.session_state.pop(
+                "ai_center_latest_answer", None
+            )
+            st.rerun()
+
+        st.caption("清除對話不會刪除銷量、活動或分析資料。")
+
+
+with chat_column:
+    chat_container = st.container(
+        border=True,
+        height=570,
+    )
+
+    with chat_container:
+        for message in st.session_state["ai_chat_messages"]:
+            role = message.get("role", "assistant")
+            structured = message.get("structured")
+
+            with st.chat_message(role):
+                if structured:
+                    render_structured_advisor_card(
+                        **structured,
+                        is_fallback=message.get(
+                            "is_fallback", False
+                        ),
+                    )
+                else:
+                    st.markdown(message.get("content", ""))
+
+    typed_question = st.chat_input(
+        "輸入策略問題……",
+        key="ai_center_chat_input",
+    )
+
+
+user_question = shortcut_question or typed_question
+
+
+if user_question:
+    st.session_state["ai_chat_messages"].append(
+        {
+            "role": "user",
+            "content": user_question,
         }
     )
 
-    strategy_scatter_figure.update_layout(
-        xaxis_title=volume_column,
-        yaxis_title=primary_metric_column,
-        margin={
-            "l": 10,
-            "r": 10,
-            "t": 20,
-            "b": 10,
-        },
+    with st.spinner("AI 正在比對活動資料與策略證據……"):
+        structured_answer, is_fallback = (
+            get_structured_advisor_answer(
+                user_question=user_question,
+                advisor_context=advisor_context,
+                chat_messages=st.session_state[
+                    "ai_chat_messages"
+                ],
+                unit_overview_dataframe=unit_overview_raw,
+            )
+        )
+
+    st.session_state["ai_chat_messages"].append(
+        {
+            "role": "assistant",
+            "content": condense_structured_response(
+                structured_answer
+            ),
+            "structured": structured_answer.model_dump(),
+            "is_fallback": is_fallback,
+        }
     )
-    apply_chart_theme(strategy_scatter_figure, dark_mode)
+    st.session_state["ai_center_latest_answer"] = {
+        "source": question_source_label or "自由提問",
+        "structured": structured_answer.model_dump(),
+        "is_fallback": is_fallback,
+    }
+    st.rerun()
 
-    st.plotly_chart(
-        strategy_scatter_figure,
-        use_container_width=True,
-    )
-
-    st.caption(
-        "右上方通常代表估算銷量較高且淨增益較高；"
-        "淨增益已扣除同月安靜期基準，"
-        "但沒有毛利與成本資料時，不能直接解讀為實際獲利。"
-    )
-
-
-# =========================================================
-# 活動策略清單
-# =========================================================
 
 st.divider()
 
-st.subheader("活動策略清單")
+with st.expander("下載完整策略佐證資料"):
+    st.caption(
+        "畫面省略大型表格，但完整活動單位資料仍保留，"
+        "可下載 CSV 進一步查閱。"
+    )
 
-strategy_table_column_config = {
-    primary_metric_column: st.column_config.NumberColumn(
-        format="percent" if primary_metric_is_percent else "%.0f"
-    ),
-    volume_column: st.column_config.NumberColumn(format="%.0f"),
-    revenue_column: st.column_config.NumberColumn(format="%.0f"),
-}
+    evidence_columns = [
+        "product_id",
+        "product_name",
+        "unit_code",
+        "corresponding_activities_label",
+        "strategy_category",
+        "net_revenue_effect_per_day",
+        "net_revenue_effect_total",
+        "discount_rate",
+        "confidence_label",
+        "is_risky",
+    ]
+    evidence_dataframe = strategy[
+        [
+            column
+            for column in evidence_columns
+            if column in strategy.columns
+        ]
+    ].copy()
+    evidence_dataframe = evidence_dataframe.rename(
+        columns={
+            "product_id": "商品編號",
+            "product_name": "商品名稱",
+            "unit_code": "活動單位",
+            "corresponding_activities_label": "對應活動",
+            "strategy_category": "策略分類",
+            "net_revenue_effect_per_day": "淨增益/日",
+            "net_revenue_effect_total": "淨增益合計",
+            "discount_rate": "折扣率",
+            "confidence_label": "資料信心",
+            "is_risky": "降價侵蝕風險",
+        }
+    )
 
-st.dataframe(
-    filtered_strategy,
-    use_container_width=True,
-    hide_index=True,
-    column_config=strategy_table_column_config,
-)
+    st.download_button(
+        "下載 AI 策略佐證 CSV",
+        data=evidence_dataframe.to_csv(
+            index=False
+        ).encode("utf-8-sig"),
+        file_name="ai_strategy_evidence.csv",
+        mime="text/csv",
+        key="ai_center_download_evidence",
+    )
+
 
 st.caption(
-    "清單內容與完整分析產生的活動策略清單一致，"
-    "並套用本頁上方的策略分類、資料信心與最低銷量篩選。"
-)
-
-
-# =========================================================
-# 個別化建議
-#
-# 針對疊加多個活動的活動單位，用瀑布法配對比較（工作表6）
-# 拆出各活動的獨立貢獻；找不到對照期間時如實標示無法拆分。
-# 移植自 PR「feature/strategy-recommendation-rules」的
-# 個別化建議文字概念，但完全改讀新方法論
-# （activity_unit_overview／waterfall_pairing）算出的資料，
-# 不依賴舊版活動前後 N 天比較法。
-# =========================================================
-
-if new_engine_ready:
-    st.divider()
-
-    st.subheader("個別化建議")
-
-    st.caption(
-        "選一個活動單位，查看跟同商品其他活動的比較、"
-        "疊加活動的個別貢獻拆解，以及下一檔可執行的測試建議。"
-    )
-
-    detail_unit_overview = unit_overview.loc[filtered_strategy.index]
-
-    if detail_unit_overview.empty:
-        st.info("目前篩選範圍內沒有可顯示的活動單位。")
-
-    else:
-        pairing_raw = st.session_state.get(
-            "activity_waterfall_pairing_dataframe"
-        )
-        unit_price_raw = st.session_state.get(
-            "activity_unit_price_dataframe"
-        )
-
-        pairing_table = (
-            pairing_raw.copy()
-            if dataframe_ready(pairing_raw)
-            else pd.DataFrame(
-                columns=[
-                    "activity_type",
-                    "product_id",
-                    "target_unit",
-                    "split_status",
-                    "candidate_units",
-                    "net_gain_per_day",
-                    "net_gain_total",
-                    "target_unit_days",
-                    "remainder_corresponding_activities",
-                ]
-            )
-        )
-
-        if not pairing_table.empty:
-            pairing_table["product_id"] = (
-                pairing_table["product_id"].astype(str).str.strip()
-            )
-
-        if dataframe_ready(unit_price_raw):
-            unit_price_table = unit_price_raw.copy()
-            unit_price_table["product_id"] = (
-                unit_price_table["product_id"]
-                .astype(str)
-                .str.strip()
-            )
-        else:
-            unit_price_table = pd.DataFrame(
-                columns=[
-                    "unit_code",
-                    "product_id",
-                    "activity_tag",
-                    "gift",
-                    "bonus_campaign_text",
-                ]
-            )
-
-        mechanism_text_lookup: dict[tuple, str] = {}
-
-        for row in unit_price_table.itertuples():
-            text_parts = [
-                str(part)
-                for part in [
-                    getattr(row, "activity_tag", None),
-                    getattr(row, "gift", None),
-                    getattr(row, "bonus_campaign_text", None),
-                ]
-                if part and pd.notna(part) and str(part).strip()
-            ]
-
-            if text_parts:
-                mechanism_text_lookup[
-                    (row.product_id, row.unit_code)
-                ] = "、".join(dict.fromkeys(text_parts))
-
-        detail_options = list(detail_unit_overview.index)
-
-        def format_detail_option(row_index: int) -> str:
-            row = detail_unit_overview.loc[row_index]
-
-            activities_text = (
-                row["corresponding_activities_label"] or "安靜期"
-            )
-
-            return (
-                f"{row['product_name']}｜{row['unit_code']}"
-                f"（{activities_text}）"
-            )
-
-        selected_index = st.selectbox(
-            "選擇活動單位",
-            options=detail_options,
-            format_func=format_detail_option,
-        )
-
-        selected_unit_row = detail_unit_overview.loc[selected_index]
-
-        unit_pairing_rows = pairing_table[
-            (pairing_table["product_id"] == selected_unit_row["product_id"])
-            & (pairing_table["target_unit"] == selected_unit_row["unit_code"])
-        ]
-
-        mechanism_text = mechanism_text_lookup.get(
-            (
-                selected_unit_row["product_id"],
-                selected_unit_row["unit_code"],
-            ),
-            "",
-        )
-
-        selected_strategy_category = filtered_strategy.loc[
-            selected_index, "策略分類"
-        ]
-
-        personalized_sections = (
-            build_unit_personalized_recommendation_sections(
-                unit_row=selected_unit_row,
-                pairing_rows=unit_pairing_rows,
-                unit_overview=unit_overview,
-                mechanism_text=mechanism_text,
-                strategy_category=selected_strategy_category,
-            )
-        )
-
-        with st.container(border=True):
-            render_personalized_sections(personalized_sections)
-
-        if selected_unit_row.get("sample_size_note") or selected_unit_row.get(
-            "proxy_price_note"
-        ):
-            st.caption(
-                "資料提示："
-                + "；".join(
-                    text
-                    for text in [
-                        selected_unit_row.get("sample_size_note"),
-                        selected_unit_row.get("proxy_price_note"),
-                    ]
-                    if text
-                )
-            )
-
-
-# =========================================================
-# 文字策略報告
-# =========================================================
-
-st.divider()
-
-st.subheader("主管策略摘要")
-
-if new_engine_ready and dataframe_ready(waterfall_summary_raw):
-    management_strategy_text = build_activity_unit_strategy_text(
-        unit_overview_raw, waterfall_summary_raw
-    )
-
-else:
-    management_strategy_text = strategy_report_text
-
-    st.caption(
-        "新版活動單位分析資料尚未就緒，暫時顯示舊版"
-        "活動前後比較方法論產生的文字報告。"
-    )
-
-if management_strategy_text:
-    with st.expander(
-        "展開完整文字報告",
-        expanded=False,
-    ):
-        st.markdown(
-            management_strategy_text
-        )
-
-else:
-    st.info(
-        "目前沒有策略文字報告。"
-    )
-
-
-# =========================================================
-# 下載
-# =========================================================
-
-st.divider()
-
-st.subheader("匯出策略資料")
-
-
-download_col1, download_col2 = st.columns(2)
-
-
-strategy_csv = (
-    filtered_strategy.to_csv(
-        index=False,
-        encoding="utf-8-sig",
-    )
-    .encode("utf-8-sig")
-)
-
-
-with download_col1:
-    st.download_button(
-        "下載篩選後策略清單",
-        data=strategy_csv,
-        file_name=(
-            "filtered_strategy_recommendations.csv"
-        ),
-        mime="text/csv",
-        use_container_width=True,
-    )
-
-
-with download_col2:
-    if management_strategy_text:
-        st.download_button(
-            "下載策略文字報告",
-            data=management_strategy_text.encode(
-                "utf-8"
-            ),
-            file_name="strategy_report.md",
-            mime="text/markdown",
-            use_container_width=True,
-        )
-
-    else:
-        st.button(
-            "目前沒有文字報告可下載",
-            disabled=True,
-            use_container_width=True,
-        )
-
-
-# =========================================================
-# 下一步提示
-# =========================================================
-
-st.info(
-    "需要進一步解讀活動原因或規劃下一期促銷時，"
-    "可前往「AI 策略顧問」進行提問。"
+    "AI 建議屬決策輔助；淨營收效應不等於實際毛利或淨利潤。"
+    "所有估計與限制均應搭配成本、庫存、退貨與商業目標再次確認。"
 )
