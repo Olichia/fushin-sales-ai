@@ -172,6 +172,9 @@ def _sample_scenario_result(
     base = {
         "label": "方案 B・您的方案",
         "discount_rate": 0.1,
+        # 佔位值：以下測試只斷言 evidence_text 的文字內容，
+        # 不驗證這個數字，僅為滿足 dataclass 必填欄位。
+        "estimated_activity_sales": 90.0,
         "estimated_activity_revenue": 9000.0,
         "expected_revenue_without_activity": 10000.0,
         "net_revenue_gain": -1000.0,

@@ -19,7 +19,7 @@ from src.ai_advisor import (
 # 造成寬度計算錯亂、面板跑版的問題。這裡只需要把觸發按鈕
 # 固定在右下角即可。
 
-def _inject_floating_chat_styles() -> None:
+def _inject_floating_chat_styles(dark_mode: bool = False) -> None:
     st.markdown(
         """
         <style>
@@ -310,6 +310,28 @@ def _inject_floating_chat_styles() -> None:
         unsafe_allow_html=True,
     )
 
+    if dark_mode:
+        st.markdown(
+            """
+            <style>
+            .st-key-floating_chat_title [data-testid="stMarkdownContainer"] p {
+                color: #EDF1F7 !important;
+            }
+
+            [class*="st-key-floating_chat_bubble_assistant_"] [data-testid="stMarkdown"] {
+                background: #1B2338 !important;
+                color: #EDF1F7 !important;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+            }
+
+            [class*="st-key-floating_chat_bubble_assistant_"] [data-testid="stMarkdown"] p {
+                color: #EDF1F7 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 # =========================================================
 # 浮動 AI 顧問視窗
@@ -394,7 +416,9 @@ def render_floating_chatbot() -> None:
             }
         ]
 
-    _inject_floating_chat_styles()
+    dark_mode = bool(st.session_state.get("dark_mode", False))
+
+    _inject_floating_chat_styles(dark_mode=dark_mode)
 
     with st.container(key="floating_chatbot_root"):
         with st.popover(

@@ -227,9 +227,24 @@ analysis_outputs_ready = (
 )
 
 analysis_ready = (
-    full_analysis_completed
+    sales_ready
+    and activity_ready
+    and full_analysis_completed
     and analysis_outputs_ready
 )
+
+# 銷量／活動資料不會在啟動時從資料庫回填，所以這個頁面的
+# 「目前進度」必須反映「這個 session 有沒有真的重新上傳並
+# 確認過」；下方的分析輸出／品質問題預覽也只在 analysis_ready
+# 成立時才顯示，避免背景保留的舊分析結果讓這個頁面看起來
+# 「已經完成」。舊分析結果的瀏覽只在「執行完整分析」與
+# 之後的成果頁面提供。
+if not analysis_ready:
+    integrated_dataframe = pd.DataFrame()
+    integration_issues_dataframe = pd.DataFrame()
+    performance_dataframe = pd.DataFrame()
+    strategy_dataframe = pd.DataFrame()
+    strategy_report_text = ""
 
 
 workflow_steps = [
