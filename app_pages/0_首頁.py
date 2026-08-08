@@ -1,12 +1,11 @@
-from pathlib import Path
 import base64
+from pathlib import Path
 import sys
-
+import pandas as pd
 import streamlit as st
 
-
 # =========================================================
-# 專案路徑
+# 專案路徑與初始化
 # =========================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -17,111 +16,146 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.session_helpers import initialize_session_state
 
+initialize_session_state()
+
+DEMO_FILE_PATH = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx"
+LOGO_PATH = PROJECT_ROOT / "assets" / "logo-white.png"
+
 
 def _render_template(filename: str, **replacements: str) -> str:
-    """
-    讀取 templates/ 下的 HTML／CSS 樣板，代入 {{PLACEHOLDER}}
-    """
-    content = (TEMPLATES_DIR / filename).read_text(encoding="utf-8")
+    """讀取 templates/ 下的 HTML／CSS 樣板，代入 {{PLACEHOLDER}}"""
+    template_path = TEMPLATES_DIR / filename
+    if not template_path.exists():
+        return ""
+    content = template_path.read_text(encoding="utf-8")
 
     for key, value in replacements.items():
         content = content.replace("{{" + key + "}}", value)
 
-    non_blank_lines = [
-        line for line in content.splitlines() if line.strip()
-    ]
+    non_blank_lines = [line for line in content.splitlines() if line.strip()]
 
     return "\n".join(non_blank_lines)
-
-
-# =========================================================
-# 頁面初始化
-# =========================================================
-
-initialize_session_state()
-
-LOGO_PATH = PROJECT_ROOT / "assets" / "logo-white.png"
-
-
-# =========================================================
-# 首頁重點功能與統計數字
-# =========================================================
-
-HERO_FEATURES = [
-    (
-        "search",
-        "orange",
-        "AI 主動洞察",
-        "精準識別高低成效與風險",
-    ),
-    (
-        "show_chart",
-        "blue",
-        "情境模擬",
-        "方案比較找出最佳解",
-    ),
-    (
-        "lightbulb",
-        "magenta",
-        "策略建議",
-        "AI 顧問即時問答",
-    ),
-    (
-        "picture_as_pdf",
-        "green",
-        "主管報表",
-        "一鍵匯出 PDF 報告",
-    ),
-]
-
-HERO_STATS = [
-    ("📊", "orange", "20+", "活動單位拆解案例"),
-    ("🧮", "blue", "10000+", "SKU規模"),
-    ("🤖", "magenta", "24/7", "AI 洞察待命"),
-    ("🏬", "green", "600+", "合作門市"),
-]
 
 
 def _encode_logo() -> str | None:
     if not LOGO_PATH.exists():
         return None
-
     return base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
 
 
+def _resolve_demo_path() -> Path | None:
+    if DEMO_FILE_PATH.exists():
+        return DEMO_FILE_PATH
+    alt_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
+    if alt_path.exists():
+        return alt_path
+    return None
+
+
+# 側邊欄自動收合
+st.markdown(
+    _render_template("sidebar_collapse.html"),
+    unsafe_allow_html=True,
+)
+
 # =========================================================
-# Hero 內容
+# 數據預載邏輯函式
 # =========================================================
+
+def load_demo_data_to_session():
+    """將 3-4 月銷量活動數據預先讀取並存入 Streamlit Session State"""
+    st.session_state["is_demo_mode"] = True
+    st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
+
+    target_path = _resolve_demo_path()
+
+    if target_path is not None:
+        try:
+            xls = pd.ExcelFile(target_path)
+            if "銷量原始資料(零填補)" in xls.sheet_names:
+                st.session_state["sales_data"] = pd.read_excel(xls, sheet_name="銷量原始資料(零填補)")
+            else:
+                st.session_state["sales_data"] = pd.read_excel(xls, sheet_name=0)
+
+            if "活動單位清單(依時間)" in xls.sheet_names:
+                st.session_state["events_data"] = pd.read_excel(xls, sheet_name="活動單位清單(依時間)")
+
+            if "活動單位總覽(vs基準)" in xls.sheet_names:
+                st.session_state["overview_data"] = pd.read_excel(xls, sheet_name="活動單位總覽(vs基準)")
+
+            st.session_state["data_loaded"] = True
+            return True
+        except Exception as e:
+            st.error(f"數據讀取失敗：{e}")
+            return False
+    else:
+        st.error("找不到數據檔案，請確認 assets/demo_sales_data.xlsx 是否存在。")
+        return False
+
+
+# 輕量讀取 305筆紀錄與 140筆總覽供效益卡動態顯示
+@st.cache_data(show_spinner=False)
+def get_home_stats(file_path: str):
+    path = Path(file_path)
+    if not path.exists():
+        return 305, 61, 140
+    try:
+        xls = pd.ExcelFile(path)
+        sales_df = pd.read_excel(xls, sheet_name="銷量原始資料(零填補)")
+        overview_df = pd.read_excel(xls, sheet_name="活動單位總覽(vs基準)")
+        return len(sales_df), sales_df["日期"].nunique(), len(overview_df)
+    except Exception:
+        return 305, 61, 140
+
+
+_demo_path = _resolve_demo_path()
+total_recs, total_days, total_units = get_home_stats(str(_demo_path)) if _demo_path else (305, 61, 140)
+
+
+# =========================================================
+# 1. Hero 視覺區塊 (保留原本的主標題與副標題樣板)
+# =========================================================
+
+HERO_FEATURES = [
+    ("search", "orange", "AI 主動洞察", "揪出高低成效風險"),
+    ("show_chart", "blue", "情境模擬", "方案比較找出最佳解"),
+    ("lightbulb", "magenta", "策略建議", "AI 顧問即時問答"),
+    ("picture_as_pdf", "green", "主管報表", "一鍵匯出 PDF 報告"),
+]
+
+HERO_STATS = [
+    ("📊", "orange", "20+", "活動單位拆解案例"),
+    ("🧮", "blue", "1,000+", "SKU規模"),
+    ("🤖", "magenta", "24/7", "AI 洞察待命"),
+    ("🏬", "green", "600+", "合作門市"),
+]
 
 encoded_logo = _encode_logo()
 
 feature_cards_html = "".join(
-    '<div class="hero-feature-card">'
+    f'<div class="hero-feature-card">'
     f'<div class="hero-feature-icon-badge hero-feature-icon-{color_key}">'
-    '<span class="hero-feature-icon-glyph" data-testid="stIconMaterial" '
-    "style=\"font-family:'Material Symbols Rounded';\" translate=\"no\">"
-    f"{icon_name}</span>"
-    "</div>"
+    f'<span class="hero-feature-icon-glyph" data-testid="stIconMaterial" style="font-family:\'Material Symbols Rounded\';" translate="no">{icon_name}</span>'
+    f'</div>'
     f'<div class="hero-feature-title">{title}</div>'
     f'<div class="hero-feature-description">{description}</div>'
-    "</div>"
+    f'</div>'
     for icon_name, color_key, title, description in HERO_FEATURES
 )
 
 stat_items_html = "".join(
-    '<div class="hero-stat-item">'
+    f'<div class="hero-stat-item">'
     f'<div class="hero-stat-icon">{icon}</div>'
-    "<div>"
+    f'<div>'
     f'<div class="hero-stat-value hero-stat-value-{color_key}">{value}</div>'
     f'<div class="hero-stat-label">{label}</div>'
-    "</div>"
-    "</div>"
+    f'</div>'
+    f'</div>'
     for icon, color_key, value, label in HERO_STATS
 )
 
 orb_html = (
-    '<img class="hero-orb-logo" '
-    f'src="data:image/png;base64,{encoded_logo}" alt="富信新零售 Logo">'
+    f'<img class="hero-orb-logo" src="data:image/png;base64,{encoded_logo}" alt="富信新零售 Logo">'
     if encoded_logo
     else ""
 )
@@ -136,16 +170,171 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 拿掉可能引起版本相容問題的 key 參數
-with st.container():
-    start_exploring = st.button(
-        "開始探索 →",
+
+# =========================================================
+# 2. 首頁雙 CTA 按鈕區 (主要：開始示範 | 次要：查看 AI 如何判斷)
+# =========================================================
+
+cta_col1, cta_col2 = st.columns([1, 1])
+
+with cta_col1:
+    start_demo = st.button(
+        "🚀 開始示範",
         type="primary",
         use_container_width=True,
+        help="【主要按鈕】預載示範數據，直達 AI 活動洞察。"
     )
 
-if start_exploring:
-    try:
-        st.switch_page("app_pages/15_資料管理中心.py")
-    except Exception as e:
-        st.error(f"頁面跳轉失敗，請確認該檔案路徑是否存在：{e}")
+with cta_col2:
+    goto_data_upload = st.button(
+        "🔍 查看 AI 如何判斷",
+        type="secondary",
+        use_container_width=True,
+        help="【次要按鈕】跳轉至 01 銷量資料處理，查看雙模式切換與欄位檢核。"
+    )
+
+# 主要按鈕：跳轉至「12_活動洞察.py」
+if start_demo:
+    if load_demo_data_to_session():
+        st.toast("🚀 3-4 月示範數據已載入！正在進入 AI 活動洞察...", icon="✅")
+        candidate_insight_pages = [
+            "pages/12_活動洞察.py",
+            "app_pages/12_活動洞察.py",
+            "12_活動洞察.py",
+            "pages/活動洞察.py",
+            "app_pages/活動洞察.py",
+        ]
+        switched = False
+        for page_path in candidate_insight_pages:
+            try:
+                st.switch_page(page_path)
+                switched = True
+                break
+            except Exception:
+                continue
+        if not switched:
+            st.error("跳轉失敗：請確認專案中是否存在 `12_活動洞察.py` 檔案。")
+
+# 次要按鈕：跳轉至「01_銷量資料處理.py」
+if goto_data_upload:
+    st.toast("🔍 前往銷量資料處理頁面...", icon="ℹ️")
+    candidate_sales_pages = [
+        "pages/01_銷量資料處理.py",
+        "app_pages/01_銷量資料處理.py",
+        "pages/1_銷量資料處理.py",
+        "01_銷量資料處理.py",
+    ]
+    switched = False
+    for page_path in candidate_sales_pages:
+        try:
+            st.switch_page(page_path)
+            switched = True
+            break
+        except Exception:
+            continue
+    if not switched:
+        st.error("跳轉失敗：請確認專案中是否存在 `01_銷量資料處理.py` 檔案。")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+
+# =========================================================
+# 3. 規格書指定：三張效益卡 + 四步驟流程圖 (畫面乾淨俐落)
+# =========================================================
+
+st.markdown(
+    """
+<style>
+    .spec-benefit-card {
+        background: #FFFFFF;
+        border: 1.5px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 20px 16px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+    .spec-benefit-lbl { font-size: 15px; font-weight: 700; color: #475569; margin-bottom: 6px; }
+    .spec-benefit-val { font-size: 28px; font-weight: 900; color: #EA580C; margin: 6px 0; line-height: 1.1; }
+    .spec-benefit-sub { font-size: 13px; color: #64748B; font-weight: 600; }
+
+    .spec-flow-wrapper {
+        background: #EFF6FF;
+        border: 1.5px solid #BFDBFE;
+        border-radius: 14px;
+        padding: 18px 24px;
+        margin: 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        text-align: center;
+    }
+    .spec-flow-step {
+        font-size: 16px;
+        font-weight: 800;
+        color: #1E40AF;
+    }
+    .spec-flow-arrow {
+        font-size: 22px;
+        color: #3B82F6;
+        font-weight: 900;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+st.markdown("##### ⚡ 平台核心效益與決策閉環")
+
+b_col1, b_col2, b_col3 = st.columns(3)
+
+with b_col1:
+    st.markdown(
+        f"""
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">📊 資料追蹤規模</div>
+        <div class="spec-benefit-val">{total_recs} 筆</div>
+        <div class="spec-benefit-sub">涵蓋 3-4 月完整 {total_days} 天銷量紀錄</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with b_col2:
+    st.markdown(
+        f"""
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">🎯 檔期與品項辨識</div>
+        <div class="spec-benefit-val">100%</div>
+        <div class="spec-benefit-sub">自動對比 {total_units} 筆歷史檔期基準</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with b_col3:
+    st.markdown(
+        """
+    <div class="spec-benefit-card">
+        <div class="spec-benefit-lbl">⚡ AI 洞察產出速度</div>
+        <div class="spec-benefit-val">&lt; 3 秒</div>
+        <div class="spec-benefit-sub">一鍵自動生成結構化決策建議</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+# 四步驟流程圖
+st.markdown(
+    """
+<div class="spec-flow-wrapper">
+    <div class="spec-flow-step">📄 1. 銷量資料</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">🤖 2. AI 結構化洞察</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">💡 3. 可執行行動建議</div>
+    <div class="spec-flow-arrow">➔</div>
+    <div class="spec-flow-step">📈 4. 效益與成效追蹤</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
