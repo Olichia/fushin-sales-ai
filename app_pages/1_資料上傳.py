@@ -50,13 +50,26 @@ from src.session_helpers import (
 
 
 # =========================================================
-# 頁面初始化
+# 頁面初始化與全域字體放大 CSS
 # =========================================================
 
 initialize_session_state()
 
 st.markdown(
     """
+<style>
+    /* 全域文字放大 */
+    html, body, [class*="css"] {
+        font-size: 18px !important;
+    }
+    .product-page-title h1 {
+        font-size: 32px !important;
+        font-weight: 900 !important;
+    }
+    .product-page-description {
+        font-size: 18px !important;
+    }
+</style>
     <div class="step-label">STEP 01</div>
     <div class="product-page-title">
         <div class="product-page-title-bar"></div>
@@ -131,7 +144,6 @@ data_source_mode = st.radio(
 is_demo_mode = "使用系統示範資料" in data_source_mode
 
 if is_demo_mode:
-    # 修正：直接抓取根目錄底下的 3-4月活動成效表_v2.xlsx
     demo_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
     if not demo_path.exists():
         alt_path = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx"
@@ -139,7 +151,6 @@ if is_demo_mode:
             demo_path = alt_path
 
     if demo_path.exists():
-        # 如果尚未載入示範檔案，自動載入並完成處理
         if st.session_state.get("uploaded_file_name") != "3-4月活動成效表_v2.xlsx" or st.session_state.get("standardized_dataframe") is None:
             try:
                 file_bytes = demo_path.read_bytes()
@@ -299,8 +310,6 @@ selected_sheet = st.selectbox(
 )
 
 
-# 使用者切換工作表時，自動載入；
-# 不需要再按「載入此工作表」。
 should_load_sheet = (
     st.session_state.selected_sheet_name
     != selected_sheet
@@ -433,7 +442,6 @@ saved_mapping = st.session_state.get(
 )
 
 
-# 在 selectbox 建立前設定合理預設值
 for system_field in REQUIRED_FIELDS:
     widget_key = (
         f"sales_mapping_{system_field}"
@@ -450,8 +458,6 @@ for system_field in REQUIRED_FIELDS:
         )
     )
 
-    # 舊選項不存在於新工作表時，
-    # 改用系統建議值。
     current_widget_value = (
         st.session_state.get(
             widget_key
@@ -575,10 +581,6 @@ if mapping_errors:
         st.error(error)
 
 
-# =========================================================
-# 檢查目前欄位是否與已處理版本不同
-# =========================================================
-
 standardized_dataframe = (
     st.session_state.get(
         "standardized_dataframe"
@@ -677,10 +679,6 @@ if process_button:
         )
 
 
-# =========================================================
-# 尚未產生標準化資料
-# =========================================================
-
 standardized_dataframe = (
     st.session_state.get(
         "standardized_dataframe"
@@ -694,7 +692,6 @@ if standardized_dataframe is None:
     )
 
 else:
-    # 若欄位已變更，不讓使用者確認舊結果
     result_is_current = (
         st.session_state.column_mapping
         == mapping
@@ -770,10 +767,6 @@ else:
     )
 
 
-    # =====================================================
-    # 品質摘要
-    # =====================================================
-
     with st.expander(
         "查看資料品質摘要",
         expanded=(
@@ -789,10 +782,6 @@ else:
             hide_index=True,
         )
 
-
-    # =====================================================
-    # 標準化資料預覽
-    # =====================================================
 
     st.subheader("標準化資料預覽")
 
@@ -831,10 +820,6 @@ else:
     )
 
 
-    # =====================================================
-    # 問題資料
-    # =====================================================
-
     if issues_dataframe.empty:
         st.success(
             "未發現需要人工確認的資料品質問題。"
@@ -862,10 +847,6 @@ else:
                 ),
             )
 
-
-    # =====================================================
-    # 下載資料
-    # =====================================================
 
     standardized_csv = (
         standardized_dataframe.to_csv(
@@ -913,10 +894,6 @@ else:
             use_container_width=True,
         )
 
-
-    # =====================================================
-    # 最終確認
-    # =====================================================
 
     st.divider()
     st.subheader("最終確認")
@@ -1027,10 +1004,6 @@ else:
             "目前銷量標準化資料已確認完成。"
         )
 
-
-# =========================================================
-# 清除資料
-# =========================================================
 
 st.divider()
 st.subheader("重新開始")
