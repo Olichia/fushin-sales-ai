@@ -47,7 +47,7 @@ from src.session_helpers import (
 
 
 # =========================================================
-# 頁面初始化與全域字體放大 CSS（已加大）
+# 頁面初始化與合適字體大小的 CSS
 # =========================================================
 
 initialize_session_state()
@@ -55,16 +55,16 @@ initialize_session_state()
 st.markdown(
     """
     <style>
-        /* 全域文字大幅放大 */
+        /* 適度調好字體大小，保持畫面精緻不破版 */
         html, body, [class*="css"] {
-            font-size: 22px !important;
+            font-size: 16px !important;
         }
         .product-page-title h1 {
-            font-size: 38px !important;
-            font-weight: 900 !important;
+            font-size: 28px !important;
+            font-weight: 800 !important;
         }
         .product-page-description {
-            font-size: 22px !important;
+            font-size: 16px !important;
         }
     </style>
     <div class="step-label">STEP 02</div>
