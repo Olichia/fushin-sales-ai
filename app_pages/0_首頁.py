@@ -1,6 +1,7 @@
 import base64
 from pathlib import Path
 import sys
+import time
 import pandas as pd
 import streamlit as st
 
@@ -237,7 +238,7 @@ st.markdown(
 
 
 # =========================================================
-# 2. 單一按鈕區 (跳轉至分析總覽頁面)
+# 2. 單一按鈕區 (精準對應 11_產品首頁.py／分析總覽 跳轉)
 # =========================================================
 
 cta_col, _ = st.columns([1, 2])
@@ -250,26 +251,11 @@ with cta_col:
         help="【Demo 極速通道】預載示範數據，直達分析總覽頁面。"
     )
 
-if start_demo:
-    if load_demo_data_to_session():
-        st.toast("🚀 示範數據已載入！正在前往分析總覽...", icon="✅")
-        # 精準對應分析總覽檔案名稱
-        candidate_pages = [
-            "pages/4_銷售總覽.py",
-            "app_pages/4_銷售總覽.py",
-            "4_銷售總覽.py",
-        ]
-        switched = False
-        for target in candidate_pages:
-            try:
-                st.switch_page(target)
-                switched = True
-                break
-            except Exception:
-                continue
-
-        if not switched:
-            st.warning("資料已載入！請點擊左側「銷售總覽」即可進入分析頁面。")
+    if start_demo:
+        if load_demo_data_to_session():
+            st.success("🚀 示範數據已載入！正在前往分析總覽...")
+            time.sleep(1)
+            st.switch_page("app_pages/11_產品首頁.py")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
