@@ -116,50 +116,58 @@ total_recs, total_days, total_units = get_home_stats(str(_demo_path)) if _demo_p
 
 
 # =========================================================
-# 樣式設定 CSS（字體適中、精緻比例）
+# 樣式設定 CSS（大幅全面放大字體）
 # =========================================================
 st.markdown(
     """
 <style>
+    /* 全域文字放大 */
+    html, body, [class*="css"] {
+        font-size: 18px !important;
+    }
+
+    /* 特徵卡片字體放大 */
     .hero-feature-title {
-        font-size: 14px !important;
-        font-weight: 700 !important;
+        font-size: 20px !important;
+        font-weight: 800 !important;
     }
     .hero-feature-description {
-        font-size: 12px !important;
-        line-height: 1.3 !important;
+        font-size: 16px !important;
+        line-height: 1.5 !important;
     }
 
+    /* 下方效益卡字體放大 */
     .spec-benefit-card {
         background: #FFFFFF;
-        border: 1.5px solid #E2E8F0;
-        border-radius: 14px;
-        padding: 20px 14px;
+        border: 2px solid #E2E8F0;
+        border-radius: 16px;
+        padding: 26px 20px;
         text-align: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
     }
-    .spec-benefit-lbl { font-size: 14px !important; font-weight: 700; color: #475569; margin-bottom: 6px; }
-    .spec-benefit-val { font-size: 26px !important; font-weight: 900; color: #EA580C; margin: 6px 0; line-height: 1.1; }
-    .spec-benefit-sub { font-size: 12px !important; color: #64748B; font-weight: 600; }
+    .spec-benefit-lbl { font-size: 19px !important; font-weight: 800; color: #475569; margin-bottom: 10px; }
+    .spec-benefit-val { font-size: 36px !important; font-weight: 900; color: #EA580C; margin: 8px 0; line-height: 1.1; }
+    .spec-benefit-sub { font-size: 16px !important; color: #64748B; font-weight: 700; }
 
+    /* 四步驟流程圖字體放大 */
     .spec-flow-wrapper {
         background: #EFF6FF;
-        border: 1.5px solid #BFDBFE;
-        border-radius: 14px;
-        padding: 16px 22px;
-        margin: 18px 0;
+        border: 2px solid #BFDBFE;
+        border-radius: 16px;
+        padding: 24px 30px;
+        margin: 28px 0;
         display: flex;
         align-items: center;
         justify-content: space-around;
         text-align: center;
     }
     .spec-flow-step {
-        font-size: 15px !important;
-        font-weight: 800;
+        font-size: 20px !important;
+        font-weight: 900;
         color: #1E40AF;
     }
     .spec-flow-arrow {
-        font-size: 20px !important;
+        font-size: 28px !important;
         color: #3B82F6;
         font-weight: 900;
     }
@@ -180,7 +188,6 @@ HERO_FEATURES = [
     ("picture_as_pdf", "green", "主管報表", "一鍵匯出 PDF 報告"),
 ]
 
-# SKU 規模已改為 10,000+
 HERO_STATS = [
     ("📊", "orange", "20+", "活動單位拆解案例"),
     ("🧮", "blue", "10,000+", "SKU規模"),
@@ -230,7 +237,7 @@ st.markdown(
 
 
 # =========================================================
-# 2. 單一按鈕區 (跳轉至開始使用頁面)
+# 2. 單一按鈕區 (跳轉至分析總覽頁面)
 # =========================================================
 
 cta_col, _ = st.columns([1, 2])
@@ -240,19 +247,19 @@ with cta_col:
         "🚀 開始示範",
         type="primary",
         use_container_width=True,
-        help="【Demo 極速通道】預載示範數據，直達開始使用頁面。"
+        help="【Demo 極速通道】預載示範數據，直達分析總覽頁面。"
     )
 
 if start_demo:
     if load_demo_data_to_session():
-        st.toast("🚀 3-4 月示範數據已載入！正在前往開始使用頁面...", icon="✅")
+        st.toast("🚀 3-4 月示範數據已載入！正在前往分析總覽...", icon="✅")
         candidate_pages = [
-            "pages/15_資料管理中心.py",
-            "app_pages/15_資料管理中心.py",
-            "15_資料管理中心.py",
-            "pages/01_銷量資料處理.py",
-            "app_pages/01_銷量資料處理.py",
-            "01_銷量資料處理.py",
+            "pages/4_銷售總覽.py",
+            "app_pages/4_銷售總覽.py",
+            "4_銷售總覽.py",
+            "pages/分析總覽.py",
+            "app_pages/分析總覽.py",
+            "分析總覽.py",
         ]
         switched = False
         for target in candidate_pages:
@@ -264,7 +271,7 @@ if start_demo:
                 continue
 
         if not switched:
-            st.error("跳轉失敗：請確認專案中是否存在對應的頁面檔案。")
+            st.error("跳轉失敗：請確認專案中是否存在對應的「分析總覽」頁面檔案。")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
