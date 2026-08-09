@@ -238,7 +238,7 @@ st.markdown(
 
 
 # =========================================================
-# 2. 單一按鈕區 (精準對應 11_產品首頁.py／分析總覽 跳轉)
+# 2. 單一按鈕區 (導向至 13_策略中心.py)
 # =========================================================
 
 cta_col, _ = st.columns([1, 2])
@@ -248,14 +248,14 @@ with cta_col:
         "🚀 開始示範",
         type="primary",
         use_container_width=True,
-        help="【Demo 極速通道】預載示範數據，直達分析總覽頁面。"
+        help="【Demo 極速通道】預載示範數據，直達 AI 策略中心。"
     )
 
     if start_demo:
         if load_demo_data_to_session():
-            st.success("🚀 示範數據已載入！正在前往分析總覽...")
+            st.success("🚀 示範數據已載入！正在前往 AI 策略中心...")
             time.sleep(1)
-            st.switch_page("app_pages/11_產品首頁.py")
+            st.switch_page("app_pages/13_策略中心.py")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
