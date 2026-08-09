@@ -50,7 +50,7 @@ from src.session_helpers import (
 
 
 # =========================================================
-# 頁面初始化與全域字體放大 CSS（已加大）
+# 頁面初始化與適度字體大小的 CSS
 # =========================================================
 
 initialize_session_state()
@@ -58,16 +58,16 @@ initialize_session_state()
 st.markdown(
     """
     <style>
-        /* 全域文字大幅放大 */
+        /* 字體大小調回舒適、美觀的大小 (15px) */
         html, body, [class*="css"] {
-            font-size: 22px !important;
+            font-size: 15px !important;
         }
         .product-page-title h1 {
-            font-size: 38px !important;
-            font-weight: 900 !important;
+            font-size: 26px !important;
+            font-weight: 800 !important;
         }
         .product-page-description {
-            font-size: 22px !important;
+            font-size: 15px !important;
         }
     </style>
     <div class="step-label">STEP 01</div>
@@ -137,6 +137,7 @@ data_source_mode = st.radio(
     "資料來源模式",
     ["使用系統示範資料 (推薦，免手動上傳)", "自行上傳 Excel 檔案"],
     key="sales_data_source_mode",
+    index=0,  # 預設選取第一個（使用系統示範資料）
     horizontal=True,
     help="選擇「使用系統示範資料」將自動載入歷史銷量與活動紀錄，直接呈現處理完成狀態。",
 )
