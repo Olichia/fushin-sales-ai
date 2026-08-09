@@ -1,7 +1,6 @@
 import base64
 from pathlib import Path
 import sys
-import time
 import pandas as pd
 import streamlit as st
 
@@ -117,7 +116,7 @@ total_recs, total_days, total_units = get_home_stats(str(_demo_path)) if _demo_p
 
 
 # =========================================================
-# 樣式設定 CSS
+# 樣式設定 CSS（大幅全面放大字體）
 # =========================================================
 st.markdown(
     """
@@ -238,7 +237,7 @@ st.markdown(
 
 
 # =========================================================
-# 2. 單一按鈕區 (精準對應 11_產品首頁.py／分析總覽 跳轉)
+# 2. 單一按鈕區 (跳轉至分析總覽頁面)
 # =========================================================
 
 cta_col, _ = st.columns([1, 2])
@@ -253,9 +252,24 @@ with cta_col:
 
 if start_demo:
     if load_demo_data_to_session():
-        st.success("🚀 3-4 月示範數據已載入！正在前往分析總覽...")
-        time.sleep(1)
-        st.switch_page("app_pages/11_產品首頁.py")
+        st.toast("🚀 3-4 月示範數據已載入！正在前往分析總覽...", icon="✅")
+        # 精準對應分析總覽檔案名稱
+        candidate_pages = [
+            "pages/4_銷售總覽.py",
+            "app_pages/4_銷售總覽.py",
+            "4_銷售總覽.py",
+        ]
+        switched = False
+        for target in candidate_pages:
+            try:
+                st.switch_page(target)
+                switched = True
+                break
+            except Exception:
+                continue
+
+        if not switched:
+            st.warning("資料已載入！請點擊左側「銷售總覽」即可進入分析頁面。")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -264,7 +278,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 # 3. 三張效益卡 + 無編號的四步驟流程圖
 # =========================================================
 
-st.markdown("##### ⚡ 平台核心效益與決策閉環")
+st.markdown("##### ⚡ 平台核心效益與決策流程")
 
 b_col1, b_col2, b_col3 = st.columns(3)
 
@@ -298,10 +312,10 @@ with b_col3:
         unsafe_allow_html=True,
     )
 
-# 四步驟流程圖（已移除數字編號）
+# 四步驟流程圖
 st.markdown(
     """<div class="spec-flow-wrapper">
-        <div class="spec-flow-step">📄 銷量資料</div>
+        <div class="spec-flow-step">📄 銷量活動資料</div>
         <div class="spec-flow-arrow">➔</div>
         <div class="spec-flow-step">🤖 AI 結構化洞察</div>
         <div class="spec-flow-arrow">➔</div>
