@@ -74,11 +74,14 @@ st.markdown(
 # 流程（且不會寫入資料庫，重新整理瀏覽器就會清空）。
 # =========================================================
 
+st.subheader("資料來源")
+
 sales_data_mode = st.radio(
     "資料來源",
     options=["示範資料", "自訂上傳資料"],
     horizontal=True,
     key="sales_data_mode",
+    label_visibility="collapsed",
 )
 
 if sales_data_mode == "示範資料":

@@ -15,7 +15,11 @@ TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.demo_data import apply_full_demo_data_to_session
+from src.demo_data import (
+    apply_full_demo_data_to_session,
+    get_demo_analysis_result,
+    get_demo_sales_result,
+)
 from src.session_helpers import initialize_session_state
 
 
@@ -105,6 +109,32 @@ def _encode_logo() -> str | None:
     return base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
 
 
+def _get_home_benefit_stats() -> tuple[int, int]:
+    """
+    取得下方效益卡要顯示的示範資料規模數字。
+
+    直接讀 src/demo_data.py 已經在用的示範資料快取（跟 01/02
+    上傳頁示範模式、「開始探索」按鈕同一套），資料庫查詢失敗時
+    才退回固定的示意數字，不影響首頁正常顯示。
+    """
+
+    try:
+        sales_result = get_demo_sales_result()
+        analysis_result = get_demo_analysis_result()
+
+        total_records = len(
+            sales_result["standardized_dataframe"]
+        )
+        total_units = len(
+            analysis_result["activity_unit_overview_dataframe"]
+        )
+
+        return total_records, total_units
+
+    except Exception:
+        return 305, 140
+
+
 # =========================================================
 # Hero 內容
 #
@@ -171,3 +201,126 @@ if start_exploring:
     apply_full_demo_data_to_session()
 
     st.switch_page("app_pages/13_策略中心.py")
+
+
+# =========================================================
+# 平台核心效益與決策流程
+#
+# 內容與版面沿用 feature/ui-landind-page-v3 分支已經做好的
+# 設計，但效益卡數字改接現有的示範資料快取
+# （get_demo_sales_result／get_demo_analysis_result，見
+# src/demo_data.py），不是該分支舊版的
+# load_demo_data_to_session／get_home_stats；顏色全部改走
+# 專案既有的 CSS 變數，深色模式才會正確換色（原設計是寫死
+# 色碼、只考慮淺色）。
+# =========================================================
+
+st.markdown(
+    """
+    <style>
+    .spec-benefit-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 26px 20px;
+        text-align: center;
+        box-shadow: var(--shadow-sm);
+    }
+    .spec-benefit-lbl {
+        margin-bottom: 10px;
+        color: var(--text-secondary);
+        font-size: 0.98rem;
+        font-weight: 800;
+    }
+    .spec-benefit-val {
+        margin: 8px 0;
+        color: var(--brand-orange-dark);
+        font-size: 1.9rem;
+        font-weight: 900;
+        line-height: 1.1;
+    }
+    .spec-benefit-sub {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+
+    .spec-flow-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 28px 0;
+        padding: 24px 30px;
+        background: var(--ai-accent-soft);
+        border: 1px solid var(--ai-accent-border);
+        border-radius: 16px;
+        text-align: center;
+    }
+    .spec-flow-step {
+        color: var(--ai-accent-deep);
+        font-size: 1.02rem;
+        font-weight: 900;
+    }
+    .spec-flow-arrow {
+        color: var(--ai-accent);
+        font-size: 1.4rem;
+        font-weight: 900;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("##### ⚡ 平台核心效益與決策流程")
+
+home_benefit_total_records, home_benefit_total_units = (
+    _get_home_benefit_stats()
+)
+
+benefit_col1, benefit_col2, benefit_col3 = st.columns(3)
+
+with benefit_col1:
+    st.markdown(
+        f"""<div class="spec-benefit-card">
+            <div class="spec-benefit-lbl">📊 資料追蹤規模</div>
+            <div class="spec-benefit-val">{home_benefit_total_records} 筆</div>
+            <div class="spec-benefit-sub">涵蓋完整活動週期的銷量紀錄</div>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+with benefit_col2:
+    st.markdown(
+        f"""<div class="spec-benefit-card">
+            <div class="spec-benefit-lbl">🎯 檔期與品項辨識</div>
+            <div class="spec-benefit-val">100%</div>
+            <div class="spec-benefit-sub">自動對比 {home_benefit_total_units} 筆歷史檔期基準</div>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+with benefit_col3:
+    st.markdown(
+        """<div class="spec-benefit-card">
+            <div class="spec-benefit-lbl">⚡ AI 洞察產出速度</div>
+            <div class="spec-benefit-val">&lt; 3 秒</div>
+            <div class="spec-benefit-sub">一鍵自動生成結構化決策建議</div>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+st.markdown(
+    """<div class="spec-flow-wrapper">
+        <div class="spec-flow-step">📄 銷量活動資料</div>
+        <div class="spec-flow-arrow">➔</div>
+        <div class="spec-flow-step">🤖 AI 結構化洞察</div>
+        <div class="spec-flow-arrow">➔</div>
+        <div class="spec-flow-step">💡 可執行行動建議</div>
+        <div class="spec-flow-arrow">➔</div>
+        <div class="spec-flow-step">📈 效益與成效追蹤</div>
+    </div>""",
+    unsafe_allow_html=True,
+)

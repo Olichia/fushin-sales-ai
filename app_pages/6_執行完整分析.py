@@ -60,6 +60,7 @@ def render_readiness_card(
     ready_text: str,
     pending_text: str,
     count_text: str,
+    detail_rows: list[tuple[str, str]] | None = None,
 ) -> None:
     """顯示分析前置資料狀態卡。"""
 
@@ -84,6 +85,11 @@ def render_readiness_card(
         else:
             st.error(
                 pending_text
+            )
+
+        for detail_label, detail_value in (detail_rows or []):
+            st.caption(
+                f"{detail_label}：{detail_value}"
             )
 
 
@@ -169,14 +175,190 @@ can_run_analysis = (
 
 
 # =========================================================
+# 整體進度（原「開始使用」頁面內容併入）
+#
+# 銷量／活動資料本身不會在啟動時從資料庫回填，所以這裡的完成
+# 狀態只反映「這個 session 有沒有真的重新上傳並確認過」；
+# analysis_step_ready 額外疊加「已跑過完整分析且三組輸出都
+# 存在」，不會因為背景保留的舊分析結果誤顯示成已完成。
+# =========================================================
+
+analysis_outputs_ready = (
+    dataframe_ready(
+        get_dataframe("integrated_sales_activity_dataframe")
+    )
+    and dataframe_ready(
+        get_dataframe("activity_performance_dataframe")
+    )
+    and (
+        dataframe_ready(
+            get_dataframe("strategy_report_dataframe")
+        )
+        or bool(
+            str(
+                st.session_state.get("strategy_report_text", "")
+            ).strip()
+        )
+    )
+)
+
+analysis_step_ready = (
+    sales_ready
+    and activity_ready
+    and bool(
+        st.session_state.get("full_analysis_completed", False)
+    )
+    and analysis_outputs_ready
+)
+
+workflow_steps = [
+    {
+        "編號": "01",
+        "名稱": "銷量資料處理",
+        "完成": sales_ready,
+        "頁面": "01 銷量資料處理",
+    },
+    {
+        "編號": "02",
+        "名稱": "活動資料處理",
+        "完成": activity_ready,
+        "頁面": "02 活動資料處理",
+    },
+    {
+        "編號": "03",
+        "名稱": "執行完整分析",
+        "完成": analysis_step_ready,
+        "頁面": "03 執行完整分析",
+    },
+]
+
+completed_step_count = sum(
+    int(step["完成"]) for step in workflow_steps
+)
+
+total_step_count = len(workflow_steps)
+
+completion_rate = completed_step_count / total_step_count
+
+
+st.subheader("目前進度")
+
+progress_col1, progress_col2, progress_col3 = st.columns(
+    [1, 1, 2]
+)
+
+with progress_col1:
+    st.metric(
+        "已完成步驟",
+        f"{completed_step_count}／{total_step_count}",
+    )
+
+with progress_col2:
+    st.metric(
+        "完成率",
+        f"{completion_rate:.0%}",
+    )
+
+with progress_col3:
+    with st.container(border=True):
+        st.markdown(
+            '<div class="progress-card-title">完整分析流程</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.progress(
+            completion_rate,
+            text=(
+                f"已完成 {completed_step_count} 個步驟，"
+                f"尚有 {total_step_count - completed_step_count} 個步驟"
+            ),
+        )
+
+
+next_incomplete_step = next(
+    (step for step in workflow_steps if not step["完成"]),
+    None,
+)
+
+if next_incomplete_step is None:
+    st.success(
+        "三個主要步驟都已完成。現在可以前往主決策引擎，"
+        "查看分析總覽、活動洞察、AI 策略中心或情境模擬，"
+        "或前往成果匯出查看行動生成與主管報表。"
+    )
+else:
+    st.markdown(
+        f"""
+        <div class="next-step-panel">
+            <div class="next-step-eyebrow">建議下一步</div>
+            <div class="next-step-title">
+                {next_incomplete_step['編號']}｜
+                {next_incomplete_step['名稱']}
+            </div>
+            <div class="next-step-location">
+                請從左側導覽進入「{next_incomplete_step['頁面']}」
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =========================================================
 # 資料準備狀態
 # =========================================================
 
 st.subheader("資料準備狀態")
 
+is_demo_sales_data = bool(
+    st.session_state.get("is_demo_sales_data", False)
+)
+
+uploaded_file_name = st.session_state.get("uploaded_file_name")
+
+column_mapping = st.session_state.get("column_mapping", {}) or {}
+
+required_mapping_fields = {
+    "sale_date",
+    "product_id",
+    "product_name",
+    "quantity",
+}
+
+mapping_ready = required_mapping_fields.issubset(
+    set(column_mapping.keys())
+)
+
+is_demo_activity_data = bool(
+    st.session_state.get("is_demo_activity_data", False)
+)
+
+activity_uploaded_files = st.session_state.get(
+    "activity_uploaded_files", {}
+) or {}
+
 status_col_1, status_col_2 = st.columns(2)
 
 with status_col_1:
+    if is_demo_sales_data:
+        sales_detail_rows = [
+            ("目前資料", "示範資料"),
+            ("欄位對應", "示範資料已預先完成"),
+        ]
+    else:
+        sales_detail_rows = [
+            (
+                "目前檔案",
+                str(uploaded_file_name)
+                if uploaded_file_name
+                else "尚未上傳",
+            ),
+            (
+                "欄位對應",
+                "4／4 已完成" if mapping_ready else "尚未完成",
+            ),
+        ]
+
     render_readiness_card(
         icon="📊",
         title="銷量資料",
@@ -192,9 +374,22 @@ with status_col_1:
             if dataframe_ready(sales_dataframe)
             else "尚無標準化資料"
         ),
+        detail_rows=sales_detail_rows,
     )
 
 with status_col_2:
+    if is_demo_activity_data:
+        activity_detail_rows = [
+            ("目前資料", "示範資料（3 月／4 月）"),
+        ]
+    else:
+        activity_detail_rows = [
+            (
+                "已上傳活動檔案",
+                f"{len(activity_uploaded_files):,} 份",
+            ),
+        ]
+
     render_readiness_card(
         icon="🏷️",
         title="活動資料",
@@ -210,6 +405,7 @@ with status_col_2:
             if dataframe_ready(activity_dataframe)
             else "尚無標準化資料"
         ),
+        detail_rows=activity_detail_rows,
     )
 
 

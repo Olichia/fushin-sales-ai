@@ -19,9 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
     )
 
 
-from src.chart_theme import apply_chart_theme, get_category_color_map
-from src.executive_summary import build_executive_brief_summary
-from src.insight_cards import render_ai_insight_card
+from src.chart_theme import apply_chart_theme
 from src.session_helpers import initialize_session_state
 from src.unit_overview_helpers import (
     compute_actual_revenue_total,
@@ -37,7 +35,6 @@ from src.unit_overview_helpers import (
 initialize_session_state()
 
 dark_mode = bool(st.session_state.get("dark_mode", False))
-CATEGORY_COLOR_MAP = get_category_color_map(dark_mode)
 
 
 def dataframe_ready(dataframe) -> bool:
@@ -47,6 +44,20 @@ def dataframe_ready(dataframe) -> bool:
         isinstance(dataframe, pd.DataFrame)
         and not dataframe.empty
     )
+
+
+def calculate_growth_rate(
+    current_value: float,
+    comparison_value: object,
+) -> float | None:
+    comparison = pd.to_numeric(
+        comparison_value, errors="coerce"
+    )
+
+    if pd.isna(comparison) or float(comparison) == 0:
+        return None
+
+    return current_value / float(comparison) - 1
 
 # =========================================================
 # 頁面標題
@@ -62,8 +73,8 @@ st.markdown(
     </div>
 
     <p class="product-page-description">
-        整合銷量、品牌活動、活動成效與策略建議，
-        協助快速掌握目前資料狀態、重要商業洞察與待確認風險。
+        彙整銷量、品牌活動與活動成效資料，協助快速掌握業務規模、
+        趨勢與待確認風險；AI 生成的策略建議請至「AI 策略中心」查看。
     </p>
     """,
     unsafe_allow_html=True,
@@ -78,16 +89,8 @@ sales_dataframe = st.session_state.get(
     "standardized_dataframe"
 )
 
-integrated_dataframe = st.session_state.get(
-    "integrated_sales_activity_dataframe"
-)
-
 performance_dataframe = st.session_state.get(
     "activity_performance_dataframe"
-)
-
-strategy_dataframe = st.session_state.get(
-    "strategy_report_dataframe"
 )
 
 activity_dataframe = st.session_state.get(
@@ -137,174 +140,11 @@ else:
 
 
 # =========================================================
-# 本期摘要（首屏，只在活動單位分析已就緒時顯示；
-# 沒有分析結果時頁面行為與改版前完全相同）
-# =========================================================
-
-if new_engine_ready:
-    brief = build_executive_brief_summary(unit_overview_raw)
-
-    with st.container(border=True):
-        st.markdown(
-            '<div class="output-card-label">本期摘要</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(f"**{brief['headline_text']}**")
-
-    brief_kpi_col1, brief_kpi_col2, brief_kpi_col3, brief_kpi_col4 = (
-        st.columns(4)
-    )
-
-    brief_kpi_col1.metric(
-        "可分析活動數", f"{brief['total_units']:,}"
-    )
-    brief_kpi_col2.metric(
-        "建議延續數", f"{brief['continue_count']:,}"
-    )
-    brief_kpi_col3.metric(
-        "高風險活動數", f"{brief['risk_count']:,}"
-    )
-    brief_kpi_col4.metric(
-        "待確認活動數", f"{brief['unclear_count']:,}"
-    )
-
-    render_ai_insight_card(
-        finding=brief["insight_finding"],
-        reason=brief["insight_reason"],
-        action=brief["insight_action"],
-        confidence=brief["insight_confidence"],
-    )
-
-    st.divider()
-
-
-# =========================================================
-# 資料流程狀態
-# =========================================================
-
-st.subheader("分析資料狀態")
-
-sales_ready = (
-    sales_dataframe is not None
-    and not sales_dataframe.empty
-    and bool(
-        st.session_state.get(
-            "sales_data_confirmed",
-            False,
-        )
-    )
-)
-
-activity_ready = (
-    activity_dataframe is not None
-    and not activity_dataframe.empty
-    and bool(
-        st.session_state.get(
-            "activity_data_confirmed",
-            False,
-        )
-    )
-)
-
-analysis_ready = (
-    integrated_dataframe is not None
-    and performance_dataframe is not None
-    and strategy_dataframe is not None
-    and bool(
-        st.session_state.get(
-            "full_analysis_completed",
-            False,
-        )
-    )
-)
-
-process_status = [
-    {
-        "編號": "01",
-        "名稱": "銷量資料",
-        "狀態": sales_ready,
-    },
-    {
-        "編號": "02",
-        "名稱": "活動資料",
-        "狀態": activity_ready,
-    },
-    {
-        "編號": "03",
-        "名稱": "完整分析",
-        "狀態": analysis_ready,
-    },
-]
-
-status_columns = st.columns(3)
-
-for column, item in zip(
-    status_columns,
-    process_status,
-):
-    with column:
-        with st.container(border=True):
-            st.markdown(
-                f"""
-                <div class="overview-status-number">
-                    STEP {item['編號']}
-                </div>
-                <div class="overview-status-title">
-                    {item['名稱']}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            if item["狀態"]:
-                st.success("已完成")
-            else:
-                st.info("尚未完成")
-
-completed_steps = sum(
-    int(item["狀態"])
-    for item in process_status
-)
-
-progress_ratio = (
-    completed_steps
-    / len(process_status)
-)
-
-st.progress(
-    progress_ratio,
-    text=(
-        f"目前完成 {completed_steps}／"
-        f"{len(process_status)} 個主要步驟"
-    ),
-)
-
-
-# =========================================================
-# 尚未完成完整流程時的提醒
-# =========================================================
-
-if not sales_ready:
-    st.warning(
-        "目前尚未完成銷量資料確認，"
-        "請先前往「01 銷量資料處理」。"
-    )
-
-if not activity_ready:
-    st.warning(
-        "目前尚未完成活動資料確認，"
-        "請先前往「02 活動資料處理」。"
-    )
-
-if sales_ready and activity_ready and not analysis_ready:
-    st.info(
-        "兩份資料都已確認，請前往「03 執行完整分析」"
-        "產生整合資料、活動成效與策略報告。"
-    )
-
-
-# =========================================================
 # KPI 計算
+#
+# 資料流程狀態（01/02/03 是否完成）已併入「03 執行完整分析」
+# 頂部的「目前進度」區塊，這裡不再重複顯示；本頁只負責資料
+# 備妥後的業務規模、趨勢與風險呈現。
 # =========================================================
 
 total_quantity = 0
@@ -392,8 +232,6 @@ else:
 # KPI 顯示
 # =========================================================
 
-st.divider()
-
 st.subheader("整體概況")
 
 kpi_col0, kpi_col1, kpi_col2, kpi_col3 = (
@@ -431,32 +269,30 @@ if (
     and pd.notna(sales_date_start)
     and pd.notna(sales_date_end)
 ):
-    st.caption(
-        "目前銷量資料期間："
-        f"{sales_date_start:%Y-%m-%d}"
-        " 至 "
-        f"{sales_date_end:%Y-%m-%d}"
-    )
+    with st.container(border=True):
+        st.markdown(
+            '<div class="output-card-label">資料期間</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            f"**{sales_date_start:%Y-%m-%d} 至 {sales_date_end:%Y-%m-%d}**"
+        )
 
 
 # =========================================================
-# 每日銷量趨勢
-#
-# 「淨增益GMV合計」「風險檔數」原本在此處另有一組補充 KPI，
-# 已併入上方「本期摘要」區塊（風險檔數＝高風險活動數），
-# 避免同一頁面出現兩組意義重疊的 KPI。
+# 銷量趨勢（每日／月度）
 # =========================================================
 
 st.divider()
 
-chart_col1, chart_col2 = st.columns(
-    [2, 1]
+st.subheader("銷量趨勢")
+
+daily_trend_tab, monthly_trend_tab = st.tabs(
+    ["每日", "月度"]
 )
 
-
-with chart_col1:
-    st.subheader("每日銷量趨勢")
-
+with daily_trend_tab:
     chart_sales_dataframe = sales_dataframe
 
     if (
@@ -543,464 +379,220 @@ with chart_col1:
                 use_container_width=True,
             )
 
+with monthly_trend_tab:
+    monthly_sales = pd.DataFrame()
 
-# =========================================================
-# 活動成效分布
-# =========================================================
-
-with chart_col2:
-    st.subheader("活動成效分布")
-
-    if new_engine_ready:
-        distribution_count = (
-            unit_overview["color_category"]
-            .value_counts()
-            .rename_axis("成效分類")
-            .reset_index(name="活動單位數")
+    if (
+        dataframe_ready(sales_dataframe)
+        and {"sale_date", "quantity"}.issubset(
+            sales_dataframe.columns
         )
-
-        distribution_figure = px.bar(
-            distribution_count,
-            x="成效分類",
-            y="活動單位數",
-            color="成效分類",
-            color_discrete_map=CATEGORY_COLOR_MAP,
-            text_auto=True,
-            labels={
-                "成效分類": "活動成效分類",
-                "活動單位數": "活動單位數",
-            },
-        )
-
-        distribution_figure.update_layout(
-            xaxis_title="活動成效分類",
-            yaxis_title="活動單位數",
-            showlegend=False,
-            margin={
-                "l": 10,
-                "r": 10,
-                "t": 20,
-                "b": 10,
-            },
-        )
-        apply_chart_theme(distribution_figure, dark_mode)
-
-        st.plotly_chart(
-            distribution_figure,
-            use_container_width=True,
-        )
-
-        st.caption(
-            "分類依據與「活動洞察」「策略中心」一致："
-            "單一活動正向／重疊活動／負增益。"
-        )
-
-    elif (
-        performance_dataframe is None
-        or performance_dataframe.empty
-        or "uplift_rate"
-        not in performance_dataframe.columns
     ):
+        monthly_source = sales_dataframe[
+            ["sale_date", "quantity"]
+        ].copy()
+        monthly_source["sale_date"] = pd.to_datetime(
+            monthly_source["sale_date"], errors="coerce"
+        )
+        monthly_source["quantity"] = pd.to_numeric(
+            monthly_source["quantity"], errors="coerce"
+        )
+        monthly_source = monthly_source.dropna(
+            subset=["sale_date", "quantity"]
+        )
+
+        if not monthly_source.empty:
+            monthly_source["sale_month"] = (
+                monthly_source["sale_date"].dt.to_period("M")
+            )
+            monthly_sales = (
+                monthly_source.groupby(
+                    "sale_month", as_index=False
+                )["quantity"]
+                .sum()
+                .rename(
+                    columns={"quantity": "monthly_quantity"}
+                )
+                .sort_values("sale_month")
+            )
+            monthly_sales["month_label"] = (
+                monthly_sales["sale_month"].astype(str)
+            )
+
+    if monthly_sales.empty:
         st.info(
-            "完成活動成效分析後，"
-            "這裡會顯示活動成效分布。"
+            "完成銷量資料標準化後，"
+            "這裡會顯示月銷量、MoM 與 YoY。"
         )
-
     else:
-        performance_distribution = (
-            performance_dataframe.copy()
+        latest_period = monthly_sales["sale_month"].max()
+        previous_period = latest_period - 1
+        previous_year_period = latest_period - 12
+        monthly_lookup = monthly_sales.set_index(
+            "sale_month"
+        )["monthly_quantity"]
+        latest_quantity = float(
+            monthly_lookup.get(latest_period, 0)
+        )
+        previous_quantity = monthly_lookup.get(
+            previous_period
+        )
+        previous_year_quantity = monthly_lookup.get(
+            previous_year_period
+        )
+        mom_rate = calculate_growth_rate(
+            latest_quantity, previous_quantity
+        )
+        yoy_rate = calculate_growth_rate(
+            latest_quantity, previous_year_quantity
         )
 
-        performance_distribution[
-            "uplift_rate"
-        ] = pd.to_numeric(
-            performance_distribution[
-                "uplift_rate"
-            ],
-            errors="coerce",
+        latest_column, mom_column, yoy_column = st.columns(3)
+        latest_column.metric(
+            f"{latest_period} 月銷量",
+            f"{latest_quantity:,.0f}",
+        )
+        mom_column.metric(
+            "MoM（月成長率）",
+            f"{mom_rate:.1%}" if mom_rate is not None else "-",
+        )
+        yoy_column.metric(
+            "YoY（年成長率）",
+            f"{yoy_rate:.1%}" if yoy_rate is not None else "-",
         )
 
-        performance_distribution[
-            "成效分類"
-        ] = "無法判定"
-
-        performance_distribution.loc[
-            performance_distribution[
-                "uplift_rate"
-            ] >= 0.20,
-            "成效分類",
-        ] = "高成效"
-
-        performance_distribution.loc[
-            (
-                performance_distribution[
-                    "uplift_rate"
-                ] >= 0
-            )
-            & (
-                performance_distribution[
-                    "uplift_rate"
-                ] < 0.20
-            ),
-            "成效分類",
-        ] = "一般成效"
-
-        performance_distribution.loc[
-            performance_distribution[
-                "uplift_rate"
-            ] < 0,
-            "成效分類",
-        ] = "低成效"
-
-        distribution_count = (
-            performance_distribution[
-                "成效分類"
-            ]
-            .value_counts()
-            .rename_axis(
-                "成效分類"
-            )
-            .reset_index(
-                name="活動數"
-            )
-        )
-
-        distribution_figure = px.bar(
-            distribution_count,
-            x="成效分類",
-            y="活動數",
-            text_auto=True,
+        monthly_figure = px.line(
+            monthly_sales,
+            x="month_label",
+            y="monthly_quantity",
+            markers=True,
             labels={
-                "成效分類": "活動成效",
-                "活動數": "活動數量",
+                "month_label": "月份",
+                "monthly_quantity": "月銷量",
             },
         )
-
-        distribution_figure.update_layout(
-            xaxis_title="活動成效",
-            yaxis_title="活動數量",
-            showlegend=False,
-            margin={
-                "l": 10,
-                "r": 10,
-                "t": 20,
-                "b": 10,
-            },
+        monthly_figure.update_traces(
+            line={"color": "#4E56A6", "width": 3},
+            marker={"size": 9, "color": "#F45B1B"},
         )
-        apply_chart_theme(distribution_figure, dark_mode)
-
-        st.plotly_chart(
-            distribution_figure,
-            use_container_width=True,
+        monthly_figure.update_layout(
+            margin={"l": 10, "r": 10, "t": 24, "b": 10},
+            height=360,
         )
+        apply_chart_theme(monthly_figure, dark_mode)
+        st.plotly_chart(monthly_figure, width="stretch")
 
 
 # =========================================================
-# 最佳活動與風險提醒
+# 資料風險提醒
+#
+# 「目前最佳活動」卡已移除：與 AI 策略中心決策佇列的
+# 「成長機會」分組重複，逐檔活動建議請至 AI 策略中心查看。
+# 「活動成效分布」長條圖已移除：與 AI 策略中心決策佇列的
+# 風險優先／成長機會／待補資料計數卡意義重疊。
 # =========================================================
 
 st.divider()
 
-insight_col1, insight_col2 = st.columns(
-    [1, 1]
-)
+st.subheader("資料風險提醒")
 
+risk_messages = []
 
-with insight_col1:
-    st.subheader("目前最佳活動")
+if activity_issues_dataframe is not None:
+    activity_issue_count = len(
+        activity_issues_dataframe
+    )
 
-    if new_engine_ready:
-        best_unit_candidates = unit_overview.dropna(
-            subset=["net_revenue_effect_per_day"]
+    if activity_issue_count > 0:
+        risk_messages.append(
+            f"活動標準化有 "
+            f"{activity_issue_count} 筆待確認問題。"
         )
 
-        if best_unit_candidates.empty:
-            st.info("目前沒有可計算淨增益的活動單位。")
+if integration_issues_dataframe is not None:
+    integration_issue_count = len(
+        integration_issues_dataframe
+    )
 
-        else:
-            best_unit = best_unit_candidates.sort_values(
-                "net_revenue_effect_per_day",
-                ascending=False,
-            ).iloc[0]
+    if integration_issue_count > 0:
+        risk_messages.append(
+            f"資料整合有 "
+            f"{integration_issue_count} 筆待確認問題。"
+        )
 
-            unit_product_id = best_unit.get(
-                "product_id", "未提供編號"
-            )
+if pd.notna(complete_period_rate):
+    if complete_period_rate < 1:
+        risk_messages.append(
+            "部分活動缺少完整的活動前、"
+            "活動中或活動後觀察期間。"
+        )
 
-            unit_product_name = best_unit.get(
-                "product_name", "未提供名稱"
-            )
-
-            if pd.isna(unit_product_name):
-                unit_product_name = "未提供名稱"
-
-            unit_start = pd.to_datetime(
-                best_unit.get("start_date"), errors="coerce"
-            )
-
-            unit_end = pd.to_datetime(
-                best_unit.get("end_date"), errors="coerce"
-            )
-
-            st.success(
-                f"**{unit_product_id}｜{unit_product_name}**"
-                f"（{best_unit.get('corresponding_activities_label', '')}）"
-            )
-
-            unit_metric_col1, unit_metric_col2 = st.columns(2)
-
-            unit_metric_col1.metric(
-                "淨增益/日",
-                f"{best_unit['net_revenue_effect_per_day']:,.0f}",
-            )
-
-            unit_metric_col2.metric(
-                "涵蓋天數",
-                f"{best_unit.get('days', 0):,.0f}",
-            )
-
-            if pd.notna(unit_start) and pd.notna(unit_end):
-                st.caption(
-                    f"活動單位期間："
-                    f"{unit_start:%Y-%m-%d}"
-                    " 至 "
-                    f"{unit_end:%Y-%m-%d}"
-                )
-
-            st.write(
-                "建議進一步查看此活動單位是否可拆分歸因，"
-                "再決定是否擴大執行或延伸至相似商品。"
-            )
-
-    elif (
-        performance_dataframe is None
-        or performance_dataframe.empty
-        or "uplift_rate"
-        not in performance_dataframe.columns
+if performance_dataframe is not None:
+    if (
+        "overlapping_campaigns"
+        in performance_dataframe.columns
+        or "overlapping_benefits"
+        in performance_dataframe.columns
     ):
-        st.info(
-            "完成活動成效分析後，"
-            "這裡會顯示最佳活動。"
+        overlap_mask = pd.Series(
+            False,
+            index=performance_dataframe.index,
         )
 
-    else:
-        best_activity_candidates = (
-            performance_dataframe.copy()
-        )
-
-        best_activity_candidates[
-            "uplift_rate"
-        ] = pd.to_numeric(
-            best_activity_candidates[
-                "uplift_rate"
-            ],
-            errors="coerce",
-        )
-
-        best_activity_candidates = (
-            best_activity_candidates.dropna(
-                subset=[
-                    "uplift_rate"
-                ]
-            )
-        )
-
-        if best_activity_candidates.empty:
-            st.info(
-                "目前沒有可計算提升率的活動。"
-            )
-
-        else:
-            best_activity = (
-                best_activity_candidates
-                .sort_values(
-                    "uplift_rate",
-                    ascending=False,
-                )
-                .iloc[0]
-            )
-
-            product_id = best_activity.get(
-                "product_id",
-                "未提供編號",
-            )
-
-            product_name = best_activity.get(
-                "product_name",
-                "未提供名稱",
-            )
-
-            if pd.isna(product_name):
-                product_name = (
-                    "未提供名稱"
-                )
-
-            activity_start = (
-                best_activity.get(
-                    "activity_start_date"
-                )
-            )
-
-            activity_end = (
-                best_activity.get(
-                    "activity_end_date"
-                )
-            )
-
-            activity_start = (
-                pd.to_datetime(
-                    activity_start,
-                    errors="coerce",
-                )
-            )
-
-            activity_end = (
-                pd.to_datetime(
-                    activity_end,
-                    errors="coerce",
-                )
-            )
-
-            st.success(
-                f"**{product_id}｜{product_name}**"
-            )
-
-            metric_col1, metric_col2 = (
-                st.columns(2)
-            )
-
-            metric_col1.metric(
-                "活動提升率",
-                (
-                    f"{best_activity['uplift_rate']:.1%}"
-                ),
-            )
-
-            metric_col2.metric(
-                "活動總銷量",
-                (
-                    f"{best_activity.get('campaign_total_sales', 0):,.0f}"
-                ),
-            )
-
-            if (
-                pd.notna(activity_start)
-                and pd.notna(activity_end)
-            ):
-                st.caption(
-                    f"活動期間："
-                    f"{activity_start:%Y-%m-%d}"
-                    " 至 "
-                    f"{activity_end:%Y-%m-%d}"
-                )
-
-            st.write(
-                "建議進一步查看此活動是否有"
-                "其他平台活動或優惠重疊，"
-                "再決定是否擴大執行。"
-            )
-
-
-with insight_col2:
-    st.subheader("資料風險提醒")
-
-    risk_messages = []
-
-    if activity_issues_dataframe is not None:
-        activity_issue_count = len(
-            activity_issues_dataframe
-        )
-
-        if activity_issue_count > 0:
-            risk_messages.append(
-                f"活動標準化有 "
-                f"{activity_issue_count} 筆待確認問題。"
-            )
-
-    if integration_issues_dataframe is not None:
-        integration_issue_count = len(
-            integration_issues_dataframe
-        )
-
-        if integration_issue_count > 0:
-            risk_messages.append(
-                f"資料整合有 "
-                f"{integration_issue_count} 筆待確認問題。"
-            )
-
-    if pd.notna(complete_period_rate):
-        if complete_period_rate < 1:
-            risk_messages.append(
-                "部分活動缺少完整的活動前、"
-                "活動中或活動後觀察期間。"
-            )
-
-    if performance_dataframe is not None:
         if (
             "overlapping_campaigns"
             in performance_dataframe.columns
-            or "overlapping_benefits"
+        ):
+            overlap_mask = (
+                overlap_mask
+                | performance_dataframe[
+                    "overlapping_campaigns"
+                ].notna()
+            )
+
+        if (
+            "overlapping_benefits"
             in performance_dataframe.columns
         ):
-            overlap_mask = pd.Series(
-                False,
-                index=performance_dataframe.index,
+            overlap_mask = (
+                overlap_mask
+                | performance_dataframe[
+                    "overlapping_benefits"
+                ].notna()
             )
 
-            if (
-                "overlapping_campaigns"
-                in performance_dataframe.columns
-            ):
-                overlap_mask = (
-                    overlap_mask
-                    | performance_dataframe[
-                        "overlapping_campaigns"
-                    ].notna()
-                )
-
-            if (
-                "overlapping_benefits"
-                in performance_dataframe.columns
-            ):
-                overlap_mask = (
-                    overlap_mask
-                    | performance_dataframe[
-                        "overlapping_benefits"
-                    ].notna()
-                )
-
-            overlap_count = int(
-                overlap_mask.sum()
-            )
-
-            if overlap_count > 0:
-                risk_messages.append(
-                    f"共有 {overlap_count} 筆活動"
-                    "與其他活動或優惠重疊。"
-                )
-
-    if new_engine_ready:
-        unit_risk_count = int(unit_risk_mask.sum())
-
-        if unit_risk_count > 0:
-            risk_messages.append(
-                f"有 {unit_risk_count} 檔活動單位存在"
-                "毛利侵蝕風險（降價效應大於量增效應）。"
-            )
-
-    if not risk_messages:
-        st.success(
-            "目前沒有偵測到明顯的資料風險。"
+        overlap_count = int(
+            overlap_mask.sum()
         )
 
-    else:
-        for message in risk_messages:
-            st.warning(message)
+        if overlap_count > 0:
+            risk_messages.append(
+                f"共有 {overlap_count} 筆活動"
+                "與其他活動或優惠重疊。"
+            )
 
-    st.caption(
-        "活動期間銷量上升不代表已證明因果；"
-        "推估營收也不等於實際營收或獲利。"
+if new_engine_ready:
+    unit_risk_count = int(unit_risk_mask.sum())
+
+    if unit_risk_count > 0:
+        risk_messages.append(
+            f"有 {unit_risk_count} 檔活動單位存在"
+            "毛利侵蝕風險（降價效應大於量增效應）。"
+        )
+
+if not risk_messages:
+    st.success(
+        "目前沒有偵測到明顯的資料風險。"
     )
+
+else:
+    for message in risk_messages:
+        st.warning(message)
+
+st.caption(
+    "活動期間銷量上升不代表已證明因果；"
+    "推估營收也不等於實際營收或獲利。"
+)
 
 
 # =========================================================

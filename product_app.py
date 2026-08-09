@@ -55,12 +55,6 @@ landing_page = st.Page(
     default=True,
 )
 
-data_management_page = st.Page(
-    PAGES_DIR / "15_資料管理中心.py",
-    title="開始使用",
-    icon=":material/rocket_launch:",
-)
-
 sales_processing_page = st.Page(
     PAGES_DIR / "1_資料上傳.py",
     title="01 銷量資料處理",
@@ -164,9 +158,6 @@ navigation = st.navigation(
     {
         "首頁": [
             landing_page,
-        ],
-        "開始使用": [
-            data_management_page,
         ],
         "資料準備": [
             sales_processing_page,
