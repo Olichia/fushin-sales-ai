@@ -273,3 +273,21 @@ def apply_full_demo_data_to_session() -> None:
     apply_demo_sales_data_to_session()
     apply_demo_activity_data_to_session()
     apply_demo_analysis_to_session()
+
+
+def ensure_default_demo_data_loaded() -> None:
+    """
+    App 啟動時使用：全新 session 一開啟就自動套入示範銷量、
+    活動與分析結果，不用手動走過資料處理／執行完整分析。
+
+    用 demo_data_autoloaded 這個 sentinel 確保只在該次 session
+    第一次執行時套用一次；使用者之後若切換成「自訂上傳資料」，
+    不會被這裡的邏輯在下一次 rerun 時覆蓋回示範資料。
+    """
+
+    if st.session_state.get("demo_data_autoloaded"):
+        return
+
+    st.session_state["demo_data_autoloaded"] = True
+
+    apply_full_demo_data_to_session()

@@ -32,6 +32,10 @@ SESSION_DEFAULTS = {
     # 空白狀態。
     "is_demo_sales_data": False,
 
+    # 全新 session 是否已經自動套入過一次示範資料，見
+    # src/demo_data.py 的 ensure_default_demo_data_loaded()。
+    "demo_data_autoloaded": False,
+
     # -----------------------------
     # 活動資料
     # -----------------------------

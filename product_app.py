@@ -4,6 +4,7 @@ import base64
 import pandas as pd
 import streamlit as st
 
+from src.demo_data import ensure_default_demo_data_loaded
 from src.floating_chatbot import render_floating_chatbot
 from src.session_helpers import initialize_session_state
 from src.ui_style import (
@@ -32,6 +33,7 @@ st.set_page_config(
 # =========================================================
 
 initialize_session_state()
+ensure_default_demo_data_loaded()
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 PAGES_DIR = PROJECT_ROOT / "app_pages"
