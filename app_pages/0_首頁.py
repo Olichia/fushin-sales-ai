@@ -66,7 +66,7 @@ st.markdown(
 # =========================================================
 
 def load_demo_data_to_session():
-    """將 3-4 月銷量活動數據預先讀取並存入 Streamlit Session State"""
+    """將示範數據預先讀取並存入 Streamlit Session State"""
     st.session_state["is_demo_mode"] = True
     st.session_state["demo_file_path"] = str(DEMO_FILE_PATH)
 
@@ -96,7 +96,7 @@ def load_demo_data_to_session():
         return False
 
 
-# 輕量讀取 305筆紀錄與 140筆總覽供效益卡動態顯示
+# 讀取統計數據
 @st.cache_data(show_spinner=False)
 def get_home_stats(file_path: str):
     path = Path(file_path)
@@ -252,7 +252,7 @@ with cta_col:
 
 if start_demo:
     if load_demo_data_to_session():
-        st.toast("🚀 3-4 月示範數據已載入！正在前往分析總覽...", icon="✅")
+        st.toast("🚀 示範數據已載入！正在前往分析總覽...", icon="✅")
         # 精準對應分析總覽檔案名稱
         candidate_pages = [
             "pages/4_銷售總覽.py",
@@ -287,7 +287,7 @@ with b_col1:
         f"""<div class="spec-benefit-card">
             <div class="spec-benefit-lbl">📊 資料追蹤規模</div>
             <div class="spec-benefit-val">{total_recs} 筆</div>
-            <div class="spec-benefit-sub">涵蓋 3-4 月完整 {total_days} 天銷量紀錄</div>
+            <div class="spec-benefit-sub">涵蓋完整活動週期的銷量紀錄</div>
         </div>""",
         unsafe_allow_html=True,
     )
