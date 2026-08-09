@@ -1,6 +1,7 @@
 import base64
 from pathlib import Path
 import sys
+import time
 import pandas as pd
 import streamlit as st
 
@@ -237,7 +238,7 @@ st.markdown(
 
 
 # =========================================================
-# 2. 單一按鈕區 (精準對應 4_銷售總覽.py 跳轉)
+# 2. 單一按鈕區 (精準對應 11_產品首頁.py／分析總覽 跳轉)
 # =========================================================
 
 cta_col, _ = st.columns([1, 2])
@@ -252,8 +253,9 @@ with cta_col:
 
 if start_demo:
     if load_demo_data_to_session():
-        st.toast("🚀 3-4 月示範數據已載入！正在前往分析總覽...", icon="✅")
-        st.switch_page("app_pages/4_銷售總覽.py")
+        st.success("🚀 3-4 月示範數據已載入！正在前往分析總覽...")
+        time.sleep(1)
+        st.switch_page("app_pages/11_產品首頁.py")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
