@@ -5,7 +5,6 @@ import pandas as pd
 import streamlit as st
 
 from src.floating_chatbot import render_floating_chatbot
-from src.persistence import bootstrap_session_from_db
 from src.session_helpers import initialize_session_state
 from src.ui_style import (
     apply_home_sidebar_collapse_style,
@@ -33,10 +32,6 @@ st.set_page_config(
 # =========================================================
 
 initialize_session_state()
-
-if not st.session_state.get("_db_bootstrap_done"):
-    bootstrap_session_from_db()
-    st.session_state["_db_bootstrap_done"] = True
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 PAGES_DIR = PROJECT_ROOT / "app_pages"
@@ -222,13 +217,10 @@ else:
 # =========================================================
 # 側邊欄進度
 #
-# 銷量／活動資料不會在啟動時從資料庫回填（見
-# src/persistence.py 的 bootstrap_session_from_db），所以
-# sales_ready／activity_ready 只反映「這個 session 有沒有
-# 真的重新上傳並確認過」；analysis_ready 也刻意疊加這兩個
-# 條件，即使資料庫裡還留著上次分析結果，只要這個 session
-# 沒有重新完成前兩步，進度就會顯示 0／3，不會因為背景保留
-# 的舊分析結果而誤顯示成「已完成」。
+# sales_ready／activity_ready 只看目前 session_state 的內容，
+# 不會另外從資料庫回填：預設就是示範資料（見
+# src/demo_data.py），一打開就會是「已完成」；只有切換成
+# 「自訂上傳資料」且尚未上傳時，才會顯示成尚未完成。
 # =========================================================
 
 sales_dataframe = st.session_state.get(

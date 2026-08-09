@@ -15,6 +15,7 @@ TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.demo_data import apply_full_demo_data_to_session
 from src.session_helpers import initialize_session_state
 
 
@@ -165,4 +166,8 @@ with st.container(key="hero_cta_button"):
     )
 
 if start_exploring:
-    st.switch_page("app_pages/15_資料管理中心.py")
+    # 「開始探索」預設套入示範資料（銷量、活動與完整分析結果
+    # 一次備妥），直接跳到 AI 策略中心，不用再走一次上傳流程。
+    apply_full_demo_data_to_session()
+
+    st.switch_page("app_pages/13_策略中心.py")

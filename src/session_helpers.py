@@ -23,6 +23,15 @@ SESSION_DEFAULTS = {
     "sales_data_confirmed": False,
     "standardized_dataframe": None,
 
+    # 銷量資料處理分頁的資料來源選擇：「示範資料」或「自訂上傳
+    # 資料」，預設示範資料，讓使用者一打開分頁就能看到已完成
+    # 處理的示範畫面，不用先上傳才看得到成果。
+    "sales_data_mode": "示範資料",
+    # 目前套進 standardized_dataframe 的是不是示範資料；切換回
+    # 「自訂上傳資料」時用來判斷需不需要清空成示範資料上傳前的
+    # 空白狀態。
+    "is_demo_sales_data": False,
+
     # -----------------------------
     # 活動資料
     # -----------------------------
@@ -46,6 +55,11 @@ SESSION_DEFAULTS = {
     "selected_activity_file_name": None,
     "selected_activity_sheet_name": None,
     "activity_uploaded_dataframe": None,
+
+    # 活動資料處理分頁的資料來源選擇，邏輯同銷量資料的
+    # sales_data_mode／is_demo_sales_data。
+    "activity_data_mode": "示範資料",
+    "is_demo_activity_data": False,
 
     # 活動資料處理狀態
     "activity_data_confirmed": False,
