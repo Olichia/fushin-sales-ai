@@ -131,19 +131,20 @@ data_source_mode = st.radio(
 is_demo_mode = "使用系統示範資料" in data_source_mode
 
 if is_demo_mode:
-    demo_path = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx"
+    # 修正：直接抓取根目錄底下的 3-4月活動成效表_v2.xlsx
+    demo_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
     if not demo_path.exists():
-        alt_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
+        alt_path = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx"
         if alt_path.exists():
             demo_path = alt_path
 
     if demo_path.exists():
         # 如果尚未載入示範檔案，自動載入並完成處理
-        if st.session_state.get("uploaded_file_name") != "demo_sales_data.xlsx" or st.session_state.get("standardized_dataframe") is None:
+        if st.session_state.get("uploaded_file_name") != "3-4月活動成效表_v2.xlsx" or st.session_state.get("standardized_dataframe") is None:
             try:
                 file_bytes = demo_path.read_bytes()
                 save_uploaded_excel(
-                    file_name="demo_sales_data.xlsx",
+                    file_name="3-4月活動成效表_v2.xlsx",
                     file_bytes=file_bytes,
                 )
                 if st.session_state.excel_sheet_names:
