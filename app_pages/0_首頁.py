@@ -253,25 +253,7 @@ with cta_col:
 if start_demo:
     if load_demo_data_to_session():
         st.toast("🚀 3-4 月示範數據已載入！正在前往分析總覽...", icon="✅")
-        candidate_pages = [
-            "pages/4_銷售總覽.py",
-            "app_pages/4_銷售總覽.py",
-            "4_銷售總覽.py",
-            "pages/分析總覽.py",
-            "app_pages/分析總覽.py",
-            "分析總覽.py",
-        ]
-        switched = False
-        for target in candidate_pages:
-            try:
-                st.switch_page(target)
-                switched = True
-                break
-            except Exception:
-                continue
-
-        if not switched:
-            st.error("跳轉失敗：請確認專案中是否存在對應的 `4_銷售總覽.py` 頁面檔案。")
+        st.switch_page("app_pages/4_銷售總覽.py")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
