@@ -1,6 +1,6 @@
 from pathlib import Path
 import sys
-
+import pandas as pd
 import streamlit as st
 
 
@@ -115,76 +115,126 @@ def reset_mapping_widget_state() -> None:
 
 
 # =========================================================
-# Step 1：上傳 Excel
+# 資料來源模式選擇（預設使用示範資料，免手動上傳）
 # =========================================================
 
-st.subheader("1. 上傳銷量 Excel")
+st.subheader("1. 選擇資料來源")
 
-with st.container(border=True):
-    st.markdown(
-        """
-        <div class="upload-card-heading">
-            <div class="upload-card-icon">📊</div>
-            <div>
-                <div class="upload-card-title">銷量資料匯入</div>
-                <div class="upload-card-description">
-                    必要欄位包含訂單日期、商品編號、商品名稱與銷量。
-                    系統會自動讀取 Excel 工作表並建議欄位對應。
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+data_source_mode = st.radio(
+    "資料來源模式",
+    ["使用系統示範資料 (推薦，免手動上傳)", "自行上傳 Excel 檔案"],
+    key="sales_data_source_mode",
+    horizontal=True,
+    help="選擇「使用系統示範資料」將自動載入歷史銷量與活動紀錄，直接呈現處理完成狀態。",
+)
 
-    uploaded_file = st.file_uploader(
-        "選擇 Excel 檔案",
-        type=["xlsx"],
-        key="main_excel_uploader",
-        help="目前支援 .xlsx 格式。",
-    )
+is_demo_mode = "使用系統示範資料" in data_source_mode
 
+if is_demo_mode:
+    demo_path = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx"
+    if not demo_path.exists():
+        alt_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
+        if alt_path.exists():
+            demo_path = alt_path
 
-if uploaded_file is not None:
-    file_bytes = uploaded_file.getvalue()
-
-    is_new_file = (
-        st.session_state.uploaded_file_name
-        != uploaded_file.name
-        or st.session_state.uploaded_file_bytes
-        != file_bytes
-    )
-
-    if is_new_file:
-        try:
-            with st.spinner(
-                "正在讀取 Excel 檔案……"
-            ):
+    if demo_path.exists():
+        # 如果尚未載入示範檔案，自動載入並完成處理
+        if st.session_state.get("uploaded_file_name") != "demo_sales_data.xlsx" or st.session_state.get("standardized_dataframe") is None:
+            try:
+                file_bytes = demo_path.read_bytes()
                 save_uploaded_excel(
-                    file_name=uploaded_file.name,
+                    file_name="demo_sales_data.xlsx",
                     file_bytes=file_bytes,
                 )
+                if st.session_state.excel_sheet_names:
+                    sheet_name = "銷量原始資料(零填補)" if "銷量原始資料(零填補)" in st.session_state.excel_sheet_names else st.session_state.excel_sheet_names[0]
+                    load_uploaded_sheet(sheet_name)
+                
+                dataframe = st.session_state.get("uploaded_dataframe")
+                if dataframe is not None:
+                    suggested_map = suggest_sales_mapping(dataframe)
+                    processed_df = standardize_sales_data(dataframe=dataframe, mapping=suggested_map)
+                    st.session_state.column_mapping = suggested_map.copy()
+                    st.session_state.standardized_dataframe = processed_df
+                    st.session_state.sales_data_confirmed = True
+                    save_sales_snapshot()
+            except Exception as error:
+                st.error(f"自動載入示範資料失敗：{error}")
 
-            reset_mapping_widget_state()
-
-            st.success(
-                f"已成功讀取：{uploaded_file.name}"
-            )
-
-        except Exception as error:
-            st.error(
-                f"Excel 讀取失敗：{error}"
-            )
-            st.stop()
+    st.success("✅ 已成功載入系統示範資料庫（完整銷量紀錄），檔案已上傳完畢、欄位對應與品質檢測已自動完成！")
 
 
 # =========================================================
-# 尚未上傳檔案
+# Step 1（若選擇自行上傳）：上傳 Excel
+# =========================================================
+
+if not is_demo_mode:
+    st.subheader("2. 上傳銷量 Excel")
+
+    with st.container(border=True):
+        st.markdown(
+            """
+            <div class="upload-card-heading">
+                <div class="upload-card-icon">📊</div>
+                <div>
+                    <div class="upload-card-title">銷量資料匯入</div>
+                    <div class="upload-card-description">
+                        必要欄位包含訂單日期、商品編號、商品名稱與銷量。
+                        系統會自動讀取 Excel 工作表並建議欄位對應。
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        uploaded_file = st.file_uploader(
+            "選擇 Excel 檔案",
+            type=["xlsx"],
+            key="main_excel_uploader",
+            help="目前支援 .xlsx 格式。",
+        )
+
+    if uploaded_file is not None:
+        file_bytes = uploaded_file.getvalue()
+
+        is_new_file = (
+            st.session_state.uploaded_file_name
+            != uploaded_file.name
+            or st.session_state.uploaded_file_bytes
+            != file_bytes
+        )
+
+        if is_new_file:
+            try:
+                with st.spinner(
+                    "正在讀取 Excel 檔案……"
+                ):
+                    save_uploaded_excel(
+                        file_name=uploaded_file.name,
+                        file_bytes=file_bytes,
+                    )
+
+                reset_mapping_widget_state()
+
+                st.success(
+                    f"已成功讀取：{uploaded_file.name}"
+                )
+
+            except Exception as error:
+                st.error(
+                    f"Excel 讀取失敗：{error}"
+                )
+                st.stop()
+
+
+# =========================================================
+# 尚未上傳檔案檢查
 # =========================================================
 
 if not st.session_state.uploaded_file_bytes:
     st.info(
-        "請先上傳一份銷量 Excel 檔案。"
+        "請先上傳一份銷量 Excel 檔案或切換為「使用系統示範資料」。"
     )
     st.stop()
 
@@ -216,7 +266,7 @@ file_info_col2.metric(
 # Step 2：選擇並自動載入工作表
 # =========================================================
 
-st.subheader("2. 選擇工作表")
+st.subheader("選擇工作表")
 
 sheet_names = (
     st.session_state.excel_sheet_names
