@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+
 # =========================================================
 # 專案路徑設定
 # =========================================================
@@ -14,37 +15,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+
 from src.chart_theme import apply_chart_theme
 from src.session_helpers import initialize_session_state
 
 
 # =========================================================
-# 頁面初始化與樣式調整
+# 頁面初始化
 # =========================================================
 
 initialize_session_state()
 
 dark_mode = bool(st.session_state.get("dark_mode", False))
-
-# 統一微調字體大小與排版比例，提升畫面精緻度
-st.markdown(
-    """
-<style>
-    html, body, [class*="css"] {
-        font-size: 16px !important;
-    }
-    h1 {
-        font-size: 28px !important;
-        font-weight: 800 !important;
-    }
-    h2, h3 {
-        font-size: 22px !important;
-        font-weight: 700 !important;
-    }
-</style>
-""",
-    unsafe_allow_html=True,
-)
 
 st.title("銷售總覽")
 
@@ -69,28 +51,11 @@ standardized_dataframe = st.session_state.get(
     "standardized_dataframe"
 )
 
-# 如果從首頁 Demo 通道進入，系統會自動將資料寫入 sales_data，這裡做一個安全相容檢查
-if standardized_dataframe is None and "sales_data" in st.session_state:
-    standardized_dataframe = st.session_state["sales_data"]
-    # 轉換成標準化欄位名稱以相容本頁面
-    rename_mapping = {}
-    for col in standardized_dataframe.columns:
-        if "日期" in col:
-            rename_mapping[col] = "sale_date"
-        elif "商品編號" in col or "ID" in col:
-            rename_mapping[col] = "product_id"
-        elif "商品名稱" in col or "品名" in col:
-            rename_mapping[col] = "product_name"
-        elif "銷量" in col or "數量" in col or "quantity" in col.lower():
-            rename_mapping[col] = "quantity"
-    if rename_mapping:
-        standardized_dataframe = standardized_dataframe.rename(columns=rename_mapping)
-
 if standardized_dataframe is None:
     st.warning(
         "尚未產生標準化資料。"
         "請先依序完成「資料上傳」、「欄位對應」"
-        "與「資料品質」，或從首頁點擊「開始示範」快速載入。"
+        "與「資料品質」。"
     )
     st.stop()
 
