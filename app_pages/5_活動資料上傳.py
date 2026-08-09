@@ -54,19 +54,19 @@ initialize_session_state()
 
 st.markdown(
     """
-<style>
-    /* 全域文字放大 */
-    html, body, [class*="css"] {
-        font-size: 18px !important;
-    }
-    .product-page-title h1 {
-        font-size: 32px !important;
-        font-weight: 900 !important;
-    }
-    .product-page-description {
-        font-size: 18px !important;
-    }
-</style>
+    <style>
+        /* 全域文字放大 */
+        html, body, [class*="css"] {
+            font-size: 18px !important;
+        }
+        .product-page-title h1 {
+            font-size: 32px !important;
+            font-weight: 900 !important;
+        }
+        .product-page-description {
+            font-size: 18px !important;
+        }
+    </style>
     <div class="step-label">STEP 02</div>
     <div class="product-page-title">
         <div class="product-page-title-bar"></div>
