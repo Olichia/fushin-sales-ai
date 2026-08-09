@@ -47,13 +47,26 @@ from src.session_helpers import (
 
 
 # =========================================================
-# 頁面初始化
+# 頁面初始化與合適字體大小的 CSS
 # =========================================================
 
 initialize_session_state()
 
 st.markdown(
     """
+    <style>
+        /* 適度調好字體大小，保持畫面精緻不破版 */
+        html, body, [class*="css"] {
+            font-size: 16px !important;
+        }
+        .product-page-title h1 {
+            font-size: 28px !important;
+            font-weight: 800 !important;
+        }
+        .product-page-description {
+            font-size: 16px !important;
+        }
+    </style>
     <div class="step-label">STEP 02</div>
     <div class="product-page-title">
         <div class="product-page-title-bar"></div>
@@ -84,12 +97,7 @@ def find_month_candidate(
 ) -> str | None:
     """
     根據檔名尋找月份候選檔案。
-
-    例如：
-    3月活動.xlsx
-    三月活動.xlsx
     """
-
     for file_name in file_names:
         if (
             f"{month_number}月" in file_name
@@ -107,7 +115,6 @@ def get_default_index(
     """
     取得 selectbox 的預設位置。
     """
-
     if selected_value in options:
         return options.index(
             selected_value
@@ -120,7 +127,6 @@ def reset_activity_widget_state() -> None:
     """
     清除活動頁面上的月份選擇與最終確認元件狀態。
     """
-
     widget_keys = [
         "march_activity_file_select",
         "april_activity_file_select",
@@ -135,92 +141,139 @@ def reset_activity_widget_state() -> None:
 
 
 # =========================================================
-# Step 1：上傳活動 Excel
+# 資料來源模式選擇（預設使用示範資料，免手動上傳）
 # =========================================================
 
-st.subheader("1. 上傳活動 Excel")
+st.subheader("1. 選擇資料來源")
 
-with st.container(border=True):
-    st.markdown(
-        """
-        <div class="upload-card-heading">
-            <div class="upload-card-icon">🏷️</div>
-            <div>
-                <div class="upload-card-title">活動資料匯入</div>
-                <div class="upload-card-description">
-                    可一次選擇多份 Excel。請至少上傳 3 月與 4 月活動檔案，
-                    系統會根據檔名建議月份，之後仍可手動調整。
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+data_source_mode = st.radio(
+    "活動資料來源模式",
+    ["使用系統示範資料 (推薦，免手動上傳)", "自行上傳 Excel 檔案"],
+    key="activity_data_source_mode",
+    horizontal=True,
+    help="選擇「使用系統示範資料」將自動載入 3 月與 4 月品牌活動範本，直接呈現處理完成狀態。",
+)
 
-    uploaded_files = st.file_uploader(
-        "可一次選擇多份 Excel",
-        type=["xlsx"],
-        accept_multiple_files=True,
-        key="activity_excel_uploader",
-        help="目前請至少上傳 3 月及 4 月活動檔案。",
-    )
+is_demo_mode = "使用系統示範資料" in data_source_mode
 
+if is_demo_mode:
+    march_demo_path = PROJECT_ROOT / "3月品牌活動_模板.xlsx"
+    april_demo_path = PROJECT_ROOT / "4月品牌活動_模板.xlsx"
 
-if uploaded_files:
-    successful_files: list[str] = []
-    failed_files: list[dict[str, str]] = []
+    if march_demo_path.exists() and april_demo_path.exists():
+        if "3月品牌活動_模板.xlsx" not in st.session_state.get("activity_uploaded_files", {}) or st.session_state.get("activity_standardized_dataframe") is None:
+            try:
+                march_bytes = march_demo_path.read_bytes()
+                april_bytes = april_demo_path.read_bytes()
 
-    for uploaded_file in uploaded_files:
-        file_bytes = uploaded_file.getvalue()
+                save_activity_excel("3月品牌活動_模板.xlsx", march_bytes)
+                save_activity_excel("4月品牌活動_模板.xlsx", april_bytes)
 
-        existing_files = (
-            st.session_state.activity_uploaded_files
-        )
-
-        is_new_or_changed = (
-            uploaded_file.name not in existing_files
-            or existing_files[
-                uploaded_file.name
-            ] != file_bytes
-        )
-
-        if not is_new_or_changed:
-            continue
-
-        try:
-            with st.spinner(
-                f"正在讀取：{uploaded_file.name}……"
-            ):
-                save_activity_excel(
-                    file_name=uploaded_file.name,
-                    file_bytes=file_bytes,
+                processing_results = process_activity_files(
+                    march_file_bytes=march_bytes,
+                    april_file_bytes=april_bytes,
                 )
 
-            successful_files.append(
-                uploaded_file.name
-            )
+                for key, dataframe in processing_results.items():
+                    st.session_state[key] = dataframe
 
-        except Exception as error:
-            failed_files.append(
-                {
-                    "file_name": uploaded_file.name,
-                    "error": str(error),
-                }
-            )
+                st.session_state["processed_march_activity_file_name"] = "3月品牌活動_模板.xlsx"
+                st.session_state["processed_april_activity_file_name"] = "4月品牌活動_模板.xlsx"
+                st.session_state.activity_data_confirmed = True
+                save_activity_snapshot()
+            except Exception as error:
+                st.error(f"自動載入活動示範資料失敗：{error}")
 
-    if successful_files:
-        reset_activity_widget_state()
+    st.success("✅ 已成功載入 3 月與 4 月品牌活動範本，活動期間、價格、日曆與優惠內容已自動解析完成！")
 
-        st.success(
-            "成功保存："
-            + "、".join(successful_files)
+
+# =========================================================
+# Step 1（若選擇自行上傳）：上傳活動 Excel
+# =========================================================
+
+if not is_demo_mode:
+    st.subheader("2. 上傳活動 Excel")
+
+    with st.container(border=True):
+        st.markdown(
+            """
+            <div class="upload-card-heading">
+                <div class="upload-card-icon">🏷️</div>
+                <div>
+                    <div class="upload-card-title">活動資料匯入</div>
+                    <div class="upload-card-description">
+                        可一次選擇多份 Excel。請至少上傳 3 月與 4 月活動檔案，
+                        系統會根據檔名建議月份，之後仍可手動調整。
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    for failed_file in failed_files:
-        st.error(
-            f"{failed_file['file_name']} "
-            f"讀取失敗：{failed_file['error']}"
+        uploaded_files = st.file_uploader(
+            "可一次選擇多份 Excel",
+            type=["xlsx"],
+            accept_multiple_files=True,
+            key="activity_excel_uploader",
+            help="目前請至少上傳 3 月及 4 月活動檔案。",
         )
+
+    if uploaded_files:
+        successful_files: list[str] = []
+        failed_files: list[dict[str, str]] = []
+
+        for uploaded_file in uploaded_files:
+            file_bytes = uploaded_file.getvalue()
+
+            existing_files = (
+                st.session_state.activity_uploaded_files
+            )
+
+            is_new_or_changed = (
+                uploaded_file.name not in existing_files
+                or existing_files[
+                    uploaded_file.name
+                ] != file_bytes
+            )
+
+            if not is_new_or_changed:
+                continue
+
+            try:
+                with st.spinner(
+                    f"正在讀取：{uploaded_file.name}……"
+                ):
+                    save_activity_excel(
+                        file_name=uploaded_file.name,
+                        file_bytes=file_bytes,
+                    )
+
+                successful_files.append(
+                    uploaded_file.name
+                )
+
+            except Exception as error:
+                failed_files.append(
+                    {
+                        "file_name": uploaded_file.name,
+                        "error": str(error),
+                    }
+                )
+
+        if successful_files:
+            reset_activity_widget_state()
+
+            st.success(
+                "成功保存："
+                + "、".join(successful_files)
+            )
+
+        for failed_file in failed_files:
+            st.error(
+                f"{failed_file['file_name']} "
+                f"讀取失敗：{failed_file['error']}"
+            )
 
 
 # =========================================================
@@ -233,7 +286,7 @@ activity_file_names = (
 
 if not activity_file_names:
     st.warning(
-        "目前尚未上傳活動 Excel。"
+        "目前尚未上傳活動 Excel，或請切換為「使用系統示範資料」。"
     )
     st.stop()
 
@@ -414,10 +467,6 @@ st.dataframe(
 )
 
 
-# =========================================================
-# 檢查已處理結果是否仍符合目前檔案
-# =========================================================
-
 saved_march_file_name = (
     st.session_state.get(
         "processed_march_activity_file_name"
@@ -547,10 +596,6 @@ if process_button:
         )
 
 
-# =========================================================
-# 取得活動處理結果
-# =========================================================
-
 main_activity_dataframe = (
     st.session_state.get(
         "activity_standardized_dataframe"
@@ -599,7 +644,6 @@ else:
             "下方結果是先前月份檔案產生的資料。"
             "請重新執行活動資料處理後再確認。"
         )
-
 
     # =====================================================
     # Step 4：活動資料結果
@@ -658,10 +702,6 @@ else:
     )
 
 
-    # =====================================================
-    # 分頁顯示結果
-    # =====================================================
-
     tab1, tab2, tab3, tab4 = st.tabs(
         [
             "商品活動價格",
@@ -681,16 +721,12 @@ else:
             "同一商品可能有多個活動期間與活動價格。"
         )
 
-        # 新模板／舊格式各自專屬的欄位，另一種格式一律補
-        # 空值，顯示前動態濾掉「這批資料」完全沒有內容的
-        # 欄位，兩種格式都能正確適應（不寫死欄位名稱清單）。
         non_empty_columns = [
             column
             for column in main_activity_dataframe.columns
             if main_activity_dataframe[column].notna().any()
         ]
 
-        # 品類欄位習慣上緊接在商品編號、商品名稱之後。
         ordered_columns = list(non_empty_columns)
 
         if {
@@ -768,13 +804,6 @@ else:
             )
 
         else:
-            # 商品專屬優惠（如指定商品贈品）才會有 product_id／
-            # product_name，全站或品牌活動的優惠這兩欄永遠是空
-            # 值；比照「商品活動價格」表，顯示前動態濾掉這批
-            # 資料完全沒有內容的欄位，兩種情況都能正確適應。
-            # product_name 等文字欄位在無資料時預設是空字串而非
-            # NaN，先轉成字串、去除頭尾空白、把空字串當缺值，
-            # 才能正確判斷「整欄皆空」。
             non_empty_benefit_columns = [
                 column
                 for column in benefits_dataframe.columns
@@ -843,10 +872,6 @@ else:
                     "目前僅預覽前 100 筆問題資料。"
                 )
 
-
-    # =====================================================
-    # 下載標準化結果
-    # =====================================================
 
     st.divider()
     st.subheader("下載標準化資料")
@@ -970,10 +995,6 @@ else:
         )
 
 
-    # =====================================================
-    # 最終確認
-    # =====================================================
-
     st.divider()
     st.subheader("最終確認")
 
@@ -1014,10 +1035,6 @@ else:
 
                     save_activity_snapshot()
 
-                    # 活動資料被覆蓋，先前用舊資料算出來的分析
-                    # 結果已經失效，連同資料庫中的分析快照一併
-                    # 清除，「執行完整分析」頁面才會恢復成尚未
-                    # 執行的初始狀態。
                     clear_downstream_analysis()
                     clear_analysis_snapshot()
 
@@ -1087,10 +1104,6 @@ else:
             "目前活動標準化資料已確認完成。"
         )
 
-
-# =========================================================
-# 清除活動資料
-# =========================================================
 
 st.divider()
 st.subheader("重新開始")

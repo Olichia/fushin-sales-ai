@@ -1,6 +1,6 @@
 from pathlib import Path
 import sys
-
+import pandas as pd
 import streamlit as st
 
 
@@ -50,13 +50,26 @@ from src.session_helpers import (
 
 
 # =========================================================
-# 頁面初始化
+# 頁面初始化與適度字體大小的 CSS
 # =========================================================
 
 initialize_session_state()
 
 st.markdown(
     """
+    <style>
+        /* 字體大小調回舒適、美觀的大小 (15px) */
+        html, body, [class*="css"] {
+            font-size: 15px !important;
+        }
+        .product-page-title h1 {
+            font-size: 26px !important;
+            font-weight: 800 !important;
+        }
+        .product-page-description {
+            font-size: 15px !important;
+        }
+    </style>
     <div class="step-label">STEP 01</div>
     <div class="product-page-title">
         <div class="product-page-title-bar"></div>
@@ -85,7 +98,6 @@ def get_default_index(
 
     找不到指定值時，預設選擇第一個欄位。
     """
-
     if selected_value in options:
         return options.index(
             selected_value
@@ -99,7 +111,6 @@ def reset_mapping_widget_state() -> None:
     切換檔案或工作表後，
     清除舊的欄位選擇元件狀態。
     """
-
     for system_field in REQUIRED_FIELDS:
         widget_key = (
             f"sales_mapping_{system_field}"
@@ -117,76 +128,126 @@ def reset_mapping_widget_state() -> None:
 
 
 # =========================================================
-# Step 1：上傳 Excel
+# 資料來源模式選擇（預設使用示範資料，免手動上傳）
 # =========================================================
 
-st.subheader("1. 上傳銷量 Excel")
+st.subheader("1. 選擇資料來源")
 
-with st.container(border=True):
-    st.markdown(
-        """
-        <div class="upload-card-heading">
-            <div class="upload-card-icon">📊</div>
-            <div>
-                <div class="upload-card-title">銷量資料匯入</div>
-                <div class="upload-card-description">
-                    必要欄位包含訂單日期、商品編號、商品名稱與銷量。
-                    系統會自動讀取 Excel 工作表並建議欄位對應。
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+data_source_mode = st.radio(
+    "資料來源模式",
+    ["使用系統示範資料 (推薦，免手動上傳)", "自行上傳 Excel 檔案"],
+    key="sales_data_source_mode",
+    index=0,  # 預設選取第一個（使用系統示範資料）
+    horizontal=True,
+    help="選擇「使用系統示範資料」將自動載入歷史銷量與活動紀錄，直接呈現處理完成狀態。",
+)
 
-    uploaded_file = st.file_uploader(
-        "選擇 Excel 檔案",
-        type=["xlsx"],
-        key="main_excel_uploader",
-        help="目前支援 .xlsx 格式。",
-    )
+is_demo_mode = "使用系統示範資料" in data_source_mode
 
+if is_demo_mode:
+    demo_path = PROJECT_ROOT / "3-4月活動成效表_v2.xlsx"
+    if not demo_path.exists():
+        alt_path = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx"
+        if alt_path.exists():
+            demo_path = alt_path
 
-if uploaded_file is not None:
-    file_bytes = uploaded_file.getvalue()
-
-    is_new_file = (
-        st.session_state.uploaded_file_name
-        != uploaded_file.name
-        or st.session_state.uploaded_file_bytes
-        != file_bytes
-    )
-
-    if is_new_file:
-        try:
-            with st.spinner(
-                "正在讀取 Excel 檔案……"
-            ):
+    if demo_path.exists():
+        if st.session_state.get("uploaded_file_name") != "3-4月活動成效表_v2.xlsx" or st.session_state.get("standardized_dataframe") is None:
+            try:
+                file_bytes = demo_path.read_bytes()
                 save_uploaded_excel(
-                    file_name=uploaded_file.name,
+                    file_name="3-4月活動成效表_v2.xlsx",
                     file_bytes=file_bytes,
                 )
+                if st.session_state.excel_sheet_names:
+                    sheet_name = "銷量原始資料(零填補)" if "銷量原始資料(零填補)" in st.session_state.excel_sheet_names else st.session_state.excel_sheet_names[0]
+                    load_uploaded_sheet(sheet_name)
+                
+                dataframe = st.session_state.get("uploaded_dataframe")
+                if dataframe is not None:
+                    suggested_map = suggest_sales_mapping(dataframe)
+                    processed_df = standardize_sales_data(dataframe=dataframe, mapping=suggested_map)
+                    st.session_state.column_mapping = suggested_map.copy()
+                    st.session_state.standardized_dataframe = processed_df
+                    st.session_state.sales_data_confirmed = True
+                    save_sales_snapshot()
+            except Exception as error:
+                st.error(f"自動載入示範資料失敗：{error}")
 
-            reset_mapping_widget_state()
-
-            st.success(
-                f"已成功讀取：{uploaded_file.name}"
-            )
-
-        except Exception as error:
-            st.error(
-                f"Excel 讀取失敗：{error}"
-            )
-            st.stop()
+    st.success("✅ 已成功載入系統示範資料庫（完整銷量紀錄），檔案已上傳完畢、欄位對應與品質檢測已自動完成！")
 
 
 # =========================================================
-# 尚未上傳檔案
+# Step 1（若選擇自行上傳）：上傳 Excel
+# =========================================================
+
+if not is_demo_mode:
+    st.subheader("2. 上傳銷量 Excel")
+
+    with st.container(border=True):
+        st.markdown(
+            """
+            <div class="upload-card-heading">
+                <div class="upload-card-icon">📊</div>
+                <div>
+                    <div class="upload-card-title">銷量資料匯入</div>
+                    <div class="upload-card-description">
+                        必要欄位包含訂單日期、商品編號、商品名稱與銷量。
+                        系統會自動讀取 Excel 工作表並建議欄位對應。
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        uploaded_file = st.file_uploader(
+            "選擇 Excel 檔案",
+            type=["xlsx"],
+            key="main_excel_uploader",
+            help="目前支援 .xlsx 格式。",
+        )
+
+    if uploaded_file is not None:
+        file_bytes = uploaded_file.getvalue()
+
+        is_new_file = (
+            st.session_state.uploaded_file_name
+            != uploaded_file.name
+            or st.session_state.uploaded_file_bytes
+            != file_bytes
+        )
+
+        if is_new_file:
+            try:
+                with st.spinner(
+                    "正在讀取 Excel 檔案……"
+                ):
+                    save_uploaded_excel(
+                        file_name=uploaded_file.name,
+                        file_bytes=file_bytes,
+                    )
+
+                reset_mapping_widget_state()
+
+                st.success(
+                    f"已成功讀取：{uploaded_file.name}"
+                )
+
+            except Exception as error:
+                st.error(
+                    f"Excel 讀取失敗：{error}"
+                )
+                st.stop()
+
+
+# =========================================================
+# 尚未上傳檔案檢查
 # =========================================================
 
 if not st.session_state.uploaded_file_bytes:
     st.info(
-        "請先上傳一份銷量 Excel 檔案。"
+        "請先上傳一份銷量 Excel 檔案或切換為「使用系統示範資料」。"
     )
     st.stop()
 
@@ -218,7 +279,7 @@ file_info_col2.metric(
 # Step 2：選擇並自動載入工作表
 # =========================================================
 
-st.subheader("2. 選擇工作表")
+st.subheader("選擇工作表")
 
 sheet_names = (
     st.session_state.excel_sheet_names
@@ -250,8 +311,6 @@ selected_sheet = st.selectbox(
 )
 
 
-# 使用者切換工作表時，自動載入；
-# 不需要再按「載入此工作表」。
 should_load_sheet = (
     st.session_state.selected_sheet_name
     != selected_sheet
@@ -384,7 +443,6 @@ saved_mapping = st.session_state.get(
 )
 
 
-# 在 selectbox 建立前設定合理預設值
 for system_field in REQUIRED_FIELDS:
     widget_key = (
         f"sales_mapping_{system_field}"
@@ -401,8 +459,6 @@ for system_field in REQUIRED_FIELDS:
         )
     )
 
-    # 舊選項不存在於新工作表時，
-    # 改用系統建議值。
     current_widget_value = (
         st.session_state.get(
             widget_key
@@ -500,8 +556,6 @@ for system_field in REQUIRED_FIELDS:
     )
 
 
-import pandas as pd
-
 mapping_preview = pd.DataFrame(
     mapping_rows
 )
@@ -527,10 +581,6 @@ if mapping_errors:
     for error in mapping_errors:
         st.error(error)
 
-
-# =========================================================
-# 檢查目前欄位是否與已處理版本不同
-# =========================================================
 
 standardized_dataframe = (
     st.session_state.get(
@@ -630,10 +680,6 @@ if process_button:
         )
 
 
-# =========================================================
-# 尚未產生標準化資料
-# =========================================================
-
 standardized_dataframe = (
     st.session_state.get(
         "standardized_dataframe"
@@ -647,7 +693,6 @@ if standardized_dataframe is None:
     )
 
 else:
-    # 若欄位已變更，不讓使用者確認舊結果
     result_is_current = (
         st.session_state.column_mapping
         == mapping
@@ -723,10 +768,6 @@ else:
     )
 
 
-    # =====================================================
-    # 品質摘要
-    # =====================================================
-
     with st.expander(
         "查看資料品質摘要",
         expanded=(
@@ -742,10 +783,6 @@ else:
             hide_index=True,
         )
 
-
-    # =====================================================
-    # 標準化資料預覽
-    # =====================================================
 
     st.subheader("標準化資料預覽")
 
@@ -784,10 +821,6 @@ else:
     )
 
 
-    # =====================================================
-    # 問題資料
-    # =====================================================
-
     if issues_dataframe.empty:
         st.success(
             "未發現需要人工確認的資料品質問題。"
@@ -815,10 +848,6 @@ else:
                 ),
             )
 
-
-    # =====================================================
-    # 下載資料
-    # =====================================================
 
     standardized_csv = (
         standardized_dataframe.to_csv(
@@ -867,10 +896,6 @@ else:
         )
 
 
-    # =====================================================
-    # 最終確認
-    # =====================================================
-
     st.divider()
     st.subheader("最終確認")
 
@@ -911,10 +936,6 @@ else:
 
                     save_sales_snapshot()
 
-                    # 銷量資料被覆蓋，先前用舊資料算出來的分析
-                    # 結果已經失效，連同資料庫中的分析快照一併
-                    # 清除，「執行完整分析」頁面才會恢復成尚未
-                    # 執行的初始狀態。
                     clear_downstream_analysis()
                     clear_analysis_snapshot()
 
@@ -984,10 +1005,6 @@ else:
             "目前銷量標準化資料已確認完成。"
         )
 
-
-# =========================================================
-# 清除資料
-# =========================================================
 
 st.divider()
 st.subheader("重新開始")
