@@ -1,7 +1,6 @@
 from pathlib import Path
 import sys
 
-import pandas as pd
 import streamlit as st
 
 
@@ -74,157 +73,6 @@ st.markdown(
 
 
 # =========================================================
-# 資料來源切換：示範資料 / 自行上傳
-# =========================================================
-
-DEMO_SALES_EXCEL_PATH = PROJECT_ROOT / "assets" / "demo_sales_data.xlsx"
-
-
-def load_demo_sales_into_session() -> bool:
-    """
-    示範模式：優先使用資料庫中已確認的 3-4 月銷量標準化資料；
-    若資料庫尚無資料，改為自動讀取內建示範 Excel 並自動完成
-    欄位辨識與標準化，略過使用者手動上傳與確認的流程。
-    """
-
-    if st.session_state.get("sales_demo_loaded"):
-        return st.session_state.get("standardized_dataframe") is not None
-
-    try:
-        load_sales_snapshot_into_session()
-    except Exception:
-        pass
-
-    if st.session_state.get("standardized_dataframe") is None:
-        if not DEMO_SALES_EXCEL_PATH.exists():
-            st.error("找不到內建示範資料，請改用自行上傳。")
-            return False
-
-        try:
-            demo_excel = pd.ExcelFile(DEMO_SALES_EXCEL_PATH)
-            sheet_name = (
-                "銷量原始資料(零填補)"
-                if "銷量原始資料(零填補)" in demo_excel.sheet_names
-                else demo_excel.sheet_names[0]
-            )
-            demo_dataframe = pd.read_excel(demo_excel, sheet_name=sheet_name)
-
-            demo_mapping = suggest_sales_mapping(demo_dataframe)
-            demo_standardized = standardize_sales_data(
-                dataframe=demo_dataframe,
-                mapping=demo_mapping,
-            )
-
-            st.session_state.column_mapping = demo_mapping
-            st.session_state.standardized_dataframe = demo_standardized
-
-        except Exception as error:
-            st.error(f"示範資料自動處理失敗：{error}")
-            return False
-
-    st.session_state.uploaded_file_name = "demo_sales_data.xlsx"
-    st.session_state.uploaded_file_bytes = b""
-    st.session_state.sales_data_confirmed = True
-    st.session_state["sales_demo_loaded"] = True
-
-    return True
-
-
-DEMO_SALES_LABEL = "使用示範資料（3-4 月）"
-UPLOAD_SALES_LABEL = "自行上傳檔案"
-
-data_source_mode = st.radio(
-    "資料來源",
-    options=[DEMO_SALES_LABEL, UPLOAD_SALES_LABEL],
-    index=0,
-    horizontal=True,
-    key="sales_data_source_mode",
-)
-
-use_demo_data = data_source_mode == DEMO_SALES_LABEL
-
-if not use_demo_data:
-    st.session_state["sales_demo_loaded"] = False
-
-if use_demo_data:
-    demo_ready = load_demo_sales_into_session()
-
-    if not demo_ready:
-        st.stop()
-
-    standardized_dataframe = st.session_state.get("standardized_dataframe")
-
-    st.success("✅ 示範資料已載入：檔案上傳、欄位對應、品質檢查皆已完成。")
-
-    try:
-        data_summary = create_sales_data_summary(standardized_dataframe)
-        quality_summary = create_sales_quality_summary(standardized_dataframe)
-        issues_dataframe = get_sales_issues_dataframe(standardized_dataframe)
-    except Exception as error:
-        st.error(f"無法建立資料摘要：{error}")
-        st.stop()
-
-    result_col1, result_col2, result_col3, result_col4 = st.columns(4)
-
-    result_col1.metric("標準化資料筆數", f"{data_summary['total_rows']:,}")
-    result_col2.metric("需確認資料", f"{data_summary['issue_rows']:,}")
-    result_col3.metric("商品數量", f"{data_summary['product_count']:,}")
-    result_col4.metric("銷量合計", f"{data_summary['total_quantity']:,.0f}")
-
-    st.caption(f"資料日期範圍：{data_summary['date_range_text']}")
-
-    with st.expander("查看資料品質摘要", expanded=False):
-        st.dataframe(quality_summary, use_container_width=True, hide_index=True)
-
-    st.subheader("標準化資料預覽")
-
-    preview_columns = [
-        "source_row_number",
-        "sale_date",
-        "product_id",
-        "product_name",
-        "quantity",
-        "has_quality_issue",
-        "quality_issue_description",
-    ]
-
-    available_preview_columns = [
-        column for column in preview_columns if column in standardized_dataframe.columns
-    ]
-
-    st.caption("目前僅預覽前 50 筆資料。")
-
-    preview_dataframe = standardized_dataframe[available_preview_columns].head(50)
-
-    st.dataframe(
-        preview_dataframe,
-        use_container_width=True,
-        hide_index=True,
-        column_config=default_column_config(preview_dataframe),
-    )
-
-    if issues_dataframe.empty:
-        st.success("未發現需要人工確認的資料品質問題。")
-    else:
-        st.warning(f"共有 {len(issues_dataframe):,} 筆資料需要確認。")
-        with st.expander("查看需要確認的資料", expanded=False):
-            issues_preview = issues_dataframe.head(100)
-            st.dataframe(
-                issues_preview,
-                use_container_width=True,
-                hide_index=True,
-                column_config=default_column_config(issues_preview),
-            )
-
-    st.info("✅ 銷量資料已完成最終確認，可以繼續處理活動資料。")
-
-    st.stop()
-
-
-st.divider()
-
-
-# =========================================================
 # 小工具函式
 # =========================================================
 
@@ -237,7 +85,6 @@ def get_default_index(
 
     找不到指定值時，預設選擇第一個欄位。
     """
-
     if selected_value in options:
         return options.index(
             selected_value
@@ -251,7 +98,6 @@ def reset_mapping_widget_state() -> None:
     切換檔案或工作表後，
     清除舊的欄位選擇元件狀態。
     """
-
     for system_field in REQUIRED_FIELDS:
         widget_key = (
             f"sales_mapping_{system_field}"
@@ -767,3 +613,387 @@ if process_button:
         standardized_dataframe = (
             processed_dataframe
         )
+
+        mapping_has_changed = False
+
+        st.success(
+            "銷量資料標準化與品質檢查完成。"
+        )
+
+    except Exception as error:
+        st.error(
+            f"資料處理失敗：{error}"
+        )
+
+
+# =========================================================
+# 尚未產生標準化資料
+# =========================================================
+
+standardized_dataframe = (
+    st.session_state.get(
+        "standardized_dataframe"
+    )
+)
+
+if standardized_dataframe is None:
+    st.info(
+        "確認欄位後，按下「確認欄位並處理銷量資料」，"
+        "即可產生標準化資料表。"
+    )
+
+else:
+    # 若欄位已變更，不讓使用者確認舊結果
+    result_is_current = (
+        st.session_state.column_mapping
+        == mapping
+    )
+
+    if not result_is_current:
+        st.warning(
+            "下方結果是先前欄位設定產生的資料。"
+            "請重新執行資料處理後再確認。"
+        )
+
+    # =====================================================
+    # Step 5：標準化結果
+    # =====================================================
+
+    st.divider()
+    st.subheader("5. 標準化結果與最終確認")
+
+    try:
+        data_summary = (
+            create_sales_data_summary(
+                standardized_dataframe
+            )
+        )
+
+        quality_summary = (
+            create_sales_quality_summary(
+                standardized_dataframe
+            )
+        )
+
+        issues_dataframe = (
+            get_sales_issues_dataframe(
+                standardized_dataframe
+            )
+        )
+
+    except Exception as error:
+        st.error(
+            f"無法建立資料摘要：{error}"
+        )
+        st.stop()
+
+
+    result_col1, result_col2, result_col3, result_col4 = (
+        st.columns(4)
+    )
+
+    result_col1.metric(
+        "標準化資料筆數",
+        f"{data_summary['total_rows']:,}",
+    )
+
+    result_col2.metric(
+        "需確認資料",
+        f"{data_summary['issue_rows']:,}",
+    )
+
+    result_col3.metric(
+        "商品數量",
+        f"{data_summary['product_count']:,}",
+    )
+
+    result_col4.metric(
+        "銷量合計",
+        f"{data_summary['total_quantity']:,.0f}",
+    )
+
+
+    st.caption(
+        "資料日期範圍："
+        f"{data_summary['date_range_text']}"
+    )
+
+
+    # =====================================================
+    # 品質摘要
+    # =====================================================
+
+    with st.expander(
+        "查看資料品質摘要",
+        expanded=(
+            data_summary[
+                "issue_rows"
+            ]
+            > 0
+        ),
+    ):
+        st.dataframe(
+            quality_summary,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+
+    # =====================================================
+    # 標準化資料預覽
+    # =====================================================
+
+    st.subheader("標準化資料預覽")
+
+    preview_columns = [
+        "source_row_number",
+        "sale_date",
+        "product_id",
+        "product_name",
+        "quantity",
+        "has_quality_issue",
+        "quality_issue_description",
+    ]
+
+    available_preview_columns = [
+        column
+        for column in preview_columns
+        if column
+        in standardized_dataframe.columns
+    ]
+
+    st.caption(
+        "目前僅預覽前 50 筆資料。"
+    )
+
+    preview_dataframe = standardized_dataframe[
+        available_preview_columns
+    ].head(50)
+
+    st.dataframe(
+        preview_dataframe,
+        use_container_width=True,
+        hide_index=True,
+        column_config=default_column_config(
+            preview_dataframe
+        ),
+    )
+
+
+    # =====================================================
+    # 問題資料
+    # =====================================================
+
+    if issues_dataframe.empty:
+        st.success(
+            "未發現需要人工確認的資料品質問題。"
+        )
+
+    else:
+        st.warning(
+            f"共有 {len(issues_dataframe):,} 筆資料"
+            "需要確認。系統目前只會標記問題，"
+            "不會自動刪除或修改原始資料。"
+        )
+
+        with st.expander(
+            "查看需要確認的資料",
+            expanded=False,
+        ):
+            issues_preview = issues_dataframe.head(100)
+
+            st.dataframe(
+                issues_preview,
+                use_container_width=True,
+                hide_index=True,
+                column_config=default_column_config(
+                    issues_preview
+                ),
+            )
+
+
+    # =====================================================
+    # 下載資料
+    # =====================================================
+
+    standardized_csv = (
+        standardized_dataframe.to_csv(
+            index=False,
+            encoding="utf-8-sig",
+            date_format="%Y-%m-%d",
+        ).encode(
+            "utf-8-sig"
+        )
+    )
+
+    issues_csv = (
+        issues_dataframe.to_csv(
+            index=False,
+            encoding="utf-8-sig",
+            date_format="%Y-%m-%d",
+        ).encode(
+            "utf-8-sig"
+        )
+    )
+
+    download_col1, download_col2 = (
+        st.columns(2)
+    )
+
+    with download_col1:
+        st.download_button(
+            "下載標準化銷量資料",
+            data=standardized_csv,
+            file_name=(
+                "sales_standardized.csv"
+            ),
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    with download_col2:
+        st.download_button(
+            "下載資料品質問題",
+            data=issues_csv,
+            file_name=(
+                "sales_quality_issues.csv"
+            ),
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+
+    # =====================================================
+    # 最終確認
+    # =====================================================
+
+    st.divider()
+    st.subheader("最終確認")
+
+    if result_is_current:
+        old_sales_dataframe = load_state(
+            "standardized_dataframe"
+        )
+
+        sales_diff_result = diff_dataframes(
+            old_sales_dataframe,
+            standardized_dataframe,
+        )
+
+        if sales_diff_result["has_old_data"]:
+            if sales_diff_result["identical"]:
+                st.info(
+                    "這份資料跟資料庫中的舊資料完全相同，不需要覆蓋。"
+                )
+            else:
+                st.warning(
+                    f"偵測到資料異動：資料庫中舊資料"
+                    f"{sales_diff_result['old_row_count']} 筆，"
+                    f"本次上傳{sales_diff_result['new_row_count']} 筆，"
+                    f"其中{sales_diff_result['differing_row_count']} 筆內容不同。"
+                    "請選擇要覆蓋還是保留舊資料。"
+                )
+
+                overwrite_col, keep_col = st.columns(2)
+
+                if overwrite_col.button(
+                    "覆蓋舊資料，使用本次上傳",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    st.session_state.sales_data_confirmed = (
+                        True
+                    )
+
+                    save_sales_snapshot()
+
+                    clear_downstream_analysis()
+                    clear_analysis_snapshot()
+
+                    st.success(
+                        "已覆蓋資料庫中的舊資料，"
+                        "銷量資料已完成最終確認。"
+                    )
+
+                    st.rerun()
+
+                if keep_col.button(
+                    "保留舊資料，捨棄本次上傳",
+                    use_container_width=True,
+                ):
+                    load_sales_snapshot_into_session()
+
+                    st.success(
+                        "已保留資料庫中的舊資料，本次上傳已捨棄。"
+                    )
+
+                    st.rerun()
+
+                st.stop()
+
+        confirmed_checkbox = st.checkbox(
+            "我已確認欄位對應、標準化資料與品質摘要",
+            value=st.session_state.get(
+                "sales_data_confirmed",
+                False,
+            ),
+            key=(
+                "sales_final_confirmation_checkbox"
+            ),
+        )
+
+        confirm_button = st.button(
+            "確認使用此銷量資料",
+            type="primary",
+            use_container_width=True,
+            disabled=not confirmed_checkbox,
+        )
+
+        if confirm_button:
+            st.session_state.sales_data_confirmed = (
+                True
+            )
+
+            save_sales_snapshot()
+
+            st.success(
+                "銷量資料已完成最終確認，"
+                "可以繼續處理活動資料。"
+            )
+
+    else:
+        st.info(
+            "請先使用目前欄位設定重新處理資料，"
+            "才能進行最終確認。"
+        )
+
+
+    if st.session_state.get(
+        "sales_data_confirmed",
+        False,
+    ):
+        st.success(
+            "目前銷量標準化資料已確認完成。"
+        )
+
+
+# =========================================================
+# 清除資料
+# =========================================================
+
+st.divider()
+st.subheader("重新開始")
+
+st.caption(
+    "清除後會移除目前銷量檔案、欄位設定、"
+    "標準化資料，以及依賴這份銷量資料的分析結果。"
+)
+
+if st.button(
+    "清除目前銷量資料"
+):
+    clear_uploaded_data()
+
+    reset_mapping_widget_state()
+
+    st.rerun()
