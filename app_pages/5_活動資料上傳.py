@@ -28,16 +28,9 @@ from src.activity_processing import (
 )
 from src.column_labels import default_column_config
 
-from src.persistence import (
-    clear_analysis_snapshot,
-    diff_dataframes,
-    load_activity_snapshot_into_session,
-    load_state,
-    save_activity_snapshot,
-)
+from src.demo_data import apply_demo_activity_data_to_session
 from src.session_helpers import (
     clear_activity_data,
-    clear_downstream_analysis,
     get_activity_file_names,
     get_activity_sheet_names,
     initialize_session_state,
@@ -71,6 +64,146 @@ st.markdown(
 st.info(
     "目前系統依照 3 月與 4 月活動表格式進行處理。"
 )
+
+
+# =========================================================
+# 資料來源選擇：示範資料／自訂上傳資料
+#
+# 邏輯同「01 銷量資料處理」：預設示範資料，一打開分頁就直接
+# 看到已處理完成的畫面；切換成自訂上傳資料則恢復成尚未上傳的
+# 空白畫面，且不會寫入資料庫。
+# =========================================================
+
+activity_data_mode = st.radio(
+    "資料來源",
+    options=["示範資料", "自訂上傳資料"],
+    horizontal=True,
+    key="activity_data_mode",
+)
+
+if activity_data_mode == "示範資料":
+    apply_demo_activity_data_to_session()
+
+    st.info(
+        "目前顯示示範資料的處理結果。"
+        "若要改用自己的資料，請切換至「自訂上傳資料」。"
+    )
+
+    demo_main_activity_dataframe = st.session_state[
+        "activity_standardized_dataframe"
+    ]
+    demo_calendar_dataframe = st.session_state[
+        "activity_calendar_dataframe"
+    ]
+    demo_benefits_dataframe = st.session_state[
+        "promotion_benefits_dataframe"
+    ]
+    demo_activity_issues_dataframe = st.session_state[
+        "activity_issues_dataframe"
+    ]
+
+    demo_activity_summary = create_activity_data_summary(
+        activity_standardized_dataframe=demo_main_activity_dataframe,
+        activity_calendar_dataframe=demo_calendar_dataframe,
+        promotion_benefits_dataframe=demo_benefits_dataframe,
+        activity_issues_dataframe=demo_activity_issues_dataframe,
+    )
+
+    demo_result_col1, demo_result_col2, demo_result_col3, demo_result_col4 = (
+        st.columns(4)
+    )
+
+    demo_result_col1.metric(
+        "商品活動期間",
+        f"{demo_activity_summary['main_activity_rows']:,}",
+    )
+    demo_result_col2.metric(
+        "活動日曆",
+        f"{demo_activity_summary['calendar_rows']:,}",
+    )
+    demo_result_col3.metric(
+        "優惠內容",
+        f"{demo_activity_summary['benefit_rows']:,}",
+    )
+    demo_result_col4.metric(
+        "待確認問題",
+        f"{demo_activity_summary['issue_rows']:,}",
+    )
+
+    demo_tab1, demo_tab2, demo_tab3, demo_tab4 = st.tabs(
+        ["商品活動價格", "活動日曆", "優惠內容", "資料問題"]
+    )
+
+    with demo_tab1:
+        demo_non_empty_columns = [
+            column
+            for column in demo_main_activity_dataframe.columns
+            if demo_main_activity_dataframe[column].notna().any()
+        ]
+
+        st.dataframe(
+            demo_main_activity_dataframe[demo_non_empty_columns].head(100),
+            use_container_width=True,
+            hide_index=True,
+            column_config=default_column_config(
+                demo_main_activity_dataframe[demo_non_empty_columns].head(100)
+            ),
+        )
+
+    with demo_tab2:
+        if demo_calendar_dataframe is None or demo_calendar_dataframe.empty:
+            st.info("沒有活動日曆資料。")
+        else:
+            st.dataframe(
+                demo_calendar_dataframe.head(100),
+                use_container_width=True,
+                hide_index=True,
+                column_config=default_column_config(
+                    demo_calendar_dataframe.head(100)
+                ),
+            )
+
+    with demo_tab3:
+        if demo_benefits_dataframe is None or demo_benefits_dataframe.empty:
+            st.info("沒有優惠內容資料。")
+        else:
+            st.dataframe(
+                demo_benefits_dataframe.head(100),
+                use_container_width=True,
+                hide_index=True,
+                column_config=default_column_config(
+                    demo_benefits_dataframe.head(100)
+                ),
+            )
+
+    with demo_tab4:
+        if (
+            demo_activity_issues_dataframe is None
+            or demo_activity_issues_dataframe.empty
+        ):
+            st.success("目前程式未發現需要人工確認的問題。")
+        else:
+            st.dataframe(
+                demo_activity_issues_dataframe.head(100),
+                use_container_width=True,
+                hide_index=True,
+                column_config=default_column_config(
+                    demo_activity_issues_dataframe.head(100)
+                ),
+            )
+
+    st.success(
+        "示範活動資料已就緒，可以進入銷量與活動資料整合。"
+    )
+
+    st.stop()
+
+
+# 切換回自訂上傳資料時，先清掉示範資料，恢復成尚未上傳的
+# 空白畫面。
+if st.session_state.get("is_demo_activity_data"):
+    clear_activity_data()
+    st.session_state["is_demo_activity_data"] = False
 
 
 # =========================================================
@@ -978,70 +1111,6 @@ else:
     st.subheader("最終確認")
 
     if result_is_current:
-        old_activity_dataframe = load_state(
-            "activity_standardized_dataframe"
-        )
-
-        activity_diff_result = diff_dataframes(
-            old_activity_dataframe,
-            main_activity_dataframe,
-        )
-
-        if activity_diff_result["has_old_data"]:
-            if activity_diff_result["identical"]:
-                st.info(
-                    "這份資料跟資料庫中的舊資料完全相同，不需要覆蓋。"
-                )
-            else:
-                st.warning(
-                    f"偵測到資料異動：資料庫中舊資料"
-                    f"{activity_diff_result['old_row_count']} 筆，"
-                    f"本次上傳{activity_diff_result['new_row_count']} 筆，"
-                    f"其中{activity_diff_result['differing_row_count']} 筆內容不同。"
-                    "請選擇要覆蓋還是保留舊資料。"
-                )
-
-                overwrite_col, keep_col = st.columns(2)
-
-                if overwrite_col.button(
-                    "覆蓋舊資料，使用本次上傳",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    st.session_state.activity_data_confirmed = (
-                        True
-                    )
-
-                    save_activity_snapshot()
-
-                    # 活動資料被覆蓋，先前用舊資料算出來的分析
-                    # 結果已經失效，連同資料庫中的分析快照一併
-                    # 清除，「執行完整分析」頁面才會恢復成尚未
-                    # 執行的初始狀態。
-                    clear_downstream_analysis()
-                    clear_analysis_snapshot()
-
-                    st.success(
-                        "已覆蓋資料庫中的舊資料，"
-                        "活動資料已完成最終確認。"
-                    )
-
-                    st.rerun()
-
-                if keep_col.button(
-                    "保留舊資料，捨棄本次上傳",
-                    use_container_width=True,
-                ):
-                    load_activity_snapshot_into_session()
-
-                    st.success(
-                        "已保留資料庫中的舊資料，本次上傳已捨棄。"
-                    )
-
-                    st.rerun()
-
-                st.stop()
-
         confirmed_checkbox = st.checkbox(
             "我已確認月份檔案、標準化結果與問題資料",
             value=st.session_state.get(
@@ -1064,8 +1133,6 @@ else:
             st.session_state.activity_data_confirmed = (
                 True
             )
-
-            save_activity_snapshot()
 
             st.success(
                 "活動資料已完成最終確認，"

@@ -69,20 +69,6 @@ def dataframe_ready(dataframe: object) -> bool:
     )
 
 
-def calculate_growth_rate(
-    current_value: float,
-    comparison_value: object,
-) -> float | None:
-    comparison = pd.to_numeric(
-        comparison_value, errors="coerce"
-    )
-
-    if pd.isna(comparison) or float(comparison) == 0:
-        return None
-
-    return current_value / float(comparison) - 1
-
-
 def render_latest_ai_answer(
     latest_answer: dict,
 ) -> None:
@@ -522,9 +508,6 @@ waterfall_summary_raw = st.session_state.get(
 unit_price_dataframe = st.session_state.get(
     "activity_unit_price_dataframe"
 )
-standardized_dataframe = st.session_state.get(
-    "standardized_dataframe"
-)
 waterfall_pairing_dataframe = st.session_state.get(
     "activity_waterfall_pairing_dataframe"
 )
@@ -824,127 +807,22 @@ for plan_column, plan in zip(plan_columns, next_period_plan):
 st.divider()
 st.subheader("原始策略分析")
 st.caption(
-    "保留原策略中心的重要資訊與圖表，重新收納為四個頁籤；"
+    "保留原策略中心的重要資訊與圖表，重新收納為三個頁籤；"
     "大型策略表格已省略，但原始分析資料沒有刪除或改寫。"
+    "月度銷量趨勢已搬到「分析總覽」的「銷量趨勢」區塊。"
 )
 
 (
-    monthly_tab,
     performance_tab,
     personalized_tab,
     manager_tab,
 ) = st.tabs(
     [
-        "月度銷量趨勢",
         "活動成效對照",
         "個別化建議",
         "主管策略摘要",
     ]
 )
-
-
-with monthly_tab:
-    monthly_sales = pd.DataFrame()
-
-    if (
-        dataframe_ready(standardized_dataframe)
-        and {"sale_date", "quantity"}.issubset(
-            standardized_dataframe.columns
-        )
-    ):
-        monthly_source = standardized_dataframe[
-            ["sale_date", "quantity"]
-        ].copy()
-        monthly_source["sale_date"] = pd.to_datetime(
-            monthly_source["sale_date"], errors="coerce"
-        )
-        monthly_source["quantity"] = pd.to_numeric(
-            monthly_source["quantity"], errors="coerce"
-        )
-        monthly_source = monthly_source.dropna(
-            subset=["sale_date", "quantity"]
-        )
-
-        if not monthly_source.empty:
-            monthly_source["sale_month"] = (
-                monthly_source["sale_date"].dt.to_period("M")
-            )
-            monthly_sales = (
-                monthly_source.groupby(
-                    "sale_month", as_index=False
-                )["quantity"]
-                .sum()
-                .rename(
-                    columns={"quantity": "monthly_quantity"}
-                )
-                .sort_values("sale_month")
-            )
-            monthly_sales["month_label"] = (
-                monthly_sales["sale_month"].astype(str)
-            )
-
-    if monthly_sales.empty:
-        st.info(
-            "目前這個瀏覽工作階段沒有重新載入標準化銷量資料，"
-            "所以暫時無法顯示原本的月銷量、MoM 與 YoY。"
-        )
-    else:
-        latest_period = monthly_sales["sale_month"].max()
-        previous_period = latest_period - 1
-        previous_year_period = latest_period - 12
-        monthly_lookup = monthly_sales.set_index(
-            "sale_month"
-        )["monthly_quantity"]
-        latest_quantity = float(
-            monthly_lookup.get(latest_period, 0)
-        )
-        previous_quantity = monthly_lookup.get(
-            previous_period
-        )
-        previous_year_quantity = monthly_lookup.get(
-            previous_year_period
-        )
-        mom_rate = calculate_growth_rate(
-            latest_quantity, previous_quantity
-        )
-        yoy_rate = calculate_growth_rate(
-            latest_quantity, previous_year_quantity
-        )
-
-        latest_column, mom_column, yoy_column = st.columns(3)
-        latest_column.metric(
-            f"{latest_period} 月銷量",
-            f"{latest_quantity:,.0f}",
-        )
-        mom_column.metric(
-            "MoM（月成長率）",
-            f"{mom_rate:.1%}" if mom_rate is not None else "-",
-        )
-        yoy_column.metric(
-            "YoY（年成長率）",
-            f"{yoy_rate:.1%}" if yoy_rate is not None else "-",
-        )
-
-        monthly_figure = px.line(
-            monthly_sales,
-            x="month_label",
-            y="monthly_quantity",
-            markers=True,
-            labels={
-                "month_label": "月份",
-                "monthly_quantity": "月銷量",
-            },
-        )
-        monthly_figure.update_traces(
-            line={"color": "#4E56A6", "width": 3},
-            marker={"size": 9, "color": "#F45B1B"},
-        )
-        monthly_figure.update_layout(
-            margin={"l": 10, "r": 10, "t": 24, "b": 10},
-            height=360,
-        )
-        apply_chart_theme(monthly_figure, dark_mode)
-        st.plotly_chart(monthly_figure, width="stretch")
 
 
 with performance_tab:

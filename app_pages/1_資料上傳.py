@@ -33,15 +33,8 @@ from src.sales_processing import (
     validate_sales_mapping,
 )
 
-from src.persistence import (
-    clear_analysis_snapshot,
-    diff_dataframes,
-    load_state,
-    load_sales_snapshot_into_session,
-    save_sales_snapshot,
-)
+from src.demo_data import apply_demo_sales_data_to_session
 from src.session_helpers import (
-    clear_downstream_analysis,
     clear_uploaded_data,
     initialize_session_state,
     load_uploaded_sheet,
@@ -70,6 +63,131 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# =========================================================
+# 資料來源選擇：示範資料／自訂上傳資料
+#
+# 預設示範資料，讓使用者一打開分頁就直接看到「已上傳並完成
+# 欄位分析」後的畫面，不用先上傳才看得到成果；切換成自訂上傳
+# 資料則會恢復成尚未上傳的空白畫面，逼使用者重新走一次上傳
+# 流程（且不會寫入資料庫，重新整理瀏覽器就會清空）。
+# =========================================================
+
+st.subheader("資料來源")
+
+sales_data_mode = st.radio(
+    "資料來源",
+    options=["示範資料", "自訂上傳資料"],
+    horizontal=True,
+    key="sales_data_mode",
+    label_visibility="collapsed",
+)
+
+if sales_data_mode == "示範資料":
+    apply_demo_sales_data_to_session()
+
+    st.info(
+        "目前顯示示範資料的處理結果。"
+        "若要改用自己的資料，請切換至「自訂上傳資料」。"
+    )
+
+    demo_standardized_dataframe = st.session_state[
+        "standardized_dataframe"
+    ]
+
+    demo_data_summary = create_sales_data_summary(
+        demo_standardized_dataframe
+    )
+
+    demo_quality_summary = create_sales_quality_summary(
+        demo_standardized_dataframe
+    )
+
+    demo_issues_dataframe = get_sales_issues_dataframe(
+        demo_standardized_dataframe
+    )
+
+    demo_col1, demo_col2, demo_col3, demo_col4 = st.columns(4)
+
+    demo_col1.metric(
+        "標準化資料筆數",
+        f"{demo_data_summary['total_rows']:,}",
+    )
+    demo_col2.metric(
+        "需確認資料",
+        f"{demo_data_summary['issue_rows']:,}",
+    )
+    demo_col3.metric(
+        "商品數量",
+        f"{demo_data_summary['product_count']:,}",
+    )
+    demo_col4.metric(
+        "銷量合計",
+        f"{demo_data_summary['total_quantity']:,.0f}",
+    )
+
+    st.caption(
+        f"資料日期範圍：{demo_data_summary['date_range_text']}"
+    )
+
+    with st.expander("查看資料品質摘要", expanded=False):
+        st.dataframe(
+            demo_quality_summary,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    st.subheader("標準化資料預覽")
+
+    demo_preview_columns = [
+        column
+        for column in [
+            "source_row_number",
+            "sale_date",
+            "product_id",
+            "product_name",
+            "quantity",
+            "has_quality_issue",
+            "quality_issue_description",
+        ]
+        if column in demo_standardized_dataframe.columns
+    ]
+
+    st.caption("目前僅預覽前 50 筆資料。")
+
+    demo_preview_dataframe = demo_standardized_dataframe[
+        demo_preview_columns
+    ].head(50)
+
+    st.dataframe(
+        demo_preview_dataframe,
+        use_container_width=True,
+        hide_index=True,
+        column_config=default_column_config(
+            demo_preview_dataframe
+        ),
+    )
+
+    if demo_issues_dataframe.empty:
+        st.success("未發現需要人工確認的資料品質問題。")
+    else:
+        st.warning(
+            f"共有 {len(demo_issues_dataframe):,} 筆資料需要確認。"
+        )
+
+    st.success(
+        "示範銷量資料已就緒，可以繼續處理活動資料。"
+    )
+
+    st.stop()
+
+
+# 切換回自訂上傳資料時，先清掉示範資料，恢復成尚未上傳的
+# 空白畫面，不能讓示範資料看起來像是使用者自己上傳的結果。
+if st.session_state.get("is_demo_sales_data"):
+    clear_uploaded_data()
+    st.session_state["is_demo_sales_data"] = False
 
 
 # =========================================================
@@ -875,70 +993,6 @@ else:
     st.subheader("最終確認")
 
     if result_is_current:
-        old_sales_dataframe = load_state(
-            "standardized_dataframe"
-        )
-
-        sales_diff_result = diff_dataframes(
-            old_sales_dataframe,
-            standardized_dataframe,
-        )
-
-        if sales_diff_result["has_old_data"]:
-            if sales_diff_result["identical"]:
-                st.info(
-                    "這份資料跟資料庫中的舊資料完全相同，不需要覆蓋。"
-                )
-            else:
-                st.warning(
-                    f"偵測到資料異動：資料庫中舊資料"
-                    f"{sales_diff_result['old_row_count']} 筆，"
-                    f"本次上傳{sales_diff_result['new_row_count']} 筆，"
-                    f"其中{sales_diff_result['differing_row_count']} 筆內容不同。"
-                    "請選擇要覆蓋還是保留舊資料。"
-                )
-
-                overwrite_col, keep_col = st.columns(2)
-
-                if overwrite_col.button(
-                    "覆蓋舊資料，使用本次上傳",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    st.session_state.sales_data_confirmed = (
-                        True
-                    )
-
-                    save_sales_snapshot()
-
-                    # 銷量資料被覆蓋，先前用舊資料算出來的分析
-                    # 結果已經失效，連同資料庫中的分析快照一併
-                    # 清除，「執行完整分析」頁面才會恢復成尚未
-                    # 執行的初始狀態。
-                    clear_downstream_analysis()
-                    clear_analysis_snapshot()
-
-                    st.success(
-                        "已覆蓋資料庫中的舊資料，"
-                        "銷量資料已完成最終確認。"
-                    )
-
-                    st.rerun()
-
-                if keep_col.button(
-                    "保留舊資料，捨棄本次上傳",
-                    use_container_width=True,
-                ):
-                    load_sales_snapshot_into_session()
-
-                    st.success(
-                        "已保留資料庫中的舊資料，本次上傳已捨棄。"
-                    )
-
-                    st.rerun()
-
-                st.stop()
-
         confirmed_checkbox = st.checkbox(
             "我已確認欄位對應、標準化資料與品質摘要",
             value=st.session_state.get(
@@ -961,8 +1015,6 @@ else:
             st.session_state.sales_data_confirmed = (
                 True
             )
-
-            save_sales_snapshot()
 
             st.success(
                 "銷量資料已完成最終確認，"
