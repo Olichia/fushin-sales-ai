@@ -197,6 +197,25 @@ def lookup_gift_text(product_id: str, unit_code: str) -> str:
     return _gift_lookup.get((str(product_id), str(unit_code)), "")
 
 
+def describe_unit_data_limitation(row: pd.Series) -> str:
+    """
+    依活動單位既有的樣本量／代理牌價提示組成「資料限制」說明，
+    取代原本「建議」欄位的行動建議文字——這裡只陳述資料本身
+    有哪些已知限制，不做行動判斷。
+    """
+
+    notes = [
+        str(row.get("sample_size_note") or "").strip(),
+        str(row.get("proxy_price_note") or "").strip(),
+    ]
+    notes = [note for note in notes if note]
+
+    if notes:
+        return "、".join(notes) + "。"
+
+    return "此活動單位樣本天數與售價資料完整，暫無明顯資料限制。"
+
+
 def render_discount_rate_insight(
     dataframe: pd.DataFrame, show_product_name: bool = True
 ) -> None:
@@ -800,7 +819,7 @@ with product_chart_col:
             )
 
 with product_insight_col:
-    st.markdown("##### 🤖 AI 洞察")
+    st.markdown("##### 數據洞察")
 
     with st.container(
         height=PRODUCT_VIEW_INSIGHT_PANEL_HEIGHT
@@ -844,9 +863,10 @@ with product_insight_col:
                         f"+${best_row['net_revenue_effect_per_day']:,.0f}/日。"
                     ),
                     reason="依此商品目前篩選範圍內淨增益由高到低排序取得最高者。",
-                    action="可考慮延續此組合，並測試擴大曝光或延伸至相似商品。",
+                    action=describe_unit_data_limitation(best_row),
                     confidence=filtered_confidence_label.loc[best_row.name],
                     outcome="表現最佳",
+                    action_label="資料限制",
                 )
 
                 worst_row = product_rows.sort_values(
@@ -877,13 +897,10 @@ with product_insight_col:
                         if worst_is_risky
                         else "此商品目前篩選範圍內淨增益最低的組合。"
                     ),
-                    action=(
-                        "建議下檔縮減折幅，改以贈品吸引轉換。"
-                        if worst_is_risky
-                        else "建議檢視活動設計、曝光或改以其他機制測試。"
-                    ),
+                    action=describe_unit_data_limitation(worst_row),
                     confidence=filtered_confidence_label.loc[worst_row.name],
                     outcome="表現較差",
+                    action_label="資料限制",
                 )
 
                 render_discount_rate_insight(
@@ -915,9 +932,10 @@ with product_insight_col:
                         "是目前篩選範圍內表現最佳的組合。"
                     ),
                     reason="依目前篩選範圍內淨增益由高到低排序取得最高者。",
-                    action="可考慮延續此折扣深度，並測試擴大曝光。",
+                    action=describe_unit_data_limitation(best_row),
                     confidence=filtered_confidence_label.loc[best_row.name],
                     outcome="表現最佳",
+                    action_label="資料限制",
                 )
 
             risk_rows = filtered_unit_overview[risk_mask].sort_values(
@@ -941,9 +959,10 @@ with product_insight_col:
                         "存量降價效應（絕對值）大於量增效應（絕對值），"
                         "屬於毛利侵蝕風險。"
                     ),
-                    action="建議下檔縮減折幅，改以贈品吸引轉換。",
+                    action=describe_unit_data_limitation(worst_risk),
                     confidence=filtered_confidence_label.loc[worst_risk.name],
                     outcome="表現較差",
+                    action_label="資料限制",
                 )
 
             render_discount_rate_insight(
@@ -1094,7 +1113,7 @@ with activity_chart_col1:
             )
 
 with activity_chart_col2:
-    st.markdown("##### 🤖 AI 洞察")
+    st.markdown("##### 數據洞察")
 
     combo_candidates = filtered_summary[
         filtered_summary["split_status"] == "無法拆分"
@@ -1131,8 +1150,19 @@ with activity_chart_col2:
                 f"平均淨增益僅 ${combo_worst['avg_gain']:,.0f}/單位。"
             ),
             reason="依配對比對彙總（工作表7）的平均淨增益排序取得。",
-            action="建議優先安排前者的活動搭配。",
+            action=(
+                f"此組合彙總涵蓋 {int(combo_best['interval_count'])} "
+                f"個配對區間、共 {combo_best['total_days']:,.0f} 天"
+                + (
+                    "，區間數少於 2，樣本量小,信賴區間寬。"
+                    if combo_confidence == "較低"
+                    else "，區間數達 2 以上，樣本量尚可。"
+                )
+            ),
             confidence=combo_confidence,
+            tag_label="數據洞察",
+            tag_icon="",
+            action_label="資料限制",
         )
 
     low_confidence_rows = filtered_pairing[
@@ -1156,8 +1186,18 @@ with activity_chart_col2:
                 f"樣本天數低於 {MINIMUM_DAYS_FOR_CONFIDENCE} 天的門檻，"
                 "且找不到可比對照期間。"
             ),
-            action="建議僅作輔助參考，累積更多天數樣本後再下結論。",
+            action=(
+                f"{example_row['sample_size_note']}。"
+                if str(example_row.get("sample_size_note") or "").strip()
+                else (
+                    f"涵蓋天數僅 {int(example_row['target_unit_days'])} 天，"
+                    "低於信心門檻，且無可比對照期。"
+                )
+            ),
             confidence="較低",
+            tag_label="數據洞察",
+            tag_icon="",
+            action_label="資料限制",
         )
 
 if not filtered_pairing.empty:

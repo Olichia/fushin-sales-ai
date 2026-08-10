@@ -14,11 +14,26 @@ Hero 區塊顏色全部走 apply_product_styles() 已注入的共用
 改成直接沿用頁面背景色，讓內容像參考截圖一樣直接鋪在頁面
 底色上，沒有卡片邊界。裝飾用的圓形光暈仍保留。
 */
+/*
+直接把主內容區的 padding-top 歸零。src/ui_style.py 裡實際
+生效的是「主內容：採用參考網站原始尺寸」那段
+「padding: 32px 36px !important」（比檔案前段沒有
+!important 的 2.1rem 版本晚宣告、優先權也贏），單純多加一條
+一樣特異度的 !important 規則去對齊順序太脆弱，這裡故意多疊
+一層 body 前綴把特異度墊高，不管 ui_style.py 裡的宣告順序
+之後怎麼調整都能穩定蓋過去。這條規則只在首頁樣板裡出現，
+只影響首頁這一頁的主內容區留白，不影響其他頁面。
+*/
+body .block-container,
+body [data-testid="stMainBlockContainer"] {
+    padding-top: 0 !important;
+}
+
 .hero-shell {
     position: relative;
     overflow: hidden;
 
-    margin: -1.2rem -0.2rem 1.6rem;
+    margin: 0 -0.2rem 1.6rem;
     padding: 3.6rem 3.4rem;
 
     background:
@@ -140,7 +155,7 @@ Hero 區塊顏色全部走 apply_product_styles() 已注入的共用
 
 .hero-feature-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 1rem;
     margin-bottom: 2.2rem;
 }
@@ -220,6 +235,19 @@ Rounded），四色徽章底色／邊框色用 color-mix() 從既有的
 
 .hero-feature-icon-green .hero-feature-icon-glyph {
     color: var(--brand-green);
+}
+
+/*
+第五個主題卡用色：var(--brand-blue) 跟既有的 "blue"
+（var(--ai-accent)）色相不同，避免兩張卡片視覺上混淆。
+*/
+.hero-feature-icon-indigo {
+    background: color-mix(in srgb, var(--brand-blue) 14%, transparent);
+    border-color: color-mix(in srgb, var(--brand-blue) 45%, transparent);
+}
+
+.hero-feature-icon-indigo .hero-feature-icon-glyph {
+    color: var(--brand-blue);
 }
 
 .hero-feature-title {
@@ -503,10 +531,7 @@ Rounded），四色徽章底色／邊框色用 color-mix() 從既有的
             <div class="hero-subtitle">
                 AI 驅動數據洞察，找出活動策略最佳解
             </div>
-            <div class="hero-description">
-                整合銷量與活動資料，用 AI 洞察與情境模擬，
-                協助你更快找到下一檔活動的最佳策略。
-            </div>
+            <div class="hero-description">這不是一般的銷售儀表板，而是「讓使用者以自然語言取得客戶洞察、行動建議與追蹤結果的 AI 銷售決策助理」。</div>
             <div class="hero-feature-grid">{{FEATURE_CARDS_HTML}}</div>
         </div>
         <div class="hero-orb-wrap">

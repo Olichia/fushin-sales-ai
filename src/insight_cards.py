@@ -92,12 +92,21 @@ def render_ai_insight_card(
     action: str,
     confidence: str | None = None,
     outcome: str | None = None,
+    tag_label: str = "AI 洞察",
+    tag_icon: str = "✨",
+    action_label: str = "建議",
 ) -> None:
     """
     以「發現／原因／建議」三段格式呈現規則式的 AI 洞察摘要，
     confidence 給定時在標題列右側加上資料信心徽章。outcome 給定時
     （例如「表現最佳」／「表現較差」）取代預設的「✨ AI 洞察」
     標籤文字，用於明確標示這張卡片在一組最佳／較差配對中的角色。
+
+    tag_label／tag_icon／action_label 讓呼叫端可以覆寫預設的
+    「✨ AI 洞察」標籤（文字與前綴圖示）與「建議」欄位名稱
+    （例如活動洞察頁把這三者分別改成「數據洞察」「（無圖示）」
+    「資料限制」），預設值維持原本文字與圖示，不影響其他既有
+    呼叫端（例如情境模擬頁）。
 
     跟 render_structured_advisor_card() 的差異：這裡的內容是直接
     從已經算好的數字組句（例如情境模擬結果、既有的策略分類／
@@ -112,7 +121,7 @@ def render_ai_insight_card(
     rows = [
         ("發現", finding),
         ("原因", reason),
-        ("建議", action),
+        (action_label, action),
     ]
 
     row_html = "".join(
@@ -138,7 +147,7 @@ def render_ai_insight_card(
         outcome_icon = _OUTCOME_ICON.get(outcome, "🏆")
         tag_text = f"{outcome_icon} {outcome}"
     else:
-        tag_text = "✨ AI 洞察"
+        tag_text = f"{tag_icon} {tag_label}".strip()
 
     card_html = (
         '<div class="advisor-card">'
