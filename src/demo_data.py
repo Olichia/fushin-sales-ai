@@ -8,7 +8,7 @@ import streamlit as st
 from src.activity_processing import process_activity_files
 from src.activity_unit_analysis import run_activity_unit_analysis
 from src.analysis_pipeline import AnalysisSettings, run_full_analysis
-from src.persistence import load_state, save_state
+from src.persistence import load_states, save_states
 from src.sales_processing import standardize_sales_data, suggest_sales_mapping
 
 
@@ -80,28 +80,33 @@ def _demo_db_key(key: str) -> str:
 
 def _load_cached_result(keys: list[str]) -> dict[str, object] | None:
     """
-    嘗試從資料庫讀回一組示範資料 key。
+    嘗試從資料庫讀回一組示範資料 key（一次查詢批次讀回，
+    不逐一開連線）。
 
     只要其中任何一個 key 還沒存過，就視為快取不完整，
     回傳 None 讓呼叫端重新計算整組結果。
     """
 
-    values: dict[str, object] = {}
+    db_key_to_key = {_demo_db_key(key): key for key in keys}
 
-    for key in keys:
-        value = load_state(_demo_db_key(key))
+    loaded = load_states(list(db_key_to_key.keys()))
 
-        if value is None:
-            return None
+    values = {
+        key: loaded[db_key]
+        for db_key, key in db_key_to_key.items()
+        if db_key in loaded
+    }
 
-        values[key] = value
+    if len(values) != len(keys):
+        return None
 
     return values
 
 
 def _save_result_to_cache(values: dict[str, object]) -> None:
-    for key, value in values.items():
-        save_state(_demo_db_key(key), value)
+    save_states(
+        {_demo_db_key(key): value for key, value in values.items()}
+    )
 
 
 # =========================================================
@@ -182,8 +187,15 @@ def _compute_demo_analysis_result(
 # =========================================================
 # 對外取得示範資料結果（資料庫有快取就直接讀，
 # 沒有就即時算一次並存回資料庫，下次就不用重算）
+#
+# 額外包一層 st.cache_data：資料庫讀取／運算只在同一個伺服器
+# 行程裡發生一次，同機的其他 session（例如使用者重新整理
+# 分頁、開新分頁）都直接吃行程內快取，不用再付一次資料庫
+# 連線的網路延遲。cache_data 會在存取時深拷貝內容，
+# 避免不同 session 共用同一份 DataFrame 物件互相污染。
 # =========================================================
 
+@st.cache_data(show_spinner=False)
 def get_demo_sales_result() -> dict[str, object]:
     cached_result = _load_cached_result(SALES_RESULT_KEYS)
 
@@ -196,6 +208,7 @@ def get_demo_sales_result() -> dict[str, object]:
     return computed_result
 
 
+@st.cache_data(show_spinner=False)
 def get_demo_activity_result() -> dict[str, object]:
     cached_result = _load_cached_result(ACTIVITY_RESULT_KEYS)
 
@@ -208,6 +221,7 @@ def get_demo_activity_result() -> dict[str, object]:
     return computed_result
 
 
+@st.cache_data(show_spinner=False)
 def get_demo_analysis_result() -> dict[str, object]:
     cached_result = _load_cached_result(ANALYSIS_RESULT_KEYS)
 
