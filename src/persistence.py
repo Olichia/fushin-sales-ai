@@ -138,6 +138,66 @@ def load_state(key: str) -> Any | None:
     return pickle.loads(bytes(row[0]))
 
 
+def load_states(keys: list[str]) -> dict[str, Any]:
+    """
+    批次讀回多個 key 的值，只開一次連線、一次查詢。
+
+    資料庫裡沒有的 key 不會出現在回傳的 dict 中，
+    呼叫端自行判斷哪些 key 缺漏。
+    """
+
+    if not keys:
+        return {}
+
+    connection = _get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT state_key, value_blob FROM app_state WHERE state_key = ANY(%s)",
+                (list(keys),),
+            )
+            rows = cursor.fetchall()
+    finally:
+        connection.close()
+
+    return {
+        row[0]: pickle.loads(bytes(row[1]))
+        for row in rows
+    }
+
+
+def save_states(values: dict[str, Any]) -> None:
+    """批次寫入多個 key（沒有就新增，有就覆蓋），只開一次連線。"""
+
+    if not values:
+        return
+
+    updated_at = datetime.now(timezone.utc).isoformat()
+
+    rows = [
+        (key, psycopg2.Binary(pickle.dumps(value)), updated_at)
+        for key, value in values.items()
+    ]
+
+    connection = _get_connection()
+
+    try:
+        with connection, connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO app_state (state_key, value_blob, updated_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (state_key) DO UPDATE SET
+                    value_blob = EXCLUDED.value_blob,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                rows,
+            )
+    finally:
+        connection.close()
+
+
 def delete_state(key: str) -> None:
     """刪除資料庫裡的單一 key。"""
 
