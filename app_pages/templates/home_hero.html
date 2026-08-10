@@ -144,13 +144,13 @@ body [data-testid="stMainBlockContainer"] {
 }
 
 .hero-description {
-    max-width: 640px;
     margin-bottom: 2rem;
 
     color: var(--text-secondary);
     font-size: 1.15rem;
     font-weight: 500;
     line-height: 1.75;
+    white-space: nowrap;
 }
 
 .hero-feature-grid {
@@ -495,6 +495,10 @@ Rounded），四色徽章底色／邊框色用 color-mix() 從既有的
         white-space: normal;
     }
 
+    .hero-description {
+        white-space: normal;
+    }
+
     .hero-feature-grid,
     .hero-stats-row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -531,7 +535,7 @@ Rounded），四色徽章底色／邊框色用 color-mix() 從既有的
             <div class="hero-subtitle">
                 AI 驅動數據洞察，找出活動策略最佳解
             </div>
-            <div class="hero-description">這不是一般的銷售儀表板，而是「讓使用者以自然語言取得客戶洞察、行動建議與追蹤結果的 AI 銷售決策助理」。</div>
+            <div class="hero-description">協助業務快速辨識活動風險與機會，將分析結果轉化為可直接執行的行動</div>
             <div class="hero-feature-grid">{{FEATURE_CARDS_HTML}}</div>
         </div>
         <div class="hero-orb-wrap">
