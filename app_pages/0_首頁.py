@@ -197,10 +197,10 @@ with st.container(key="hero_cta_button"):
 
 if start_exploring:
     # 「開始探索」預設套入示範資料（銷量、活動與完整分析結果
-    # 一次備妥），直接跳到 AI 策略中心，不用再走一次上傳流程。
+    # 一次備妥），直接跳到分析總覽，不用再走一次上傳流程。
     apply_full_demo_data_to_session()
 
-    st.switch_page("app_pages/13_策略中心.py")
+    st.switch_page("app_pages/11_產品首頁.py")
 
 
 # =========================================================
