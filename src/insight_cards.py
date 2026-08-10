@@ -44,17 +44,22 @@ def render_structured_advisor_card(
     備援內容，卡片會換成明顯不同的標籤與色調，不能跟正常 AI 回覆
     混淆。
 
-    全部組成單行字串再丟給 st.markdown：CommonMark 解析器只要在
-    內嵌 HTML 中間看到空白行，就會提早結束「原始 HTML 區塊」，
-    讓後面的標籤變成純文字顯示出來，多行縮排寫法很容易踩到這個雷。
+    全部組成單行字串再丟給 st.markdown：
+    CommonMark 解析器只要在內嵌 HTML 中間看到空白行，
+    就可能提早結束原始 HTML 區塊，因此避免多行 HTML 字串。
     """
 
     confidence_class = _CONFIDENCE_BADGE_CLASS.get(
-        confidence, "badge-confidence-mid"
+        confidence,
+        "badge-confidence-mid",
     )
 
     tag_text = "⚙ 規則式備援" if is_fallback else "✨ AI 結構化回覆"
-    tag_class = "advisor-tag-fallback" if is_fallback else "advisor-tag"
+    tag_class = (
+        "advisor-tag-fallback"
+        if is_fallback
+        else "advisor-tag"
+    )
 
     rows = [
         ("關鍵發現", finding),
@@ -76,14 +81,19 @@ def render_structured_advisor_card(
     card_html = (
         '<div class="advisor-card">'
         '<div class="advisor-card-header">'
-        f'<span class="{tag_class}">{tag_text}</span>'
-        f'<span class="badge {confidence_class}">信心：{html.escape(str(confidence))}</span>'
+        f'<span class="{tag_class}">{html.escape(tag_text)}</span>'
+        f'<span class="badge {confidence_class}">'
+        f"信心：{html.escape(str(confidence))}"
+        "</span>"
         "</div>"
         f"{row_html}"
         "</div>"
     )
 
-    st.markdown(card_html, unsafe_allow_html=True)
+    st.markdown(
+        card_html,
+        unsafe_allow_html=True,
+    )
 
 
 def render_ai_insight_card(
@@ -97,25 +107,26 @@ def render_ai_insight_card(
     action_label: str = "建議",
 ) -> None:
     """
-    以「發現／原因／建議」三段格式呈現規則式的 AI 洞察摘要，
-    confidence 給定時在標題列右側加上資料信心徽章。outcome 給定時
-    （例如「表現最佳」／「表現較差」）取代預設的「✨ AI 洞察」
-    標籤文字，用於明確標示這張卡片在一組最佳／較差配對中的角色。
+    以三段格式呈現規則式洞察摘要。
 
-    tag_label／tag_icon／action_label 讓呼叫端可以覆寫預設的
-    「✨ AI 洞察」標籤（文字與前綴圖示）與「建議」欄位名稱
-    （例如活動洞察頁把這三者分別改成「數據洞察」「（無圖示）」
-    「資料限制」），預設值維持原本文字與圖示，不影響其他既有
-    呼叫端（例如情境模擬頁）。
+    預設顯示：
+    發現／原因／建議
 
-    跟 render_structured_advisor_card() 的差異：這裡的內容是直接
-    從已經算好的數字組句（例如情境模擬結果、既有的策略分類／
-    風險判斷），不是即時呼叫 LLM，所以標籤用「✨ AI 洞察」而不是
-    「✨ AI 結構化回覆」，讓使用者能分辨哪些內容是即時 AI 判讀、
-    哪些是規則式摘要——兩者都有用，但不該混為一談。適合需要
-    使用者反覆調整輸入、即時看到結果的場景（LLM 呼叫的延遲不
-    適合這種互動節奏），也適合單純重新包裝既有規則式分析結果的
-    場景。
+    呼叫端可透過 action_label 修改第三欄名稱。
+
+    例如：
+    - 活動洞察頁：
+      action_label="資料限制"
+    - 其他頁面不傳 action_label：
+      預設仍顯示「建議」
+
+    tag_label 與 tag_icon 可修改卡片標籤。
+    outcome 給定時，例如「表現最佳」「表現較差」，
+    會優先以 outcome 當卡片標籤。
+
+    此函式內容主要來自已經計算完成的規則式結果，
+    並非即時 LLM 回覆，因此與
+    render_structured_advisor_card() 的 AI 結構化回覆分開呈現。
     """
 
     rows = [
@@ -126,25 +137,35 @@ def render_ai_insight_card(
 
     row_html = "".join(
         '<div class="advisor-row">'
-        f'<span class="advisor-row-label">{html.escape(label)}</span>'
-        f'<span class="advisor-row-text">{html.escape(str(text))}</span>'
+        f'<span class="advisor-row-label">'
+        f"{html.escape(str(label))}"
+        "</span>"
+        f'<span class="advisor-row-text">'
+        f"{html.escape(str(text))}"
+        "</span>"
         "</div>"
         for label, text in rows
     )
 
     if confidence is not None:
         confidence_class = _CONFIDENCE_BADGE_CLASS.get(
-            confidence, "badge-confidence-mid"
+            confidence,
+            "badge-confidence-mid",
         )
+
         confidence_badge = (
             f'<span class="badge {confidence_class}">'
-            f"資料信心：{html.escape(str(confidence))}</span>"
+            f"資料信心：{html.escape(str(confidence))}"
+            "</span>"
         )
     else:
         confidence_badge = ""
 
     if outcome is not None:
-        outcome_icon = _OUTCOME_ICON.get(outcome, "🏆")
+        outcome_icon = _OUTCOME_ICON.get(
+            outcome,
+            "📊",
+        )
         tag_text = f"{outcome_icon} {outcome}"
     else:
         tag_text = f"{tag_icon} {tag_label}".strip()
@@ -152,34 +173,39 @@ def render_ai_insight_card(
     card_html = (
         '<div class="advisor-card">'
         '<div class="advisor-card-header">'
-        f'<span class="advisor-tag">{html.escape(tag_text)}</span>'
+        f'<span class="advisor-tag">'
+        f"{html.escape(tag_text)}"
+        "</span>"
         f"{confidence_badge}"
         "</div>"
         f"{row_html}"
         "</div>"
     )
 
-    st.markdown(card_html, unsafe_allow_html=True)
+    st.markdown(
+        card_html,
+        unsafe_allow_html=True,
+    )
 
 
-def render_discount_insight_card(rows: list[tuple[str, str]]) -> None:
+def render_discount_insight_card(
+    rows: list[tuple[str, str]],
+) -> None:
     """
-    沿用與 AI 洞察卡片相同的 .advisor-card／.advisor-row 版面（原本
-    的藍底設計），但標籤與列標籤改用 --blue 修飾類別（原始藍色
-    var(--ai-accent) / var(--ai-accent-deep)），刻意跟商品／活動
-    視角 AI 洞察卡片現在的紫色（表現最佳／較差）做出區隔，取代
-    原本逐段 st.markdown() 純文字輸出。
+    沿用 AI 洞察卡片相同的 advisor-card / advisor-row 版面，
+    但使用藍色修飾類別，讓折扣率洞察與一般洞察卡有所區隔。
 
-    rows 中每個 (label, text_html) tuple，label 為純文字（例如
-    「折扣率」「值得留意」，這裡會做 html.escape()），text_html
-    須為呼叫端已組好、內嵌資料已用 html.escape() 處理過的安全
-    HTML 字串（可包含 <strong> 等行內標籤），這裡不再對它逃逸。
+    rows 中：
+    - label 為純文字，會執行 html.escape()
+    - text_html 為呼叫端已處理完成的安全 HTML
+      可包含 <strong> 等行內標籤
     """
 
     row_html = "".join(
         '<div class="advisor-row">'
         '<span class="advisor-row-label advisor-row-label--blue">'
-        f"{html.escape(label)}</span>"
+        f"{html.escape(label)}"
+        "</span>"
         f'<span class="advisor-row-text">{text}</span>'
         "</div>"
         for label, text in rows
@@ -188,13 +214,18 @@ def render_discount_insight_card(rows: list[tuple[str, str]]) -> None:
     card_html = (
         '<div class="advisor-card">'
         '<div class="advisor-card-header">'
-        '<span class="advisor-tag advisor-tag--blue">📊 折扣率洞察</span>'
+        '<span class="advisor-tag advisor-tag--blue">'
+        "📊 折扣率洞察"
+        "</span>"
         "</div>"
         f"{row_html}"
         "</div>"
     )
 
-    st.markdown(card_html, unsafe_allow_html=True)
+    st.markdown(
+        card_html,
+        unsafe_allow_html=True,
+    )
 
 
 def render_evidence_sections(
@@ -203,13 +234,7 @@ def render_evidence_sections(
     """
     以 hanging indent 版面呈現一組「標籤／內容」證據段落。
 
-    跟策略中心頁面內的個別化建議排版邏輯相同（標籤後方內容
-    靠左對齊，換行時對齊內容起始位置），抽成共用函式，
-    讓行動生成頁等其他頁面也能用同一種排版顯示證據鏈。
-
-    全部組成單行字串再丟給 st.markdown：CommonMark 解析器只要
-    在內嵌 HTML 中間看到空白行，就會提早結束「原始 HTML 區塊」，
-    多行縮排寫法很容易踩到這個雷。
+    讓策略中心、行動生成等頁面能使用一致的證據鏈排版。
     """
 
     blocks = []
@@ -228,7 +253,10 @@ def render_evidence_sections(
             )
         )
 
-    st.markdown("".join(blocks), unsafe_allow_html=True)
+    st.markdown(
+        "".join(blocks),
+        unsafe_allow_html=True,
+    )
 
 
 def render_scenario_card(
@@ -240,20 +268,23 @@ def render_scenario_card(
     is_adopted: bool = False,
 ) -> None:
     """
-    以「標籤＋換行陳列的欄位」呈現單一情境模擬方案卡片，
-    取代逐格 st.metric() 的大數字方塊排版：每一列是
-    「說明文字（左）－數值（右，粗體）」，字級跟一般內文一致。
+    以「標籤＋欄位」呈現單一情境模擬方案卡片。
 
-    badge_tone 對應方案性質：
-    "neutral"（無贈品／基準）、"good"（贈品組合）、
-    "risk"（深折扣，提醒沒有實證支持的降價不代表更划算）。
-    is_best=True 時卡片外框改用成功色，標出目前簡化後淨效益
-    最高的方案。is_adopted=True 時額外標示「📌 已採用」徽章，
-    並改用強調色外框，跟使用者在頁面上按下「採用」的方案對應。
+    badge_tone：
+    - neutral：中性／基準方案
+    - good：較佳方案
+    - risk：風險方案
+
+    is_best=True：
+    標示目前簡化淨效益最佳方案。
+
+    is_adopted=True：
+    額外顯示「已採用」徽章。
     """
 
     badge_class = _SCENARIO_BADGE_CLASS.get(
-        badge_tone, "badge-neutral"
+        badge_tone,
+        "badge-neutral",
     )
 
     card_class = "scenario-card"
@@ -263,18 +294,28 @@ def render_scenario_card(
     elif is_best:
         card_class += " scenario-card-best"
 
-    title_text = f"✅ {title}" if is_best else title
+    title_text = (
+        f"✅ {title}"
+        if is_best
+        else title
+    )
 
     row_html = "".join(
         '<div class="scenario-row">'
-        f'<span class="scenario-row-label">{html.escape(label)}</span>'
-        f'<span class="scenario-row-value">{html.escape(str(value))}</span>'
+        f'<span class="scenario-row-label">'
+        f"{html.escape(label)}"
+        "</span>"
+        f'<span class="scenario-row-value">'
+        f"{html.escape(str(value))}"
+        "</span>"
         "</div>"
         for label, value in rows
     )
 
     adopted_badge_html = (
-        '<span class="badge badge-adopted">📌 已採用</span>'
+        '<span class="badge badge-adopted">'
+        "📌 已採用"
+        "</span>"
         if is_adopted
         else ""
     )
@@ -282,9 +323,13 @@ def render_scenario_card(
     card_html = (
         f'<div class="{card_class}">'
         '<div class="scenario-card-title-row">'
-        f'<span class="scenario-card-title">{html.escape(title_text)}</span>'
+        f'<span class="scenario-card-title">'
+        f"{html.escape(title_text)}"
+        "</span>"
         '<span class="scenario-card-badges">'
-        f'<span class="badge {badge_class}">{html.escape(badge_text)}</span>'
+        f'<span class="badge {badge_class}">'
+        f"{html.escape(badge_text)}"
+        "</span>"
         f"{adopted_badge_html}"
         "</span>"
         "</div>"
@@ -292,4 +337,7 @@ def render_scenario_card(
         "</div>"
     )
 
-    st.markdown(card_html, unsafe_allow_html=True)
+    st.markdown(
+        card_html,
+        unsafe_allow_html=True,
+    )
