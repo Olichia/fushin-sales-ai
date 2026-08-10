@@ -171,7 +171,7 @@ st.markdown(
     .ai-center-title {
         margin: 0 0 0.45rem;
         color: var(--text-primary);
-        font-size: clamp(1.9rem, 3vw, 2.7rem);
+        font-size: clamp(2.3rem, 3.6vw, 3.3rem);
         font-weight: 900;
         letter-spacing: -0.035em;
     }
@@ -204,43 +204,6 @@ st.markdown(
 
     .ai-flow span strong {
         color: var(--ai-accent-deep);
-    }
-
-    .ai-kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.75rem;
-        margin: 0.85rem 0 1.15rem;
-    }
-
-    .ai-kpi-card {
-        min-height: 112px;
-        padding: 0.9rem 1rem;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .ai-kpi-label {
-        color: var(--text-muted);
-        font-size: 0.82rem;
-        font-weight: 800;
-        letter-spacing: 0.04em;
-    }
-
-    .ai-kpi-value {
-        margin: 0.28rem 0 0.16rem;
-        color: var(--text-primary);
-        font-size: 1.55rem;
-        font-weight: 900;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .ai-kpi-note {
-        color: var(--text-secondary);
-        font-size: 0.82rem;
-        line-height: 1.45;
     }
 
     .ai-brief {
@@ -449,20 +412,12 @@ st.markdown(
     }
 
     @media (max-width: 900px) {
-        .ai-kpi-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
         .queue-balance-grid {
             grid-template-columns: 1fr;
         }
     }
 
     @media (max-width: 560px) {
-        .ai-kpi-grid {
-            grid-template-columns: 1fr;
-        }
-
         .ai-brief-row {
             grid-template-columns: 1fr;
         }
@@ -557,48 +512,6 @@ if not st.session_state.get("ai_chat_messages"):
             ),
         }
     ]
-
-
-total_units = len(strategy)
-continue_count = int(
-    (strategy["strategy_category"] == "建議延續").sum()
-)
-review_count = int(
-    (strategy["strategy_category"] == "建議檢討").sum()
-)
-risk_count = int(strategy["is_risky"].sum())
-total_net_effect = strategy["net_revenue_effect_total"].sum(
-    min_count=1
-)
-
-
-st.markdown(
-    f"""
-    <div class="ai-kpi-grid">
-        <div class="ai-kpi-card">
-            <div class="ai-kpi-label">ANALYZED UNITS</div>
-            <div class="ai-kpi-value">{total_units:,}</div>
-            <div class="ai-kpi-note">已完成活動單位判讀</div>
-        </div>
-        <div class="ai-kpi-card">
-            <div class="ai-kpi-label">OPPORTUNITIES</div>
-            <div class="ai-kpi-value">{continue_count:,}</div>
-            <div class="ai-kpi-note">建議延續並驗證放大的活動</div>
-        </div>
-        <div class="ai-kpi-card">
-            <div class="ai-kpi-label">NEED REVIEW</div>
-            <div class="ai-kpi-value">{review_count:,}</div>
-            <div class="ai-kpi-note">其中 {risk_count:,} 個有降價侵蝕風險</div>
-        </div>
-        <div class="ai-kpi-card">
-            <div class="ai-kpi-label">NET REVENUE EFFECT</div>
-            <div class="ai-kpi-value">{format_money(total_net_effect, signed=True)}</div>
-            <div class="ai-kpi-note">活動單位淨營收效應合計，非實際毛利</div>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
 
 
 st.subheader("今日 AI 決策摘要")
