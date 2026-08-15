@@ -1,228 +1,1294 @@
-# 富信新零售銷量與活動分析系統
+富信新零售 AI 電商活動策略決策助手
 
-本專案是一套以 Streamlit 建立的零售活動分析 MVP，用於整合銷量資料與促銷活動資料，完成欄位對應、資料品質檢查、活動前中後比較、策略分類、AI 顧問解讀與主管 PDF 報表匯出。
+程式碼說明｜最新版
 
-## 專案目標
+對應目前產品版入口：product_app.py
+本文件依目前最新專案結構整理，包含首頁「AI 今日洞察」、活動洞察、AI 策略中心、情境模擬、行動生成、主管報表、Session State、Gemini 與 Supabase 的主要程式邏輯。
 
-原始銷量與活動 Excel 經常存在欄位名稱不一致、日期格式混雜、同日同商品多筆紀錄、活動期間難以直接與每日銷量對應等問題。本系統將這些步驟整合成單一操作流程，協助使用者快速完成資料整理與活動成效判讀。
+1. 專案定位
 
-> 本系統提供的是觀察性分析與決策輔助，不直接證明活動造成銷量變化，也不在缺少成本與毛利資料時判定活動是否獲利。
+本專案是一套以 Streamlit + Pandas + Gemini 建立的零售活動決策輔助平台。
 
-## 主要功能
+系統核心不是單純把 Excel 轉成圖表，而是把既有銷量與活動資料串成：
 
-### 資料管理
+資料準備
+→ 完整分析
+→ 分析總覽
+→ 活動洞察
+→ AI 策略中心
+→ 情境模擬
+→ 行動生成
+→ 主管報表
 
-- 上傳銷量 Excel 並選擇工作表
-- 將原始欄位對應至標準欄位
-- 清理日期、商品編號、商品名稱與銷量
-- 標記缺值、格式錯誤與疑似異常資料
-- 上傳及標準化品牌活動資料
-- 建立活動日曆與優惠內容資料
+目前競賽展示的主流程可簡化理解為：
 
-### 系統處理
+What happened
+→ Why
+→ What next
+→ Simulate
+→ Act
 
-- 依商品編號與日期整合每日銷量及活動資料
-- 比較活動前、活動期間與活動後的日均銷量
-- 計算活動提升率、活動後變化率與推估營收
-- 標記觀察期間不完整、低基期及活動重疊
-- 依規則產生「建議延續、建議優化、建議檢討」分類
+也就是：
 
-### 決策分析
+分析總覽
+→ 活動洞察
+→ AI 策略中心
+→ 情境模擬
+→ 行動生成
 
-- 分析總覽與核心 KPI
-- 活動成效排名與趨勢圖表
-- AI 策略中心（策略摘要、決策佇列與 Gemini AI 對話）
-- 主管 PDF 報表下載
+2. 產品入口
 
-## 分析流程
+product_app.py
 
-```text
-銷量資料上傳
-→ 欄位設定
-→ 銷量資料品質
-→ 活動資料上傳
-→ 活動資料品質
-→ 建立整合資料
-→ 執行成效分析
-→ 產生策略報告
-→ 查看活動洞察／AI 顧問／主管報表
-```
+這是目前正式產品版的主要入口。
 
-## 核心欄位
+啟動方式：
 
-| 標準欄位 | 用途 |
-|---|---|
-| `sale_date` | 判斷每日銷量與活動前、中、後期間 |
-| `product_id` | 連結銷量資料與活動資料的主要鍵 |
-| `product_name` | 報表顯示與人工核對 |
-| `quantity` | 計算每日銷量與活動成效 |
-| `activity_start_date` | 活動開始日期 |
-| `activity_end_date` | 活動結束日期 |
+python -m streamlit run product_app.py
 
-## 主要計算邏輯
+主要負責：
 
-### 每日商品銷量
+設定 Streamlit 頁面
 
-同一天、同一商品的多筆交易，會依分析粒度彙總：
+初始化 Session State
 
-```text
-每日商品銷量 = 同日期、同商品所有交易數量加總
-```
+自動載入示範資料
 
-### 活動提升率
+套用全站 UI 樣式
 
-```text
-活動提升率
-=（活動期間日均銷量－活動前日均銷量）÷ 活動前日均銷量
-```
+建立側邊欄導覽
 
-當活動前日均銷量為 0 時，不進行一般百分比計算，並應視為低基期或無基期情況。
+顯示品牌 Logo
 
-### 推估營收
+控制側邊欄 icon-only / 收合狀態
 
-```text
-推估營收 = 活動期間銷量 × 可用的活動價格
-```
+顯示浮動 AI 策略顧問
 
-推估營收不等於實際營收或獲利，尚未完整納入折扣碼、退貨、平台幣、贈品、運費、廣告成本、平台抽成、商品成本與毛利。
+主要初始化：
 
-## 圖表使用原則
+initialize_session_state()
+ensure_default_demo_data_loaded()
 
-- **KPI 卡片**：快速顯示活動數、總銷量、提升率中位數與待確認問題。
-- **長條圖**：比較不同活動、商品或策略分類的相對表現與排名。
-- **折線圖**：呈現每日銷量與活動前後的時間趨勢。
-- **散點圖**：同時觀察提升率與活動規模，避免只看高百分比而忽略實際銷量。
-- **資料表**：提供精確數值、商品編號、日期及資料信心，供人工查核。
+因此使用者第一次打開系統時，即使沒有上傳自己的 Excel，也可以直接看到示範資料。
 
-## AI 顧問定位
+3. 最新側邊欄頁面結構
 
-核心數值由 Python 與既定規則計算，Gemini 僅負責解讀既有分析結果及提出下一步驗證建議。AI 回答必須：
+目前 product_app.py 中正式顯示的頁面如下：
 
-- 區分資料觀察、推測與建議
-- 不將相關性表述為因果
-- 主動提醒期間不完整、低基期與活動重疊
-- 不在缺少成本或毛利資料時宣稱活動獲利
+首頁
+└─ 首頁
 
-## 技術架構
+資料準備
+├─ 01 銷量資料處理
+└─ 02 活動資料處理
 
-- Python
-- Streamlit
-- Pandas
-- Plotly
-- OpenPyXL
-- Google Gen AI SDK
-- ReportLab
-- Supabase (Postgres)
+分析流程
+└─ 03 執行完整分析
 
-## 本機安裝
+主決策引擎
+├─ 分析總覽
+├─ 活動洞察
+├─ AI 策略中心
+└─ 情境模擬
 
-建議使用 Python 3.12。
+成果匯出
+├─ 行動生成
+└─ 主管報表中心
 
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
+對應實際檔案：
 
-在專案根目錄建立 `.env`：
+顯示名稱
 
-```env
-GEMINI_API_KEY=your_gemini_api_key
-DATABASE_URL=postgresql://postgres.xxxxxxxx:your_password@aws-0-xxxxx.pooler.supabase.com:6543/postgres
-```
+實際檔案
 
-`DATABASE_URL` 是 Supabase 專案的 Postgres 連線字串，用來取代原本的本機 SQLite，讓分析快照可以跨部署／重啟保存。第一次連線時程式會自動建立所需的資料表，不用手動建 schema。
+首頁
 
-請用 **Transaction pooler**（Project Settings -> Database -> Connect -> Connection Method 選 "Transaction pooler"，port `6543`）的連線字串，不要用預設的 Direct connection（port `5432`）。程式每次讀寫都是開一條新連線、用完即關，符合 Transaction pooler「每次互動都短暫且獨立」的設計場景；Direct connection 是給長駐連線用的，多人同時操作時很快會撐爆 Supabase 免費方案的連線數上限。
+app_pages/0_首頁.py
 
-啟動產品版：
+01 銷量資料處理
 
-```powershell
-streamlit run product_app.py
-```
+app_pages/1_資料上傳.py
 
-開發版入口仍保留為：
+02 活動資料處理
 
-```powershell
-streamlit run app.py
-```
+app_pages/5_活動資料上傳.py
 
-## 團隊本機共用資料庫
+03 執行完整分析
 
-還沒要公開部署到 Streamlit Cloud 之前，團隊成員也可以各自在本機執行，只要大家的 `.env` 填**同一組** `DATABASE_URL`，就會連到同一個 Supabase 專案，分析快照能跨團隊成員互通，不需要先產生公開連結。
+app_pages/6_執行完整分析.py
 
-1. 把上面「本機安裝」那組 `DATABASE_URL` 連線字串（含密碼）交給團隊成員
-2. 每人各自建立 `.env`（此檔已被 `.gitignore` 排除，不會被 push 上 GitHub），貼入同一組 `DATABASE_URL`，`GEMINI_API_KEY` 則可各自申請
-3. 各自照常執行 `streamlit run product_app.py`
+分析總覽
 
-注意事項：
+app_pages/11_產品首頁.py
 
-- 這組連線字串等於資料庫的完整讀寫權限，不是唯讀 API key。請透過密碼管理工具（1Password、Bitwarden 共享 vault 等）或公司內部的 secret 分享機制傳遞，避免貼在沒有存取控制、會長期留存紀錄的聊天室或群組中。
-- Transaction pooler（port `6543`）本身即支援多個短連線同時使用，多人同時本機執行不需要額外設定。
-- 之後正式部署到 Streamlit Cloud 時，把同一組 `DATABASE_URL` 貼到雲端 Secrets 即可，本機與雲端會共用同一份資料，不需要遷移。
+活動洞察
 
-## Streamlit Community Cloud 部署
+app_pages/12_活動洞察.py
 
-部署設定：
+AI 策略中心
 
-```text
-Branch: ui-redesign
-Main file path: product_app.py
-```
+app_pages/13_策略中心.py
 
-在 Streamlit App Secrets 中加入：
+情境模擬
 
-```toml
-GEMINI_API_KEY = "your_gemini_api_key"
-DATABASE_URL = "postgresql://postgres.xxxxxxxx:your_password@aws-0-xxxxx.pooler.supabase.com:6543/postgres"
-# 連線字串請從 Connect -> Connection Method 選 "Transaction pooler" 取得
-```
+app_pages/17_情境模擬.py
 
-`packages.txt` 用於安裝 PDF 所需的 Linux 中文字型：
+行動生成
 
-```text
+app_pages/18_行動生成.py
+
+主管報表中心
+
+app_pages/16_主管報表中心.py
+
+4. 最新首頁：AI 今日洞察
+
+檔案
+
+app_pages/0_首頁.py
+
+這是目前首頁最重要的新增功能。
+
+首頁不再只做產品介紹，而是加入：
+
+AI 今日發現 X 個值得注意的行銷機會
+
+使用者不需要先輸入問題，也不需要點「AI 解讀」。
+
+系統會自動從目前既有分析結果找出最值得注意的 3 個異常或機會。
+
+4.1 AI 今日洞察的資料流程
+
+目前流程刻意拆成：
+
+Pandas 計算
+→ 找出異常 / 機會
+→ 擷取歷史比較
+→ 擷取類似活動證據
+→ 將結構化事實交給 Gemini
+→ Gemini 解釋原因與提出下一步
+→ 首頁顯示 Evidence Card
+
+重要原則：
+
+Gemini 不負責算數字。
+
+所有下列數字都先由 Python / Pandas 計算：
+
+淨增益 / 日
+
+量增效應 / 日
+
+降價效應 / 日
+
+折扣率
+
+歷史平均
+
+與歷史平均差異
+
+相同活動組合案例
+
+Gemini 只負責：
+
+可能原因
+
+下一步行動建議
+
+文字解釋
+
+4.2 _build_home_history_context()
+
+主要用途：
+
+def _build_home_history_context(
+    strategy: pd.DataFrame,
+    row: pd.Series,
+) -> tuple[str, str]:
+
+負責計算：
+
+A. 同商品歷史平均
+
+優先比較：
+
+同一商品
+＋
+其他活動單位
+
+若沒有其他活動紀錄，才退回：
+
+其他活動單位平均
+
+最後會產生：
+
+目前淨增益/日
+vs
+同商品其他活動平均
+vs
+差異
+
+例如：
+
+目前淨增益/日 -259,567 元
+相較同商品其他活動單位平均 -45,258 元
+差異 -214,309 元
+
+B. 類似活動歷史證據
+
+系統會依：
+
+corresponding_activities_label
+
+尋找相同活動組合的歷史案例。
+
+例如：
+
+全站活動＋平台日組合
+
+若找到相同活動組合，會顯示：
+
+商品名稱
+活動單位
+淨增益/日
+折扣率
+
+若沒有完全相同案例，會明確寫：
+
+目前資料中沒有其他完全相同的活動組合可直接比較。
+
+5. _build_home_ai_insights()
+
+這是首頁「AI 今日洞察」最核心的函式。
+
+def _build_home_ai_insights() -> list[dict[str, str]]:
+
+主要讀取：
+
+activity_unit_overview_dataframe
+activity_waterfall_summary_dataframe
+activity_unit_price_dataframe
+
+接著先執行：
+
+strategy = prepare_ai_strategy_data(unit_overview)
+queue = build_decision_queue(strategy, limit=3)
+
+因此首頁的 3 張洞察不是 Gemini 隨機挑的。
+
+而是：
+
+Python / Pandas
+→ AI 策略中心既有決策邏輯
+→ 挑出優先級最高的 3 筆
+
+6. 首頁 Gemini 使用方式
+
+首頁沿用既有：
+
+src/ai_advisor.py
+
+主要使用：
+
+build_advisor_context()
+get_structured_advisor_answer()
+
+送給 Gemini 的 prompt 會先包含：
+
+發生什麼
+KPI
+歷史比較
+歷史證據
+商品編號
+活動單位
+
+並明確要求：
+
+禁止創造任何新數字
+若資料不足請直接說明
+
+因此 Gemini 的定位是：
+
+解釋器 + 決策建議助手
+
+而不是：
+
+數據計算器
+
+7. 首頁洞察 Card 最新版型
+
+目前最新版已改成：
+
+一張洞察 = 一整列橫式 Card
+
+不是原本的三張直式並排。
+
+每張 Card 左到右分三區：
+
+左側
+
+發生什麼
+KPI 異常
+
+中間
+
+歷史比較
+AI 推測原因
+
+右側
+
+歷史證據
+建議下一步
+AI 信心
+
+下面再放兩個操作：
+
+[查看判斷依據]
+[行動生成 →]
+
+目標是讓評審可以從左到右快速理解：
+
+問題
+→ 為什麼
+→ 證據
+→ 下一步
+
+8. 查看判斷依據
+
+每張首頁洞察 Card 都有：
+
+查看判斷依據
+
+按下後會展開：
+
+目前活動證據
+歷史 / 類似活動
+資料限制
+
+這個設計的目的，是避免 AI 看起來像黑箱。
+
+使用者可以確認：
+
+AI 是根據哪些資料做判斷
+
+而不是只看到一段建議。
+
+9. 行動生成按鈕
+
+最新版首頁按鈕名稱：
+
+行動生成 →
+
+程式：
+
+st.session_state["home_ai_selected_insight"] = insight
+st.switch_page("app_pages/18_行動生成.py")
+
+用途：
+
+把目前選中的首頁洞察存進 Session State
+
+跳到「行動生成」頁
+
+讓後續行動內容可以承接前面的分析脈絡
+
+這個流程代表：
+
+AI 發現問題
+→ 使用者選擇問題
+→ 直接進入執行
+
+10. 首頁 AI 快取
+
+Streamlit 每次操作都可能重新執行整支 Python。
+
+若每次 rerun 都重新叫 Gemini：
+
+速度慢
+
+浪費 API
+
+結果可能每次微幅不同
+
+因此首頁加入：
+
+_home_ai_signature()
+
+會針對目前重要欄位建立資料 signature：
+
+product_id
+unit_code
+days
+discount_rate
+volume_effect_per_day
+price_effect_per_day
+net_revenue_effect_per_day
+corresponding_activities_label
+
+再利用：
+
+pd.util.hash_pandas_object()
+
+判斷資料是否真的改變。
+
+只有 signature 改變時才重新產生 AI 洞察。
+
+11. 分析總覽
+
+檔案
+
+app_pages/11_產品首頁.py
+
+角色：
+
+What happened?
+
+主要回答：
+
+現在整體銷售狀況如何
+
+有多少商品
+
+有多少活動
+
+GMV / 銷量 / 趨勢如何
+
+資料狀態是否完整
+
+定位是：
+
+整體狀況總覽
+
+而不是直接做策略決策。
+
+12. 活動洞察
+
+檔案
+
+app_pages/12_活動洞察.py
+
+角色：
+
+Why?
+
+主要用途：
+
+商品比較
+
+活動比較
+
+折扣率分析
+
+活動組合分析
+
+淨營收效應
+
+高低成效活動辨識
+
+風險與異常探索
+
+AI Insight Card 在這一頁主要應該做：
+
+發現
+原因
+資料證據
+資料限制
+
+而不是搶 AI 策略中心的工作。
+
+13. AI 策略中心
+
+頁面
+
+app_pages/13_策略中心.py
+
+核心邏輯
+
+src/ai_strategy_center.py
+
+主要函式：
+
+prepare_ai_strategy_data()
+build_decision_queue()
+build_executive_brief()
+build_next_period_plan()
+
+定位：
+
+What next?
+
+也就是：
+
+現在最值得做什麼？
+
+13.1 prepare_ai_strategy_data()
+
+將活動單位分析資料整理成策略中心需要的格式。
+
+主要目標：
+
+清理欄位
+
+統一資料型態
+
+準備策略判斷所需 KPI
+
+13.2 build_decision_queue()
+
+建立決策優先清單。
+
+首頁「AI 今日洞察」也直接沿用這個邏輯。
+
+因此：
+
+首頁 Top 3
+
+與：
+
+AI 策略中心 Decision Queue
+
+使用的是一致的策略邏輯。
+
+這樣可避免首頁和策略中心講不同故事。
+
+13.3 build_executive_brief()
+
+負責產生主管快速閱讀的摘要資訊。
+
+用途是把大量分析壓縮成：
+
+風險
+機會
+需要優先處理的事項
+
+13.4 build_next_period_plan()
+
+根據目前活動表現整理下一期策略方向。
+
+適合回答：
+
+下一檔活動應該延續什麼？
+哪些活動應該調整？
+哪些活動需要重新驗證？
+
+14. 情境模擬
+
+頁面
+
+app_pages/17_情境模擬.py
+
+核心邏輯
+
+src/whatif_simulation.py
+
+定位：
+
+What if?
+
+主要功能：
+
+修改折扣條件
+修改贈品條件
+→
+比較不同方案的預估結果
+
+14.1 主要函式
+
+compute_whatif_scenario()
+compute_whatif_scenarios()
+select_best_scenario()
+estimate_daily_sales_from_history()
+estimate_avg_discount_rate_from_history()
+estimate_sales_uplift_rate_from_history()
+estimate_baseline_price_from_history()
+
+重要原則：
+
+情境模擬是：
+
+估算 / scenario
+
+不是：
+
+實際營收預測保證
+
+目前也不能把結果直接解釋成：
+
+實際淨利
+
+因為資料沒有完整納入：
+
+商品成本
+
+毛利
+
+平台抽成
+
+退貨
+
+廣告成本
+
+完整贈品成本
+
+完整平台活動歸因
+
+因此頁面使用：
+
+簡化淨效益
+
+而非：
+
+淨利
+
+15. 行動生成
+
+頁面
+
+app_pages/18_行動生成.py
+
+核心邏輯
+
+src/action_generator.py
+
+角色：
+
+Act
+
+也就是把前面分析轉成真正可以執行的內容。
+
+15.1 支援的輸出格式
+
+目前可以生成：
+
+電話話術
+LINE / 簡訊
+Email
+拜訪提綱
+
+並支援不同溝通情境。
+
+15.2 B2B / B2C
+
+行動生成已有區分：
+
+To B
+To C
+
+B2B
+
+可以引用較完整的內部活動分析與數據證據。
+
+B2C
+
+不能直接把內部指標寫給消費者。
+
+例如不應出現：
+
+淨增益
+量增效應
+毛利風險
+內部活動成效
+
+B2C 只應使用可公開的：
+
+售價
+
+折扣
+
+贈品
+
+優惠
+
+活動期間
+
+消費者利益點
+
+16. 行動生成核心函式
+
+src/action_generator.py 主要包含：
+
+build_platform_campaign_name_set()
+classify_activity_type()
+build_unit_activity_composition_note()
+build_unit_action_evidence()
+build_whatif_action_evidence()
+build_consumer_offer_text()
+build_action_generation_prompt()
+ask_gemini_action_content()
+validate_b2c_output()
+build_b2c_fallback_content()
+build_b2b_fallback_content()
+generate_action_content()
+
+其中：
+
+generate_action_content()
+
+是主要入口。
+
+Gemini API 無法使用時，程式仍準備 fallback 內容，避免競賽 Demo 因 API 暫時失效而完全中斷。
+
+17. Evidence Card 共用元件
+
+檔案
+
+src/insight_cards.py
+
+主要函式：
+
+render_structured_advisor_card()
+render_ai_insight_card()
+render_discount_insight_card()
+render_evidence_sections()
+render_scenario_card()
+
+目前：
+
+render_ai_insight_card()
+
+支援：
+
+action_label
+
+因此不同頁面可以根據語意顯示：
+
+建議
+
+或：
+
+資料限制
+
+而不是所有卡片都固定顯示「建議」。
+
+18. Gemini AI 顧問
+
+檔案
+
+src/ai_advisor.py
+
+AI 顧問目前不應取代 Python 分析。
+
+正確責任分工：
+
+Python / Pandas
+
+負責：
+
+資料清理
+統計
+KPI
+歷史比較
+異常偵測
+活動成效
+情境試算
+
+Gemini
+
+負責：
+
+解釋
+推測可能原因
+整理管理語言
+提出下一步
+生成溝通內容
+
+這也是目前首頁 AI 今日洞察遵守的原則。
+
+19. Session State
+
+檔案
+
+src/session_helpers.py
+
+Streamlit 沒有傳統前後端永久 state，因此跨頁資料主要靠：
+
+st.session_state
+
+保存。
+
+核心初始化：
+
+initialize_session_state()
+
+主要 Session State 分類：
+
+銷量資料
+活動資料
+整合結果
+活動成效
+策略報告
+活動單位分析
+AI 顧問
+情境模擬
+行動生成
+UI 狀態
+
+20. 首頁新增的 Session State
+
+AI 今日洞察目前會使用：
+
+home_ai_insights
+home_ai_insights_signature
+home_ai_selected_insight
+home_ai_evidence_0
+home_ai_evidence_1
+home_ai_evidence_2
+
+用途：
+
+home_ai_insights
+
+保存已經產生好的 3 張 AI 洞察。
+
+home_ai_insights_signature
+
+記錄目前分析資料版本。
+
+資料沒變時不重新呼叫 Gemini。
+
+home_ai_selected_insight
+
+當使用者按：
+
+行動生成 →
+
+保存目前被選中的洞察，供後續頁面使用。
+
+21. 示範資料
+
+檔案
+
+src/demo_data.py
+
+產品版進入時會執行：
+
+ensure_default_demo_data_loaded()
+
+因此 Demo 不需要現場重新上傳資料。
+
+首頁「開始探索」則使用：
+
+apply_full_demo_data_to_session()
+
+一次把：
+
+銷量
+
+活動
+
+完整分析
+
+活動單位分析
+
+放入 Session State，再直接跳到：
+
+分析總覽
+
+這個設計主要是確保競賽現場操作穩定。
+
+22. Supabase / PostgreSQL
+
+檔案
+
+src/persistence.py
+
+主要函式：
+
+_get_database_url()
+_get_connection()
+save_state()
+load_state()
+load_states()
+save_states()
+delete_state()
+
+資料庫透過：
+
+DATABASE_URL
+
+連線。
+
+22.1 Secrets
+
+本機 .env：
+
+GEMINI_API_KEY=...
+DATABASE_URL=...
+
+Streamlit Cloud：
+
+GEMINI_API_KEY = "..."
+DATABASE_URL = "..."
+
+不要把真實 Key 或資料庫密碼 push 到 GitHub。
+
+23. 目前資料與資料庫的角色
+
+目前系統仍大量使用：
+
+st.session_state
+
+做即時頁面狀態。
+
+Supabase 主要負責需要跨執行環境保存的 state / snapshot。
+
+因此不要自行把所有 Session State 全部搬成資料庫資料表。
+
+目前開發原則仍是：
+
+不要重建資料庫架構
+不要為單一新功能新增大型 persistence 架構
+
+24. 主管報表
+
+頁面
+
+app_pages/16_主管報表中心.py
+
+報表產生
+
+src/report_generator.py
+
+主要負責將分析結果輸出成 PDF。
+
+Linux / Streamlit Cloud 為了中文字型，使用：
+
+packages.txt
+
+安裝：
+
 fonts-noto-cjk
 fontconfig
-```
 
-## 專案結構
+25. UI 系統
 
-```text
+主要共用 UI：
+
+src/ui_style.py
+src/chart_theme.py
+src/kpi_cards.py
+src/insight_cards.py
+
+src/ui_style.py
+
+負責：
+
+全站字型
+
+背景
+
+側邊欄
+
+深色 / 淺色模式
+
+品牌樣式
+
+icon-only sidebar
+
+首頁側欄狀態
+
+src/chart_theme.py
+
+統一 Plotly 圖表的：
+
+字型
+
+背景
+
+軸線
+
+tooltip
+
+配色邏輯
+
+26. 專案最新主要結構
+
 fushin-sales-ai/
-├─ .streamlit/
-│  └─ config.toml
-├─ pages/
-├─ src/
-├─ app.py
+│
 ├─ product_app.py
+├─ app.py
 ├─ requirements.txt
 ├─ packages.txt
+├─ README.md
 ├─ .env.example
-└─ README.md
-```
+│
+├─ .streamlit/
+│  └─ config.toml
+│
+├─ app_pages/
+│  ├─ 0_首頁.py
+│  ├─ 1_資料上傳.py
+│  ├─ 5_活動資料上傳.py
+│  ├─ 6_執行完整分析.py
+│  ├─ 7_銷量活動整合.py
+│  ├─ 8_活動成效分析.py
+│  ├─ 9_策略建議報表.py
+│  ├─ 10_AI行銷策略顧問.py
+│  ├─ 11_產品首頁.py
+│  ├─ 12_活動洞察.py
+│  ├─ 13_策略中心.py
+│  ├─ 16_主管報表中心.py
+│  ├─ 17_情境模擬.py
+│  ├─ 18_行動生成.py
+│  └─ templates/
+│     └─ home_hero.html
+│
+├─ src/
+│  ├─ action_generator.py
+│  ├─ activity_date_utils.py
+│  ├─ activity_processing.py
+│  ├─ activity_unit_analysis.py
+│  ├─ ai_advisor.py
+│  ├─ ai_strategy_center.py
+│  ├─ analysis_pipeline.py
+│  ├─ chart_theme.py
+│  ├─ demo_data.py
+│  ├─ executive_summary.py
+│  ├─ floating_chatbot.py
+│  ├─ insight_cards.py
+│  ├─ kpi_cards.py
+│  ├─ persistence.py
+│  ├─ report_generator.py
+│  ├─ sales_processing.py
+│  ├─ session_helpers.py
+│  ├─ ui_style.py
+│  ├─ unit_overview_helpers.py
+│  ├─ unit_recommendation_notes.py
+│  └─ whatif_simulation.py
+│
+├─ assets/
+│  ├─ logo-white.png
+│  └─ 品牌圖片
+│
+├─ tests/
+│  ├─ test_action_generator.py
+│  ├─ test_action_generator_b2b_b2c.py
+│  ├─ test_activity_input_compatibility.py
+│  ├─ test_activity_unit_analysis.py
+│  ├─ test_ai_advisor_structured.py
+│  ├─ test_ai_strategy_center.py
+│  ├─ test_run_activity_unit_analysis_integration.py
+│  ├─ test_unit_recommendation_notes.py
+│  └─ test_whatif_simulation.py
+│
+└─ data/
+   ├─ raw/
+   └─ processed/
 
-## 資料安全
+27. requirements
 
-請勿提交以下內容至 GitHub：
+目前主要依賴：
 
-- `.env`
-- `.streamlit/secrets.toml`
-- Gemini API Key
-- Supabase 連線字串（`DATABASE_URL`）
-- 客戶姓名、電話、Email 等個資
-- 公司成本、毛利與未公開營運資料
-- 真實企業原始 Excel
+streamlit
+pandas
+numpy
+openpyxl
+plotly
+google-genai
+python-dotenv
+reportlab
+psycopg2-binary
 
-展示與測試建議使用匿名或模擬資料。AI 顧問會將分析摘要送至外部 Gemini API，因此不應輸入未經授權的機密內容。
+建議 Python：
 
-## 目前限制
+Python 3.12
 
-- 使用 `st.session_state` 保存資料，重新整理、休眠或重新啟動後可能需要重新上傳。
-- 尚未建立資料庫、登入、權限與永久儲存機制。
-- 活動前後比較屬觀察性分析，不是隨機實驗或因果推論。
-- 活動重疊時，無法將效果完整歸因於單一活動。
-- 缺少成本、毛利、庫存、退貨、廣告支出及客群資料時，不能完整評估獲利。
+28. 本機測試
 
-## 版本狀態
+切到專案目錄後：
 
-目前為產品展示版 MVP，適合課程、團隊展示與匿名資料測試，不建議直接作為正式企業生產系統。
+.venv\Scripts\activate
+python -m streamlit run product_app.py
+
+單一 Python 檔案語法檢查：
+
+python -m py_compile "app_pages/0_首頁.py"
+
+完整測試：
+
+pytest
+
+或：
+
+python -m pytest
+
+29. Git 開發流程
+
+每次修改前：
+
+git switch main
+git pull --ff-only origin main
+
+建立 branch：
+
+git switch -c feature/your-feature-name
+
+開發完成：
+
+git status
+git add .
+git commit -m "feat: description"
+git push -u origin feature/your-feature-name
+
+再到 GitHub 建立 Pull Request：
+
+base: main
+compare: feature/your-feature-name
+
+30. AI 今日洞察目前 branch
+
+本次首頁功能建議 branch：
+
+feature/ai-daily-insights-home
+
+主要修改：
+
+app_pages/0_首頁.py
+
+最新 UI：
+
+三張直式卡
+→
+三張橫式、一張一列
+
+最新按鈕：
+
+產生完整行銷方案
+→
+行動生成 →
+
+31. 目前最重要的產品原則
+
+原則 1：數字由 Python 算
+
+禁止：
+
+Gemini 自行創造 KPI
+Gemini 自行估平均
+Gemini 自行生成不存在的營收
+
+應該：
+
+Pandas 算數字
+Gemini 解釋數字
+
+原則 2：不要把觀察性結果說成因果
+
+可以：
+
+活動期間觀察到銷量提升
+
+不要直接說：
+
+這個活動造成銷量提升
+
+原則 3：淨增益不等於淨利
+
+目前：
+
+net_revenue_effect_per_day
+
+是分析指標。
+
+沒有完整：
+
+成本
+
+毛利
+
+退貨
+
+平台抽成
+
+行銷費
+
+贈品完整成本
+
+因此不能直接稱：
+
+實際淨利
+
+原則 4：資料信心必須被看見
+
+AI 結果應呈現：
+
+高
+中
+低
+
+若：
+
+樣本天數少
+
+對照期間不足
+
+活動重疊
+
+價格為代理估算
+
+就必須在資料限制中說明。
+
+32. 競賽 Demo 建議理解方式
+
+評審不需要理解每一支 Python 函式。
+
+他們應該在很短時間看懂：
+
+AI 先主動發現問題
+↓
+告訴我哪些 KPI 不對
+↓
+拿歷史資料證明
+↓
+解釋可能原因
+↓
+提出下一步
+↓
+讓我先模擬
+↓
+最後直接生成可以執行的內容
+
+因此首頁「AI 今日洞察」的作用非常重要：
+
+讓使用者一進系統就先看到 AI 發現了什麼，而不是先要求使用者自己找問題。
+
+33. 最新版本摘要
+
+目前最新產品核心可以濃縮為：
+
+首頁
+AI 主動找出 Top 3 風險 / 機會
+
+↓
+
+分析總覽
+快速掌握整體 KPI
+
+↓
+
+活動洞察
+找到問題與活動表現差異
+
+↓
+
+AI 策略中心
+解釋原因、證據、信心與下一步
+
+↓
+
+情境模擬
+比較折扣 / 贈品等不同方案
+
+↓
+
+行動生成
+轉成 To B / To C 的電話、LINE、簡訊、Email、拜訪內容
+
+↓
+
+主管報表
+輸出管理者可閱讀成果
+
+最終產品定位：
+
+不是只有「看報表」，而是讓資料一路走到決策與行動。
