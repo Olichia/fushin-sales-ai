@@ -494,6 +494,20 @@ if home_ai_insights:
     def _safe_home_text(value: object) -> str:
         return html.escape(str(value))
 
+    def _home_tag_class(tag: object) -> str:
+        label = str(tag).strip()
+        if "機會" in label or "成長" in label:
+            return "home-ai-tag-opportunity"
+        return "home-ai-tag-risk"
+
+    def _home_confidence_class(confidence: object) -> str:
+        level = str(confidence).strip()
+        if level == "高":
+            return "home-ai-confidence-high"
+        if level == "中":
+            return "home-ai-confidence-medium"
+        return "home-ai-confidence-low"
+
     st.markdown(
         """
         <style>
@@ -518,13 +532,22 @@ if home_ai_insights:
         }
         .home-ai-tag {
             display: inline-block;
-            padding: 0.2rem 0.58rem;
+            padding: 0.24rem 0.66rem;
             border-radius: 999px;
-            background: var(--ai-accent-soft);
-            color: var(--ai-accent-deep);
             font-size: 0.78rem;
             font-weight: 850;
             white-space: nowrap;
+            border: 1px solid transparent;
+        }
+        .home-ai-tag-risk {
+            background: #FDECEC;
+            color: #B83C3C;
+            border-color: #F1C6C6;
+        }
+        .home-ai-tag-opportunity {
+            background: #EAF6EE;
+            color: #2E7D4B;
+            border-color: #C5E4CF;
         }
         .home-ai-card-title {
             color: var(--text-primary);
@@ -543,21 +566,35 @@ if home_ai_insights:
             line-height: 1.5;
         }
         .home-ai-kpi-box {
-            margin-top: 0.55rem;
-            padding: 0.6rem 0.7rem;
-            border-radius: 10px;
-            background: rgba(249, 115, 22, 0.06);
-            border: 1px solid rgba(249, 115, 22, 0.16);
+            margin-top: 0.6rem;
+            padding: 0.72rem 0.82rem;
+            border-radius: 12px;
+            background: #FFF8F2;
+            border: 1px solid #F1D6C2;
         }
         .home-ai-confidence {
             display: inline-block;
-            margin-top: 0.55rem;
-            padding: 0.18rem 0.5rem;
+            margin-top: 0.65rem;
+            padding: 0.24rem 0.68rem;
             border-radius: 999px;
-            background: rgba(15, 23, 42, 0.05);
-            color: var(--text-muted);
             font-size: 0.8rem;
-            font-weight: 800;
+            font-weight: 850;
+            border: 1px solid transparent;
+        }
+        .home-ai-confidence-high {
+            background: #EAF6EE;
+            color: #2E7D4B;
+            border-color: #C5E4CF;
+        }
+        .home-ai-confidence-medium {
+            background: #FFF4DF;
+            color: #9A6500;
+            border-color: #F0D59A;
+        }
+        .home-ai-confidence-low {
+            background: #FDECEC;
+            color: #B83C3C;
+            border-color: #F1C6C6;
         }
         .home-ai-divider {
             height: 1px;
@@ -583,11 +620,18 @@ if home_ai_insights:
     # 每一筆洞察改成「一張卡一整列」的橫式版型，
     # 評審能由左到右快速讀完：發現 → 判斷 → 證據與行動。
     for index, insight in enumerate(home_ai_insights):
+        tag_class = _home_tag_class(insight.get("tag", ""))
+        confidence_class = _home_confidence_class(
+            insight.get("confidence", "低")
+        )
+
         with st.container(border=True):
             st.markdown(
                 '<div class="home-ai-card-head">'
-                f'<span class="home-ai-tag">{_safe_home_text(insight["tag"])}</span>'
-                f'<span class="home-ai-card-title">{_safe_home_text(insight["title"])}</span>'
+                f'<span class="home-ai-tag {tag_class}">'
+                f'{_safe_home_text(insight["tag"])}</span>'
+                f'<span class="home-ai-card-title">'
+                f'{_safe_home_text(insight["title"])}</span>'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -631,7 +675,7 @@ if home_ai_insights:
                     '<div class="home-ai-section-label">建議下一步</div>'
                     f'<div class="home-ai-section-text">'
                     f'{_safe_home_text(insight["action"])}</div>'
-                    f'<span class="home-ai-confidence">'
+                    f'<span class="home-ai-confidence {confidence_class}">'
                     f'AI 信心：{_safe_home_text(insight["confidence"])}</span>',
                     unsafe_allow_html=True,
                 )
